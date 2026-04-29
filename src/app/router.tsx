@@ -1,0 +1,33 @@
+import { Navigate, Outlet, Route, Routes } from 'react-router';
+import CalendarPage from './pages/CalendarPage';
+import GymDetailPage from './pages/GymDetailPage';
+import MembershipPage from './pages/MembershipPage';
+import GymSearchPage from './pages/GymSearchPage';
+import ProfilePage from './pages/ProfilePage';
+import HomeScreen from '../features/home/HomeScreen';
+import RecordPage from './pages/RecordPage';
+
+function PreviewLayout() {
+  return (
+    <div className="min-h-screen bg-white">
+      <Outlet />
+    </div>
+  );
+}
+
+export function AppRouter() {
+  return (
+    <Routes>
+      <Route element={<PreviewLayout />}>
+        <Route path="/" element={<HomeScreen />} />
+        <Route path="/gyms" element={<GymSearchPage />} />
+        <Route path="/gyms/:gymId" element={<GymDetailPage />} />
+        <Route path="/schedule" element={<CalendarPage />} />
+        <Route path="/record" element={<RecordPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/memberships" element={<MembershipPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
+  );
+}
