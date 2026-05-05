@@ -1,19 +1,39 @@
-import { useNavigate } from 'react-router';
+import { useRef } from 'react';
+import { Navigate, useNavigate } from 'react-router';
 import RecordScreen from '../../features/record/RecordScreen';
-import { useAppScreenNavigate } from '../navigation';
+import { useRecordDraft } from '../providers/RecordDraftProvider';
 
 export default function RecordPage() {
   const navigate = useNavigate();
-  const navigateToScreen = useAppScreenNavigate();
+  const { draft, clearDraft } = useRecordDraft();
+  const submittedRef = useRef(false);
+
+  if (!draft) {
+    return <Navigate to="/record/start" replace />;
+  }
 
   const handleClose = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
+    if (submittedRef.current) {
+      navigate('/schedule', { replace: true });
+      return;
+    }
+
+    if (window.history.length > 2) {
+      navigate(-2);
       return;
     }
 
     navigate('/', { replace: true });
   };
 
-  return <RecordScreen onClose={handleClose} onManageMemberships={() => navigateToScreen('membership')} />;
+  return (
+    <RecordScreen
+      onClose={handleClose}
+      initialDraft={draft}
+      onSubmitComplete={() => {
+        submittedRef.current = true;
+        clearDraft();
+      }}
+    />
+  );
 }

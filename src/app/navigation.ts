@@ -16,7 +16,7 @@ export function getScreenPath(screen: AppScreen, gymId = DEFAULT_GYM_ID) {
     case 'calendar':
       return '/schedule';
     case 'record':
-      return '/record';
+      return '/record/start';
     case 'profile':
       return '/profile';
     case 'membership':

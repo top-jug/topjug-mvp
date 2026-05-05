@@ -5,6 +5,7 @@ import MembershipPage from './pages/MembershipPage';
 import GymSearchPage from './pages/GymSearchPage';
 import ProfilePage from './pages/ProfilePage';
 import HomeScreen from '../features/home/HomeScreen';
+import RecordStartPage from './pages/RecordStartPage';
 import RecordPage from './pages/RecordPage';
 
 function PreviewLayout() {
@@ -23,6 +24,7 @@ export function AppRouter() {
         <Route path="/gyms" element={<GymSearchPage />} />
         <Route path="/gyms/:gymId" element={<GymDetailPage />} />
         <Route path="/schedule" element={<CalendarPage />} />
+        <Route path="/record/start" element={<RecordStartPage />} />
         <Route path="/record" element={<RecordPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/memberships" element={<MembershipPage />} />

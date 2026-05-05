@@ -1,54 +1,54 @@
+import { useEffect, useState } from 'react';
 import DifficultyComparisonModal from '../../app/components/DifficultyComparisonModal';
-import { useMemberships } from '../../app/providers/MembershipProvider';
-import { MONTH_NAMES, RECORD_DIFFICULTIES, RECORD_GYMS } from '../../mocks/record';
+import { RECORD_DIFFICULTIES } from '../../mocks/record';
 import RecordRatingCard from './components/RecordRatingCard';
 import RecordRouteList from './components/RecordRouteList';
 import RecordSectorPanel from './components/RecordSectorPanel';
 import ConfirmActionModal from './components/modals/ConfirmActionModal';
 import DatePickerModal from './components/modals/DatePickerModal';
 import GymSelectModal from './components/modals/GymSelectModal';
-import PassSelectModal from './components/modals/PassSelectModal';
 import SubmitConfirmModal from './components/modals/SubmitConfirmModal';
-import WallInfoModal from './components/modals/WallInfoModal';
 import WarningModal from './components/modals/WarningModal';
 import { useRecordScreen } from './hooks/useRecordScreen';
+import { RecordDraft } from '../../app/providers/RecordDraftProvider';
+import { MONTH_NAMES, RECORD_GYMS } from '../../mocks/record';
 
-export default function RecordScreen({ onClose, onManageMemberships }: { onClose: () => void; onManageMemberships: () => void }) {
-  const { countPasses, periodPasses } = useMemberships();
-  const { state, actions } = useRecordScreen({ onClose });
+export default function RecordScreen({
+  onClose,
+  initialDraft,
+  onSubmitComplete,
+}: {
+  onClose: () => void;
+  initialDraft?: RecordDraft | null;
+  onSubmitComplete?: () => void;
+}) {
+  const { state, actions } = useRecordScreen({ onClose, initialDraft, onSubmitComplete });
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
   const {
     isRecording,
     date,
     duration,
+    selectedPassType,
+    selectedPass,
+    selectedGym,
     showDatePicker,
     selectedYear,
     selectedMonth,
     selectedDay,
-    selectedPassType,
-    showPassModal,
-    selectedPass,
-    tempPassType,
     showGymModal,
-    selectedGym,
     showDifficultyModal,
     expandedSectors,
     rating,
     isEasyMode,
     showEasyModeConfirm,
     showNormalModeConfirm,
-    showWallInfo,
     showSubmitConfirm,
     showWarningModal,
     routeCounts,
   } = state;
   const {
-    setIsRecording,
-    setShowDatePicker,
     setSelectedMonth,
-    setSelectedPassType,
-    setShowPassModal,
-    setSelectedPass,
-    setTempPassType,
+    setShowDatePicker,
     setShowGymModal,
     setSelectedGym,
     setShowDifficultyModal,
@@ -56,7 +56,6 @@ export default function RecordScreen({ onClose, onManageMemberships }: { onClose
     setRating,
     setShowEasyModeConfirm,
     setShowNormalModeConfirm,
-    setShowWallInfo,
     setShowSubmitConfirm,
     setShowWarningModal,
     handleCountChange,
@@ -71,22 +70,37 @@ export default function RecordScreen({ onClose, onManageMemberships }: { onClose
     handleNormalModeConfirm,
   } = actions;
 
+  useEffect(() => {
+    window.history.pushState({ recordGuard: true }, '', window.location.href);
+
+    const handlePopState = () => {
+      setShowExitConfirm(true);
+      window.history.pushState({ recordGuard: true }, '', window.location.href);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="h-screen bg-white flex flex-col overflow-hidden">
       {/* Header */}
       <div className="px-5 py-4 flex items-center justify-between border-b border-neutral-100">
-        <button onClick={onClose} className="w-11 h-11 flex items-center justify-center rounded-full">
+        <button onClick={() => setShowExitConfirm(true)} className="w-11 h-11 flex items-center justify-center rounded-full">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6"/>
+            <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
         <h1 className="text-[22px] font-bold">기록</h1>
-        <button className="w-11 h-11 flex items-center justify-center rounded-full">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <button className="w-11 h-11 invisible" aria-hidden="true">
+          {/* <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="1"/>
             <circle cx="19" cy="12" r="1"/>
             <circle cx="5" cy="12" r="1"/>
-          </svg>
+          </svg> */}
         </button>
       </div>
 
@@ -99,12 +113,12 @@ export default function RecordScreen({ onClose, onManageMemberships }: { onClose
             className="w-full min-h-12 flex items-center justify-center gap-2 py-3 px-4 bg-neutral-50 rounded-xl hover:bg-neutral-100 transition-colors"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(59 130 246)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-              <circle cx="12" cy="10" r="3"/>
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
             </svg>
             <span className="text-[16px] font-medium text-neutral-700">{selectedGym}</span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 12 15 18 9"/>
+              <polyline points="6 9 12 15 18 9" />
             </svg>
           </button>
         </div>
@@ -113,31 +127,24 @@ export default function RecordScreen({ onClose, onManageMemberships }: { onClose
         <div className="flex items-center justify-center gap-12 py-2 px-8">
           <button onClick={() => setShowDatePicker(true)} className="min-h-11 flex items-center gap-2">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgb(59 130 246)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-              <line x1="16" y1="2" x2="16" y2="6"/>
-              <line x1="8" y1="2" x2="8" y2="6"/>
-              <line x1="3" y1="10" x2="21" y2="10"/>
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
             </svg>
             <span className="text-neutral-700 text-[16px] font-medium">{date}</span>
           </button>
           <div className="min-h-11 flex items-center gap-2">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgb(59 130 246)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill={isRecording ? 'rgb(239 68 68)' : 'rgb(212 212 212)'} stroke="none" className={isRecording ? 'animate-pulse' : ''}>
+              <circle cx="12" cy="12" r="8" />
             </svg>
             <span className="text-neutral-700 text-[16px] font-medium">{duration}</span>
-            <button
-              onClick={() => setIsRecording(!isRecording)}
-              className="ml-2"
-            >
-              <div className={`w-3 h-3 rounded-full ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-neutral-300'}`}></div>
-            </button>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="px-5 flex-1 overflow-y-auto pb-8">
+      <div className="px-5 flex-1 min-h-0 overflow-y-auto pb-8">
         {showGymModal && (
           <GymSelectModal
             gyms={RECORD_GYMS}
@@ -165,68 +172,7 @@ export default function RecordScreen({ onClose, onManageMemberships }: { onClose
           />
         )}
 
-        {/* Pass Selection & Difficulty Scale Section */}
         <div className="border border-neutral-200 rounded-2xl my-4">
-          {/* Pass Selection */}
-          <div className="px-4 py-3 pass-selection">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-[15px] text-neutral-700">회원권 선택 (필수)</h3>
-              <button onClick={onManageMemberships} className="min-h-10 px-3 py-2 bg-neutral-100 text-neutral-700 text-[13px] font-medium rounded-lg hover:bg-neutral-200 transition-colors">
-                회원권 수정
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setSelectedPassType('일일이용권');
-                  setSelectedPass(null);
-                }}
-                  className={`flex-1 min-h-11 py-2 text-[15px] font-medium rounded-full ${
-                  selectedPassType === '일일이용권'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-neutral-100 text-neutral-700'
-                }`}
-              >
-                일일이용권
-              </button>
-              <button
-                onClick={() => {
-                  setTempPassType('횟수권');
-                  setShowPassModal(true);
-                }}
-                  className={`flex-1 min-h-11 py-2 text-[15px] font-medium rounded-full ${
-                  selectedPassType === '횟수권'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-neutral-100 text-neutral-700'
-                }`}
-              >
-                횟수권
-              </button>
-              <button
-                onClick={() => {
-                  setTempPassType('기간권');
-                  setShowPassModal(true);
-                }}
-                  className={`flex-1 min-h-11 py-2 text-[15px] font-medium rounded-full ${
-                  selectedPassType === '기간권'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-neutral-100 text-neutral-700'
-                }`}
-              >
-                기간권
-              </button>
-            </div>
-            <div className="mt-3 min-h-[24px] text-[14px]">
-              {selectedPass && (
-                <span className="text-blue-600">{selectedPass}</span>
-              )}
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="border-t border-neutral-200"></div>
-
-          {/* Difficulty Scale */}
           <div className="px-4 py-3">
             <h3 className="text-[15px] font-bold mb-3">난이도 체계</h3>
             <div className="flex items-center justify-center gap-3 mb-3">
@@ -244,20 +190,6 @@ export default function RecordScreen({ onClose, onManageMemberships }: { onClose
             </div>
           </div>
         </div>
-
-        {showPassModal && (tempPassType === '횟수권' || tempPassType === '기간권') && (
-          <PassSelectModal
-            passType={tempPassType}
-            countPasses={countPasses}
-            periodPasses={periodPasses}
-            onSelect={(selectedType, passText) => {
-              setSelectedPassType(selectedType);
-              setSelectedPass(passText);
-              setShowPassModal(false);
-            }}
-            onClose={() => setShowPassModal(false)}
-          />
-        )}
 
         <DifficultyComparisonModal
           isOpen={showDifficultyModal}
@@ -284,8 +216,6 @@ export default function RecordScreen({ onClose, onManageMemberships }: { onClose
           />
         )}
 
-        {showWallInfo && <WallInfoModal wallId={showWallInfo as 'sector1' | 'sector2'} onClose={() => setShowWallInfo(null)} />}
-
         {showSubmitConfirm && (
           <SubmitConfirmModal
             selectedGym={selectedGym}
@@ -304,6 +234,16 @@ export default function RecordScreen({ onClose, onManageMemberships }: { onClose
             type={showWarningModal.type}
             onClose={() => setShowWarningModal({ type: null })}
             onConfirm={showWarningModal.type === 'pass' ? handlePassWarningConfirm : handleRatingWarningConfirm}
+          />
+        )}
+
+        {showExitConfirm && (
+          <ConfirmActionModal
+            title="기록을 취소하시겠어요?"
+            description={'취소를 누르면 지금까지의 기록이 사라집니다.\n계속 진행할까요?'}
+            confirmLabel="기록 취소하기"
+            onClose={() => setShowExitConfirm(false)}
+            onConfirm={onClose}
           />
         )}
 
@@ -355,7 +295,6 @@ export default function RecordScreen({ onClose, onManageMemberships }: { onClose
                 sectorId="sector1"
                 expanded={expandedSectors.sector1}
                 onToggle={() => setExpandedSectors({ ...expandedSectors, sector1: !expandedSectors.sector1 })}
-                onShowWallInfo={() => setShowWallInfo('sector1')}
                 difficulties={RECORD_DIFFICULTIES}
                 routeCounts={routeCounts}
                 onCountChange={handleCountChange}
@@ -366,7 +305,6 @@ export default function RecordScreen({ onClose, onManageMemberships }: { onClose
                 sectorId="sector2"
                 expanded={expandedSectors.sector2}
                 onToggle={() => setExpandedSectors({ ...expandedSectors, sector2: !expandedSectors.sector2 })}
-                onShowWallInfo={() => setShowWallInfo('sector2')}
                 difficulties={RECORD_DIFFICULTIES}
                 routeCounts={routeCounts}
                 onCountChange={handleCountChange}

@@ -1,36 +1,106 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { RECORD_DIFFICULTIES } from '../../../mocks/record';
 import { RecordCountType, RecordSectorId, RouteCounts } from '../../../entities/record/types';
+import { RecordDraft } from '../../../app/providers/RecordDraftProvider';
 
 interface UseRecordScreenOptions {
   onClose: () => void;
+  initialDraft?: RecordDraft | null;
+  onSubmitComplete?: () => void;
 }
 
-export function useRecordScreen({ onClose }: UseRecordScreenOptions) {
-  const [isRecording, setIsRecording] = useState(false);
-  const [date, setDate] = useState('2026.04.09');
-  const [startTime, setStartTime] = useState('14:00');
-  const [duration, setDuration] = useState('2시간 23분');
+const DEFAULT_DATE = '2026.04.09';
+const DEFAULT_GYM = '더클라임 양재';
+
+function parseRecordDate(value: string) {
+  const [yearPart, monthPart, dayPart] = value.split('.').map(Number);
+
+  if (!yearPart || !monthPart || !dayPart) {
+    return { year: 2026, month: 3, day: 9 };
+  }
+
+  return {
+    year: yearPart,
+    month: monthPart - 1,
+    day: dayPart,
+  };
+}
+
+function formatElapsedTime(totalSeconds: number) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function parseSessionStart(dateValue: string, timeValue: string) {
+  const [yearPart, monthPart, dayPart] = dateValue.split('.').map(Number);
+  const [hourPart, minutePart] = timeValue.split(':').map(Number);
+
+  if (!yearPart || !monthPart || !dayPart || Number.isNaN(hourPart) || Number.isNaN(minutePart)) {
+    return Date.now();
+  }
+
+  return new Date(yearPart, monthPart - 1, dayPart, hourPart, minutePart, 0, 0).getTime();
+}
+
+export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: UseRecordScreenOptions) {
+  const [isRecording, setIsRecording] = useState(true);
+  const initialDate = initialDraft?.selectedDate ?? DEFAULT_DATE;
+  const initialStartTime = initialDraft?.selectedStartTime ?? '00:00';
+  const parsedDate = parseRecordDate(initialDate);
+  const [date, setDate] = useState(initialDate);
+  const [startTime] = useState(initialStartTime);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [pausedAccumulatedMs, setPausedAccumulatedMs] = useState(0);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(2026);
-  const [selectedMonth, setSelectedMonth] = useState(3);
-  const [selectedDay, setSelectedDay] = useState(9);
-  const [selectedPassType, setSelectedPassType] = useState<string | null>(null);
+  const [selectedYear, setSelectedYear] = useState(parsedDate.year);
+  const [selectedMonth, setSelectedMonth] = useState(parsedDate.month);
+  const [selectedDay, setSelectedDay] = useState(parsedDate.day);
+  const [selectedPassType, setSelectedPassType] = useState<string | null>(initialDraft?.selectedPassType ?? null);
   const [showPassModal, setShowPassModal] = useState(false);
-  const [selectedPass, setSelectedPass] = useState<string | null>(null);
+  const [selectedPass, setSelectedPass] = useState<string | null>(initialDraft?.selectedPass ?? null);
   const [tempPassType, setTempPassType] = useState('일일이용권');
   const [showGymModal, setShowGymModal] = useState(false);
-  const [selectedGym, setSelectedGym] = useState('더클라임 양재');
+  const [selectedGym, setSelectedGym] = useState(initialDraft?.selectedGym ?? DEFAULT_GYM);
   const [showDifficultyModal, setShowDifficultyModal] = useState(false);
-  const [expandedSectors, setExpandedSectors] = useState<{ [key: string]: boolean }>({ sector1: true, sector2: false });
+  const [expandedSectors, setExpandedSectors] = useState<{ [key: string]: boolean }>({ sector1: false, sector2: false });
   const [rating, setRating] = useState<number | null>(null);
   const [isEasyMode, setIsEasyMode] = useState(false);
   const [showEasyModeConfirm, setShowEasyModeConfirm] = useState(false);
   const [showNormalModeConfirm, setShowNormalModeConfirm] = useState(false);
-  const [showWallInfo, setShowWallInfo] = useState<string | null>(null);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState<{ type: 'pass' | 'rating' | null }>({ type: null });
   const [routeCounts, setRouteCounts] = useState<RouteCounts>({});
+  const pauseStartedAtRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isRecording) return;
+
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [isRecording]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setNowMs(Date.now());
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  const sessionStartMs = parseSessionStart(date, startTime);
+  const elapsedSeconds = Math.max(0, Math.floor((nowMs - sessionStartMs - pausedAccumulatedMs) / 1000));
 
   const handleCountChange = (sectorId: RecordSectorId, routeIndex: number, type: RecordCountType, delta: number) => {
     const key = `${sectorId}-${routeIndex}`;
@@ -62,6 +132,22 @@ export function useRecordScreen({ onClose }: UseRecordScreenOptions) {
     setShowDatePicker(false);
   };
 
+  const handleRecordingToggle = () => {
+    if (isRecording) {
+      pauseStartedAtRef.current = Date.now();
+      setIsRecording(false);
+      return;
+    }
+
+    if (pauseStartedAtRef.current !== null) {
+      setPausedAccumulatedMs((current) => current + (Date.now() - pauseStartedAtRef.current!));
+      pauseStartedAtRef.current = null;
+    }
+
+    setNowMs(Date.now());
+    setIsRecording(true);
+  };
+
   const handlePassWarningConfirm = () => {
     setShowWarningModal({ type: null });
     document.querySelector('.pass-selection')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -89,6 +175,7 @@ export function useRecordScreen({ onClose }: UseRecordScreenOptions) {
   const handleSubmitConfirm = () => {
     alert('운동 기록이 제출되었습니다!');
     setShowSubmitConfirm(false);
+    onSubmitComplete?.();
     onClose();
   };
 
@@ -126,8 +213,7 @@ export function useRecordScreen({ onClose }: UseRecordScreenOptions) {
     state: {
       isRecording,
       date,
-      startTime,
-      duration,
+      duration: formatElapsedTime(elapsedSeconds),
       showDatePicker,
       selectedYear,
       selectedMonth,
@@ -144,7 +230,6 @@ export function useRecordScreen({ onClose }: UseRecordScreenOptions) {
       isEasyMode,
       showEasyModeConfirm,
       showNormalModeConfirm,
-      showWallInfo,
       showSubmitConfirm,
       showWarningModal,
       routeCounts,
@@ -167,10 +252,10 @@ export function useRecordScreen({ onClose }: UseRecordScreenOptions) {
       setIsEasyMode,
       setShowEasyModeConfirm,
       setShowNormalModeConfirm,
-      setShowWallInfo,
       setShowSubmitConfirm,
       setShowWarningModal,
       setRouteCounts,
+      handleRecordingToggle,
       handleCountChange,
       getDaysInMonth,
       getFirstDayOfMonth,

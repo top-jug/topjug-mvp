@@ -30,8 +30,15 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // server: {
+  //   allowedHosts: ['recollect-kilowatt-aim.ngrok-free.dev'],
+  // },
   server: {
-    allowedHosts: ['recollect-kilowatt-aim.ngrok-free.dev'],
+    // true로 설정하면 ngrok 주소가 매번 바뀌어도 모두 허용해 줍니다. (개발용으로 가장 편리함)
+    allowedHosts: true, 
+    
+    // 만약 보안이 걱정되신다면 현재 발급받은 주소만 콕 집어서 허용할 수도 있습니다.
+    // allowedHosts: ['suffocate-theater-macarena.ngrok-free.dev'],
   },
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
