@@ -131,27 +131,21 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
                               <div className="mt-2 min-h-[34px] flex flex-col items-center justify-center gap-1">
                                 {visibleEntries.length > 0 && (
                                   <>
-                                    <div className={`flex flex-col ${weekChipStackClassName}`}>
-                                      {visibleEntries.slice(0, 3).map((entry, idx) => {
-                                      const gymInfo = gyms.find((gym) => gym.name === entry.gym);
+                                    <div className="flex flex-wrap gap-1 justify-center">
+                                      {visibleEntries.slice(0, 2).map((entry, idx) => {
                                       return (
-                                        <div
+                                        <img
                                           key={`${entry.gym}-${idx}`}
-                                          className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold border-2 border-white"
-                                          style={{
-                                            backgroundColor: gymInfo?.lightBg || '#E5E7EB',
-                                            color: gymInfo?.darkText || '#374151',
-                                            zIndex: 10 - idx,
-                                          }}
-                                        >
-                                          {entry.gym.slice(0, 1)}
-                                        </div>
+                                          src={`https://picsum.photos/seed/${entry.gym}/40/40`}
+                                          alt={entry.gym}
+                                          className="w-7 h-7 rounded-full object-cover border border-neutral-200 bg-neutral-100"
+                                        />
                                       );
                                     })}
                                     </div>
-                                    {visibleEntries.length > 3 && (
-                                      <div className="text-[10px] leading-none font-medium text-neutral-500">
-                                        +{visibleEntries.length - 3}개
+                                    {visibleEntries.length > 2 && (
+                                      <div className="text-[10px] leading-none font-medium text-neutral-500 mt-1">
+                                        +{visibleEntries.length - 2}개
                                       </div>
                                     )}
                                   </>
@@ -224,24 +218,21 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
                               {date.day}
                             </div>
                             {visibleEntries.length > 0 && (
-                              <div className="flex flex-col items-center gap-0.5 mt-0.5">
-                                <div className="flex -space-x-1">
-                                  {visibleEntries.slice(0, 3).map((entry, idx) => {
-                                    const gymInfo = gyms.find((gym) => gym.name === entry.gym);
-                                    if (!gymInfo) return null;
+                              <div className="flex flex-col items-center gap-0.5 mt-0.5 w-full">
+                                <div className="flex gap-1 justify-center flex-wrap w-full">
+                                  {visibleEntries.slice(0, 2).map((entry, idx) => {
                                     return (
-                                      <div
+                                      <img
                                         key={`${entry.gym}-${idx}`}
-                                        className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold border border-white"
-                                        style={{ backgroundColor: gymInfo.lightBg, color: gymInfo.darkText, zIndex: 10 - idx }}
-                                      >
-                                        {entry.gym.slice(0, 1)}
-                                      </div>
+                                        src={`https://picsum.photos/seed/${entry.gym}/40/40`}
+                                        alt={entry.gym}
+                                        className="w-5 h-5 rounded-full object-cover border border-neutral-200 bg-neutral-100"
+                                      />
                                     );
                                   })}
                                 </div>
-                                {visibleEntries.length > 3 && (
-                                  <div className="text-[8px] font-medium text-neutral-600">+{visibleEntries.length - 3}</div>
+                                {visibleEntries.length > 2 && (
+                                  <div className="text-[9px] font-medium text-neutral-500 bg-neutral-100 rounded px-1 py-0.5 mt-0.5">+{visibleEntries.length - 2}개</div>
                                 )}
                               </div>
                             )}

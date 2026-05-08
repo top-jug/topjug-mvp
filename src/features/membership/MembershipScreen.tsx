@@ -115,6 +115,10 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
     closeSheet();
   };
 
+  const handleToggleFavorite = (membership: MembershipItem) => {
+    onUpdateMembership({ ...membership, isFavorite: !membership.isFavorite });
+  };
+
   return (
     <div className="min-h-screen bg-white pb-10">
       <div className="px-5 pt-5 pb-4 flex items-center justify-between">
@@ -174,6 +178,11 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
                       >
                         {membership.passType === 'count' ? '횟수권' : '기간권'}
                       </div>
+                      <button onClick={() => handleToggleFavorite(membership)} className="p-1">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill={membership.isFavorite ? "#EAB308" : "none"} stroke={membership.isFavorite ? "#EAB308" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-400">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>
+                      </button>
                       <button onClick={() => openEditSheet(membership)} className="text-[12px] font-medium text-neutral-500">편집</button>
                       <button onClick={() => setDeletingMembershipId(membership.id)} className="text-[12px] font-medium text-red-500">삭제</button>
                     </div>

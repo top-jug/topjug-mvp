@@ -1,3 +1,5 @@
+import TopTabHeader from '../../../app/components/layout/TopTabHeader';
+
 type CalendarViewMode = 'record' | 'setting';
 type CalendarScope = 'month' | 'week';
 
@@ -19,26 +21,13 @@ export default function CalendarTopBar({ mode, periodLabel, onChangeMode, onOpen
   const orderedModes: CalendarViewMode[] = ['record', 'setting'];
 
   return (
-    <div className="px-5 pt-5 pb-2 bg-white">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2">
-            {orderedModes.map((entryMode) => {
-              const isActive = entryMode === mode;
-
-              return (
-                <button
-                  key={entryMode}
-                  onClick={() => onChangeMode(entryMode)}
-                  className={`min-h-11 text-[30px] tracking-[-0.03em] transition-colors ${isActive ? 'font-bold text-neutral-950' : 'font-semibold text-neutral-400'}`}
-                >
-                  {MODE_META[entryMode].label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
+    <TopTabHeader
+      tabs={orderedModes.map((entryMode) => ({ value: entryMode, label: MODE_META[entryMode].label }))}
+      activeTab={mode}
+      onChangeTab={(tab) => onChangeMode(tab as CalendarViewMode)}
+      containerClassName="px-5 pt-5 pb-2 bg-white"
+      rightElement={
+        <>
           <button
             onClick={onOpenPeriod}
             aria-label="기간 선택"
@@ -58,8 +47,8 @@ export default function CalendarTopBar({ mode, periodLabel, onChangeMode, onOpen
               <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
             </svg>
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    />
   );
 }

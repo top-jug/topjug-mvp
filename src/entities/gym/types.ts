@@ -5,6 +5,7 @@ export interface GymSearchItem {
   tags: string[];
   distance: string;
   image: string;
+  address: string; 
 }
 
 export type RegionMap = Record<string, string[]>;

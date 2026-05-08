@@ -7,12 +7,12 @@ interface HomeNearbyGymsProps {
 
 export function HomeNearbyGyms({ onGymClick, onOpen }: HomeNearbyGymsProps) {
   const nearbyGyms = [
-    { name: '더클라임 양재', location: '서울 서초구', distance: '1.2km', rating: '4.6' },
-    { name: '피커스', location: '서울 강남구', distance: '4.0km', rating: '4.3' },
+    { name: '더클라임 양재', location: '서울 서초구', rating: '4.6' },
+    { name: '피커스', location: '서울 강남구', rating: '4.3' },
   ];
 
   return (
-    <HomeSectionShell title="주변 암장" onAction={onOpen} actionLabel="더보기" bordered={false}>
+    <HomeSectionShell title="추천 암장" onAction={onOpen} actionLabel="더보기" bordered={false}>
       <div className="flex gap-3 overflow-x-auto hide-scrollbar -mx-5 px-5">
         {nearbyGyms.map((gym, i) => (
           <div key={i} onClick={onGymClick} className="flex-shrink-0 w-[280px] border border-neutral-200 rounded-2xl overflow-hidden cursor-pointer hover:border-blue-500 transition-colors bg-white">
@@ -36,7 +36,6 @@ export function HomeNearbyGyms({ onGymClick, onOpen }: HomeNearbyGymsProps) {
                   </svg>
                   <span>{gym.location}</span>
                 </div>
-                <span>{gym.distance} 거리</span>
               </div>
             </div>
           </div>

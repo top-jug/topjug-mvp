@@ -9,8 +9,13 @@ export default function ProfilePage() {
   return (
     <>
       <div className="px-5 py-5 pb-32 space-y-4 bg-white min-h-screen">
-        <div>
-          <h1 className="text-[28px] font-bold tracking-[-0.03em] text-neutral-950">프로필</h1>
+        <div className="relative flex items-center justify-center">
+          <button onClick={() => window.history.back()} className="absolute left-0 p-2 text-neutral-900">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <h1 className="text-[20px] font-bold tracking-[-0.03em] text-neutral-950">프로필</h1>
         </div>
 
         <div className="bg-white border border-neutral-200 rounded-2xl p-5">
@@ -76,8 +81,6 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
-
-      <BottomTabBar onNavigate={navigateToScreen} />
     </>
   );
 }

@@ -13,7 +13,7 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, cale
     <div className="px-5 mb-4">
       <div className="overflow-hidden mb-2 mt-2">
         <div className="flex transition-transform duration-300" style={{ transform: `translateX(-${currentSlide * 100}%)` }}>
-          {['암장 사진', '암장캘린더', '지도'].map((title) => (
+          {['암장캘린더', '암장 사진', '지도'].map((title) => (
             <div key={title} className="w-full flex-shrink-0 flex items-center justify-between px-0 py-3">
               <h2 className="text-[18px] font-bold text-neutral-900">{title}</h2>
             </div>
@@ -23,8 +23,35 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, cale
 
       <div className="w-full rounded-2xl overflow-hidden relative select-none cursor-pointer" onClick={onCycleSlide}>
         <div className="flex transition-transform duration-300" style={{ transform: `translateX(-${currentSlide * 100}%)` }}>
-          <div className="w-full flex-shrink-0 rounded-2xl bg-white border border-neutral-200 p-3">
-            <div className="grid grid-cols-[1.5fr_1fr] gap-3 h-64">
+          <div className="w-full flex-shrink-0 min-h-[300px] bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-4 relative flex flex-col">
+            <div className="text-center mb-4">
+              <h3 className="text-[18px] font-bold text-neutral-900">2026년 4월</h3>
+            </div>
+            <div className="grid grid-cols-7 gap-1 text-center flex-1 items-center">
+              {['일', '월', '화', '수', '목', '금', '토'].map((day) => (
+                <div key={day} className="text-[13px] font-medium text-neutral-500 py-1">{day}</div>
+              ))}
+              {calendarDays.map((date, i) => (
+                <div
+                  key={`${date}-${i}`}
+                  className={`text-[14px] py-2.5 flex items-center justify-center mx-auto w-8 h-8 ${
+                    date === 12
+                      ? 'bg-blue-500 text-white rounded-full font-bold'
+                      : date === 7 || date === 9 || date === 11
+                        ? 'bg-blue-100 text-blue-600 rounded-full font-medium'
+                        : date
+                          ? 'text-neutral-700'
+                          : 'text-transparent'
+                  }`}
+                >
+                  {date}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="w-full flex-shrink-0 rounded-2xl bg-white border border-neutral-200 p-3 min-h-[300px]">
+            <div className="grid grid-cols-[1.5fr_1fr] gap-3 h-full min-h-[276px]">
               <div className="rounded-2xl overflow-hidden">
                 <ImageWithFallback src={photos[0]} alt="Gym Photo Main" className="w-full h-full object-cover" />
               </div>
@@ -43,34 +70,7 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, cale
             </div>
           </div>
 
-          <div className="w-full flex-shrink-0 h-64 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-4 relative">
-            <div className="text-center mb-3">
-              <h3 className="text-[17px] font-bold text-neutral-900">2026년 4월</h3>
-            </div>
-            <div className="grid grid-cols-7 gap-1 text-center">
-              {['일', '월', '화', '수', '목', '금', '토'].map((day) => (
-                <div key={day} className="text-[12px] font-medium text-neutral-500 py-1">{day}</div>
-              ))}
-              {calendarDays.map((date, i) => (
-                <div
-                  key={`${date}-${i}`}
-                  className={`text-[13px] py-1.5 ${
-                    date === 12
-                      ? 'bg-blue-500 text-white rounded-full font-bold'
-                      : date === 7 || date === 9 || date === 11
-                        ? 'bg-blue-100 text-blue-600 rounded-full font-medium'
-                        : date
-                          ? 'text-neutral-700'
-                          : 'text-transparent'
-                  }`}
-                >
-                  {date}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="w-full flex-shrink-0 h-64 bg-gradient-to-br from-blue-50 via-green-50 to-blue-100 rounded-2xl relative">
+          <div className="w-full flex-shrink-0 min-h-[300px] bg-gradient-to-br from-blue-50 via-green-50 to-blue-100 rounded-2xl relative">
             <img src={mapImage} alt="Map" className="w-full h-full object-cover opacity-40" />
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="relative">

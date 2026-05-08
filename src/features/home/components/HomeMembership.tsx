@@ -7,11 +7,11 @@ interface HomeMembershipProps {
 
 export function HomeMembership({ onOpen }: HomeMembershipProps) {
   const { memberships } = useMemberships();
-  const visibleMemberships = memberships.slice(0, 2);
-  const hiddenCount = memberships.length - visibleMemberships.length;
+  const visibleMemberships = memberships.filter(m => m.isFavorite).slice(0, 2);
+  const hiddenCount = memberships.filter(m => m.isFavorite).length - visibleMemberships.length;
 
   return (
-    <HomeSectionShell title="회원권" onAction={onOpen}>
+    <HomeSectionShell title="회원권" onAction={onOpen} actionLabel="순서 편집">
       <div className="space-y-2.5">
         {visibleMemberships.map((membership) => (
           <div key={membership.id} className="flex items-center justify-between text-[14px]">

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import TopTabHeader from '../../app/components/layout/TopTabHeader';
 import BottomTabBar from '../../app/components/layout/BottomTabBar';
 import { GYM_SEARCH_ITEMS, GYM_SEARCH_REGIONS, GYM_SEARCH_SUB_REGIONS, GYM_SEARCH_TABS } from '../../mocks/gym-search';
 import GymSearchInput from './components/GymSearchInput';
@@ -19,22 +20,15 @@ export default function GymSearchScreen({ onNavigate }: { onNavigate: (screen: s
 
   return (
     <>
-      <div className="px-5 pt-5 pb-3 bg-white border-b border-neutral-100">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setActiveView('search')}
-            className={`text-[28px] tracking-[-0.03em] transition-colors ${activeView === 'search' ? 'font-bold text-neutral-950' : 'font-semibold text-neutral-400'}`}
-          >
-            검색
-          </button>
-          <button
-            onClick={() => setActiveView('saved')}
-            className={`text-[28px] tracking-[-0.03em] transition-colors ${activeView === 'saved' ? 'font-bold text-neutral-950' : 'font-semibold text-neutral-400'}`}
-          >
-            내 암장
-          </button>
-        </div>
-      </div>
+      <TopTabHeader
+        tabs={[
+          { value: 'search', label: '검색' },
+          { value: 'saved', label: '내 암장' },
+        ]}
+        activeTab={activeView}
+        onChangeTab={(tab) => setActiveView(tab as 'search' | 'saved')}
+        containerClassName="px-5 pt-5 pb-3 bg-white border-b border-neutral-100"
+      />
 
       {activeView === 'search' ? (
         <>
@@ -83,7 +77,14 @@ export default function GymSearchScreen({ onNavigate }: { onNavigate: (screen: s
           <GymSearchList gyms={GYM_SEARCH_ITEMS} onSelectGym={() => onNavigate('detail')} title="암장" showMapButton />
         </>
       ) : (
-        <GymSearchList gyms={savedGyms} onSelectGym={() => onNavigate('detail')} title="내 암장" />
+        <div className="relative">
+          <GymSearchList gyms={savedGyms} onSelectGym={() => onNavigate('detail')} title="내 암장" />
+          <div className="absolute top-3 right-5 z-10">
+            <button className="text-[13px] text-neutral-500 font-medium px-3 py-1.5 bg-neutral-100 rounded-lg hover:bg-neutral-200 transition-colors">
+              순서 편집
+            </button>
+          </div>
+        </div>
       )}
 
       <BottomTabBar activeTab="gymSearch" onNavigate={onNavigate} />
