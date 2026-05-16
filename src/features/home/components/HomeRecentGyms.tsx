@@ -16,10 +16,8 @@ export function HomeRecentGyms({ onGymClick, onOpen }: HomeRecentGymsProps) {
     <HomeSectionShell title="최근 다녀온 암장" onAction={onOpen}>
       <div className="space-y-2.5">
         {recentGyms.map((gym, i) => (
-          <div key={i} onClick={onGymClick} className="flex items-center justify-between text-[14px] cursor-pointer hover:bg-white -mx-1 px-1 py-1 rounded-lg transition-colors">
-            <div>
-              <div className="font-medium mb-0.5">{gym.name}</div>
-            </div>
+          <div key={i} onClick={onGymClick} className="flex items-center justify-between gap-2 text-[14px] cursor-pointer hover:bg-white -mx-1 px-1 py-1 rounded-lg transition-colors">
+            <div className="font-medium truncate">{gym.name}</div>
             <div className="text-blue-600 font-bold">{gym.grade}</div>
           </div>
         ))}

@@ -1,18 +1,20 @@
 interface GymSearchTabsProps {
-  selectedTab: string;
+  selectedTabs: string[];
   tabs: string[];
   regionLabel: string;
   onSelectTab: (tab: string) => void;
   onOpenRegion: () => void;
 }
 
-export default function GymSearchTabs({ selectedTab, tabs, regionLabel, onSelectTab, onOpenRegion }: GymSearchTabsProps) {
+export default function GymSearchTabs({ selectedTabs, tabs, regionLabel, onSelectTab, onOpenRegion }: GymSearchTabsProps) {
+  const isAllSelected = selectedTabs.length === 0;
+
   return (
     <div className="px-5 pb-3 pt-2 flex gap-2 bg-white overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <button
         onClick={() => onSelectTab('전체')}
         className={`px-4 py-1.5 rounded-full text-[14px] font-medium transition-colors flex-shrink-0 ${
-          selectedTab === '전체' ? 'bg-blue-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
+          isAllSelected ? 'bg-blue-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
         }`}
       >
         전체
@@ -29,7 +31,7 @@ export default function GymSearchTabs({ selectedTab, tabs, regionLabel, onSelect
           key={tab}
           onClick={() => onSelectTab(tab)}
           className={`px-4 py-1.5 rounded-full text-[14px] font-medium transition-colors flex-shrink-0 ${
-            selectedTab === tab ? 'bg-blue-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
+            selectedTabs.includes(tab) ? 'bg-blue-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
           }`}
         >
           {tab}

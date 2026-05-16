@@ -88,14 +88,14 @@ export default function RecordScreen({
   return (
     <div className="h-screen bg-white flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-5 py-4 flex items-center justify-between border-b border-neutral-100">
-        <button onClick={() => setShowExitConfirm(true)} className="w-11 h-11 flex items-center justify-center rounded-full">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <div className="px-5 pt-5 pb-4 flex items-center justify-between border-b border-neutral-100">
+        <button onClick={() => setShowExitConfirm(true)} className="h-11 w-6 flex items-center justify-start rounded-full">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
         <h1 className="text-[22px] font-bold">기록</h1>
-        <button className="w-11 h-11 invisible" aria-hidden="true">
+        <button className="h-11 w-6 invisible" aria-hidden="true">
           {/* <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="1"/>
             <circle cx="19" cy="12" r="1"/>
