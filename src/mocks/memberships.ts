@@ -10,6 +10,7 @@ export interface MembershipItem {
   startDate: string;
   endDate: string;
   note: string;
+  isFavorite?: boolean;
 }
 
 export const MEMBERSHIPS: MembershipItem[] = [
@@ -25,6 +26,7 @@ export const MEMBERSHIPS: MembershipItem[] = [
     startDate: '2026.04.01',
     endDate: '2026.05.31',
     note: '강남, 연남 지점 사용 가능',
+    isFavorite: true,
   },
   {
     id: 'peakers-period',

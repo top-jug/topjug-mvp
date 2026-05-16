@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router';
 
-export type AppScreen = 'home' | 'gymSearch' | 'detail' | 'calendar' | 'record' | 'profile' | 'membership';
+export type AppScreen = 'home' | 'gymSearch' | 'myGyms' | 'detail' | 'calendar' | 'record' | 'profile' | 'membership';
 export type BottomTab = 'home' | 'gymSearch' | 'calendar';
 
 export const DEFAULT_GYM_ID = 'the-climb-yeonnam';
@@ -11,6 +11,8 @@ export function getScreenPath(screen: AppScreen, gymId = DEFAULT_GYM_ID) {
       return '/';
     case 'gymSearch':
       return '/gyms';
+    case 'myGyms':
+      return '/gyms/saved';
     case 'detail':
       return `/gyms/${gymId}`;
     case 'calendar':

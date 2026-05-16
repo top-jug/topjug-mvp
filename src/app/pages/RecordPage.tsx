@@ -9,7 +9,7 @@ export default function RecordPage() {
   const submittedRef = useRef(false);
 
   if (!draft) {
-    return <Navigate to="/record/start" replace />;
+    return <Navigate to={submittedRef.current ? '/schedule' : '/record/start'} replace />;
   }
 
   const handleClose = () => {
@@ -32,6 +32,7 @@ export default function RecordPage() {
       initialDraft={draft}
       onSubmitComplete={() => {
         submittedRef.current = true;
+        navigate('/schedule', { replace: true });
         clearDraft();
       }}
     />

@@ -226,13 +226,13 @@ export default function RecordStartPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <div className="px-5 py-4 flex items-center justify-between border-b border-neutral-100">
-        <button onClick={handleClose} className="w-11 h-11 flex items-center justify-center rounded-full">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <div className="px-5 pt-5 pb-4 flex items-center justify-between border-b border-neutral-100">
+        <button onClick={handleClose} className="h-11 w-6 flex items-center justify-start rounded-full">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <button className="w-11 h-11 invisible" aria-hidden="true" />
+        <button className="h-11 w-6 invisible" aria-hidden="true" />
       </div>
 
       <div className="flex-1 px-5 py-2 pb-8 overflow-y-auto flex flex-col">

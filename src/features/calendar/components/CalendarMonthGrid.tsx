@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { ActiveGyms, CalendarData, CalendarEntry, CalendarGym } from '../../../entities/calendar/types';
+import CalendarEntryStack from './CalendarEntryStack';
 
 export interface CalendarGridCell {
   key: string;
@@ -128,34 +129,8 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
                                   {date.day}
                                 </div>
                               </div>
-                              <div className="mt-2 min-h-[34px] flex flex-col items-center justify-center gap-1">
-                                {visibleEntries.length > 0 && (
-                                  <>
-                                    <div className={`flex flex-col ${weekChipStackClassName}`}>
-                                      {visibleEntries.slice(0, 3).map((entry, idx) => {
-                                      const gymInfo = gyms.find((gym) => gym.name === entry.gym);
-                                      return (
-                                        <div
-                                          key={`${entry.gym}-${idx}`}
-                                          className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold border-2 border-white"
-                                          style={{
-                                            backgroundColor: gymInfo?.lightBg || '#E5E7EB',
-                                            color: gymInfo?.darkText || '#374151',
-                                            zIndex: 10 - idx,
-                                          }}
-                                        >
-                                          {entry.gym.slice(0, 1)}
-                                        </div>
-                                      );
-                                    })}
-                                    </div>
-                                    {visibleEntries.length > 3 && (
-                                      <div className="text-[10px] leading-none font-medium text-neutral-500">
-                                        +{visibleEntries.length - 3}개
-                                      </div>
-                                    )}
-                                  </>
-                                )}
+                              <div className="mt-2 min-h-[34px] flex items-center justify-center">
+                                <CalendarEntryStack entries={visibleEntries} logoClassName="h-7 w-7" />
                               </div>
                             </>
                           )}
@@ -223,28 +198,12 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
                             >
                               {date.day}
                             </div>
-                            {visibleEntries.length > 0 && (
-                              <div className="flex flex-col items-center gap-0.5 mt-0.5">
-                                <div className="flex -space-x-1">
-                                  {visibleEntries.slice(0, 3).map((entry, idx) => {
-                                    const gymInfo = gyms.find((gym) => gym.name === entry.gym);
-                                    if (!gymInfo) return null;
-                                    return (
-                                      <div
-                                        key={`${entry.gym}-${idx}`}
-                                        className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold border border-white"
-                                        style={{ backgroundColor: gymInfo.lightBg, color: gymInfo.darkText, zIndex: 10 - idx }}
-                                      >
-                                        {entry.gym.slice(0, 1)}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                                {visibleEntries.length > 3 && (
-                                  <div className="text-[8px] font-medium text-neutral-600">+{visibleEntries.length - 3}</div>
-                                )}
-                              </div>
-                            )}
+                            <CalendarEntryStack
+                              entries={visibleEntries}
+                              className="mt-0.5 gap-0.5"
+                              logoClassName="h-5 w-5"
+                              hiddenCountClassName="rounded bg-neutral-100 px-1 py-0.5 text-[9px] font-medium text-neutral-500"
+                            />
                           </div>
                         )}
                       </button>

@@ -115,20 +115,30 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
     closeSheet();
   };
 
+  const handleToggleFavorite = (membership: MembershipItem) => {
+    const favoriteCount = memberships.filter((item) => item.isFavorite).length;
+
+    if (!membership.isFavorite && favoriteCount >= 3) {
+      return;
+    }
+
+    onUpdateMembership({ ...membership, isFavorite: !membership.isFavorite });
+  };
+
   return (
     <div className="min-h-screen bg-white pb-10">
-      <div className="px-5 pt-5 pb-4 flex items-center justify-between">
+      <div className="relative px-5 pt-5 pb-4 flex items-center justify-center">
         <button
           onClick={onClose}
-          className="w-11 h-11 rounded-full border border-neutral-200 flex items-center justify-center text-neutral-700"
+          className="absolute left-5 h-11 w-6 flex items-center justify-start text-neutral-700"
           aria-label="뒤로가기"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m15 18-6-6 6-6" />
           </svg>
         </button>
         <div className="text-[18px] font-bold text-neutral-950">회원권</div>
-        <button onClick={openAddSheet} className="min-h-11 px-3 rounded-full border border-neutral-200 text-[14px] font-medium text-neutral-700">추가</button>
+        <button onClick={openAddSheet} className="absolute right-5 min-h-11 px-3 rounded-full border border-neutral-200 text-[14px] font-medium text-neutral-700">추가</button>
       </div>
 
       <div className="px-5 space-y-4">
@@ -174,6 +184,11 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
                       >
                         {membership.passType === 'count' ? '횟수권' : '기간권'}
                       </div>
+                      <button onClick={() => handleToggleFavorite(membership)} className="p-1">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill={membership.isFavorite ? "#EAB308" : "none"} stroke={membership.isFavorite ? "#EAB308" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-400">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>
+                      </button>
                       <button onClick={() => openEditSheet(membership)} className="text-[12px] font-medium text-neutral-500">편집</button>
                       <button onClick={() => setDeletingMembershipId(membership.id)} className="text-[12px] font-medium text-red-500">삭제</button>
                     </div>

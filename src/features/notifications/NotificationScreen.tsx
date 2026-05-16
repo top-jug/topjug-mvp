@@ -23,11 +23,7 @@ export default function NotificationScreen({ onClose }: NotificationScreenProps)
           <ArrowLeft className="w-5 h-5 text-neutral-700" />
         </button>
       }
-      headerRight={
-        <button className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-neutral-100 transition-colors">
-          <Settings className="w-5 h-5 text-neutral-500" />
-        </button>
-      }
+      headerRight={<div className="w-11 h-11" />}
       title={<span className="text-[20px] font-bold">알림 센터</span>}
       bodyClassName="p-0"
     >

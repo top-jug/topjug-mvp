@@ -1,8 +1,12 @@
 import GymSearchScreen from '../../features/gym-search/GymSearchScreen';
 import { AppScreen, useAppScreenNavigate } from '../navigation';
 
-export default function GymSearchPage() {
+interface GymSearchPageProps {
+  initialView?: 'search' | 'saved';
+}
+
+export default function GymSearchPage({ initialView = 'search' }: GymSearchPageProps) {
   const navigateToScreen = useAppScreenNavigate();
 
-  return <GymSearchScreen onNavigate={(screen) => navigateToScreen(screen as AppScreen)} />;
+  return <GymSearchScreen initialView={initialView} onNavigate={(screen) => navigateToScreen(screen as AppScreen)} />;
 }
