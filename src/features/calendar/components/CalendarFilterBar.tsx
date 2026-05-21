@@ -1,26 +1,37 @@
 import { ActiveGyms, CalendarGym } from '../../../entities/calendar/types';
+import { Settings } from 'lucide-react';
 
 interface CalendarFilterBarProps {
   gyms: CalendarGym[];
   activeGyms: ActiveGyms;
-  onOpenFilter?: () => void;
+  onToggleGym: (gymName: string) => void;
+  onToggleAll: () => void;
+  onOpenSettings: () => void;
 }
 
-export default function CalendarFilterBar({ gyms, activeGyms, onOpenFilter }: CalendarFilterBarProps) {
+export default function CalendarFilterBar({ gyms, activeGyms, onToggleGym, onToggleAll, onOpenSettings }: CalendarFilterBarProps) {
   const allSelected = gyms.length > 0 && gyms.every((gym) => activeGyms[gym.name]);
 
   return (
     <div className="px-5 pb-3 pt-2 bg-white">
       <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className={`px-4 py-2 rounded-full text-[14px] font-medium transition-colors flex-shrink-0 ${allSelected ? 'bg-blue-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700'}`}>
+        <button
+          type="button"
+          onClick={onToggleAll}
+          className={`px-4 py-2 rounded-full text-[14px] font-medium transition-colors flex-shrink-0 ${
+            allSelected ? 'bg-blue-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
+          }`}
+        >
           전체
-        </div>
+        </button>
         {gyms.map((gym) => {
           const isActive = activeGyms[gym.name];
 
           return (
-            <div
+            <button
+              type="button"
               key={gym.name}
+              onClick={() => onToggleGym(gym.name)}
               className={`px-2 py-1.5 rounded-full text-[14px] font-medium transition-colors flex items-center gap-1.5 flex-shrink-0 ${
                 isActive ? 'bg-blue-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
               }`}
@@ -29,9 +40,17 @@ export default function CalendarFilterBar({ gyms, activeGyms, onOpenFilter }: Ca
                 {gym.name.slice(0, 1)}
               </div>
               <span>{gym.name}</span>
-            </div>
+            </button>
           );
         })}
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          aria-label="내 암장 설정"
+          className="w-9 h-9 rounded-full bg-white border border-neutral-200 text-neutral-700 flex items-center justify-center flex-shrink-0"
+        >
+          <Settings size={17} strokeWidth={2.2} aria-hidden="true" />
+        </button>
       </div>
     </div>
   );

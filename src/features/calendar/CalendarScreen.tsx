@@ -4,8 +4,8 @@ import { ActiveGyms, CalendarData, CalendarGym } from '../../entities/calendar/t
 import { CALENDAR_GYMS, CALENDAR_RECORD_ENTRIES, CALENDAR_SETTING_ENTRIES, CALENDAR_WEEKDAYS } from '../../mocks/calendar';
 import CalendarDetailSection from './components/CalendarDetailSection';
 import CalendarFilterBar from './components/CalendarFilterBar';
-import CalendarGearMenu from './components/CalendarGearMenu';
 import CalendarMonthGrid, { CalendarGridCell } from './components/CalendarMonthGrid';
+import CalendarSearchMenu from './components/CalendarSearchMenu';
 import CalendarTopBar from './components/CalendarTopBar';
 import CalendarDayPopup from './components/modals/CalendarDayPopup';
 import CalendarPeriodModal from './components/modals/CalendarPeriodModal';
@@ -29,6 +29,10 @@ function getModeGyms(calendarData: CalendarData): CalendarGym[] {
 
 function createActiveGyms(gyms: CalendarGym[]): ActiveGyms {
   return Object.fromEntries(gyms.map((gym) => [gym.name, true]));
+}
+
+function createInactiveGyms(gyms: CalendarGym[]): ActiveGyms {
+  return Object.fromEntries(gyms.map((gym) => [gym.name, false]));
 }
 
 function getDaysInMonth(year: number, month: number) {
@@ -113,7 +117,7 @@ export default function CalendarScreen({ onNavigate }: CalendarScreenProps) {
   const [scope, setScope] = useState<CalendarScope>('month');
   const [selectedDate, setSelectedDate] = useState<number | null>(12);
   const [currentMonth, setCurrentMonth] = useState({ year: 2026, month: 4 });
-  const [showGearModal, setShowGearModal] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
   const [showPeriodModal, setShowPeriodModal] = useState(false);
   const [showDayPopup, setShowDayPopup] = useState(false);
   const [popupDate, setPopupDate] = useState<number | null>(null);
@@ -171,18 +175,40 @@ export default function CalendarScreen({ onNavigate }: CalendarScreenProps) {
     return formatWeekRangeLabel(calendarCells);
   }, [calendarCells, currentMonth.month, currentMonth.year, scope]);
 
-  const allSelected = filterGyms.length > 0 && filterGyms.every((gym) => activeGyms[gym.name]);
+  const selectedEntries = selectedDate ? visibleCalendarData[selectedDate] ?? [] : [];
+
+  useEffect(() => {
+    if (selectedEntries.length === 0 || activeSlide >= selectedEntries.length) {
+      setActiveSlide(0);
+    }
+  }, [activeSlide, selectedEntries.length]);
 
   const toggleGym = (gymName: string) => {
     setActiveGyms((prev) => {
-      const next = { ...prev, [gymName]: !prev[gymName] };
-      const hasSelected = filterGyms.some((gym) => next[gym.name]);
-      return hasSelected ? next : createActiveGyms(filterGyms);
+      return { ...prev, [gymName]: !prev[gymName] };
     });
   };
 
-  const selectAllGyms = () => {
-    setActiveGyms(createActiveGyms(filterGyms));
+  const toggleAllGyms = () => {
+    setActiveGyms((prev) => {
+      const allSelected = filterGyms.length > 0 && filterGyms.every((gym) => prev[gym.name]);
+      return allSelected ? createInactiveGyms(filterGyms) : createActiveGyms(filterGyms);
+    });
+  };
+
+  const applyGymSearch = (query: string) => {
+    const keyword = query.trim().toLowerCase();
+
+    if (!keyword) {
+      setActiveGyms(createActiveGyms(filterGyms));
+      return;
+    }
+
+    setActiveGyms(
+      Object.fromEntries(
+        filterGyms.map((gym) => [gym.name, gym.name.toLowerCase().includes(keyword)]),
+      ),
+    );
   };
 
   const handleDayLongPress = (day: number) => {
@@ -236,18 +262,22 @@ export default function CalendarScreen({ onNavigate }: CalendarScreenProps) {
         periodLabel={periodLabel}
         onChangeMode={setViewMode}
         onOpenPeriod={() => setShowPeriodModal(true)}
-        onOpenFilter={() => setShowGearModal(true)}
+        onOpenSearch={() => setShowSearchModal(true)}
       />
 
-      <CalendarFilterBar gyms={filterGyms} activeGyms={activeGyms} />
+      <CalendarFilterBar
+        gyms={filterGyms}
+        activeGyms={activeGyms}
+        onToggleGym={toggleGym}
+        onToggleAll={toggleAllGyms}
+        onOpenSettings={() => onNavigate('myGyms')}
+      />
 
-      {showGearModal && (
-        <CalendarGearMenu
+      {showSearchModal && (
+        <CalendarSearchMenu
           gyms={filterGyms}
-          activeGyms={activeGyms}
-          onSelectAll={selectAllGyms}
-          onToggleGym={toggleGym}
-          onClose={() => setShowGearModal(false)}
+          onApplySearch={applyGymSearch}
+          onClose={() => setShowSearchModal(false)}
         />
       )}
 

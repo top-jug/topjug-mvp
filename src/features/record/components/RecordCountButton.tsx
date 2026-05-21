@@ -1,4 +1,4 @@
-import { MouseEvent } from 'react';
+import { MouseEvent, PointerEvent } from 'react';
 
 interface RecordCountButtonProps {
   value: number;
@@ -22,32 +22,45 @@ export default function RecordCountButton({ value, colorClassName, onChange }: R
     event.currentTarget.dataset.longPress = 'false';
   };
 
-  const handleMouseDown = (event: MouseEvent<HTMLButtonElement>) => {
-    const button = event.currentTarget;
-    const timer = window.setTimeout(() => {
+  const handlePressStart = (button: HTMLButtonElement) => {
+    clearTimer(button);
+    button.dataset.longPress = 'false';
+    button.dataset.pointerDown = 'true';
+    button.dataset.timer = window.setTimeout(() => {
       button.dataset.longPress = 'true';
       onChange(-1);
-    }, 1000);
-    button.dataset.timer = timer.toString();
+    }, 700).toString();
   };
 
-  const handleMouseUp = (event: MouseEvent<HTMLButtonElement>) => {
-    clearTimer(event.currentTarget);
+  const handlePressEnd = (button: HTMLButtonElement) => {
+    clearTimer(button);
+    button.dataset.pointerDown = 'false';
   };
 
-  const handleMouseLeave = (event: MouseEvent<HTMLButtonElement>) => {
-    clearTimer(event.currentTarget);
+  const handlePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    const button = event.currentTarget;
+    button.setPointerCapture?.(event.pointerId);
+    handlePressStart(button);
+  };
+
+  const handlePointerUp = (event: PointerEvent<HTMLButtonElement>) => {
+    handlePressEnd(event.currentTarget);
+  };
+
+  const handlePointerCancel = (event: PointerEvent<HTMLButtonElement>) => {
+    handlePressEnd(event.currentTarget);
     event.currentTarget.dataset.longPress = 'false';
   };
 
   return (
     <button
       onClick={handleClick}
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseLeave}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      onPointerLeave={handlePointerCancel}
       onContextMenu={(event) => event.preventDefault()}
-      className={`min-w-[60px] h-10 rounded-lg text-white text-[18px] font-bold transition-colors ${colorClassName}`}
+      className={`min-w-[60px] h-10 rounded-lg text-white text-[18px] font-bold transition-colors touch-manipulation select-none ${colorClassName}`}
     >
       {value}
     </button>

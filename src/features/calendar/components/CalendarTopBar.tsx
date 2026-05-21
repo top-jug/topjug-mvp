@@ -1,4 +1,5 @@
 import TopTabHeader from '../../../app/components/layout/TopTabHeader';
+import { Search } from 'lucide-react';
 
 type CalendarViewMode = 'record' | 'setting';
 type CalendarScope = 'month' | 'week';
@@ -9,7 +10,7 @@ interface CalendarTopBarProps {
   periodLabel: string;
   onChangeMode: (mode: CalendarViewMode) => void;
   onOpenPeriod: () => void;
-  onOpenFilter: () => void;
+  onOpenSearch: () => void;
 }
 
 const MODE_META: Record<CalendarViewMode, { label: string }> = {
@@ -17,7 +18,7 @@ const MODE_META: Record<CalendarViewMode, { label: string }> = {
   setting: { label: '일정' },
 };
 
-export default function CalendarTopBar({ mode, periodLabel, onChangeMode, onOpenPeriod, onOpenFilter }: CalendarTopBarProps) {
+export default function CalendarTopBar({ mode, periodLabel, onChangeMode, onOpenPeriod, onOpenSearch }: CalendarTopBarProps) {
   const orderedModes: CalendarViewMode[] = ['record', 'setting'];
 
   return (
@@ -39,13 +40,11 @@ export default function CalendarTopBar({ mode, periodLabel, onChangeMode, onOpen
             </svg>
           </button>
           <button
-            onClick={onOpenFilter}
-            aria-label="필터"
+            onClick={onOpenSearch}
+            aria-label="암장 검색"
             className="w-11 h-11 rounded-full bg-white border border-neutral-200 text-neutral-700 flex items-center justify-center"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-            </svg>
+            <Search size={18} strokeWidth={2.2} aria-hidden="true" />
           </button>
         </>
       }

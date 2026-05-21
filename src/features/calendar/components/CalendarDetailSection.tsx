@@ -1,3 +1,4 @@
+import { UIEvent, useRef } from 'react';
 import { ImageWithFallback } from '../../../app/components/figma/ImageWithFallback';
 import { CalendarData, CalendarGym } from '../../../entities/calendar/types';
 
@@ -14,15 +15,39 @@ interface CalendarDetailSectionProps {
 }
 
 export default function CalendarDetailSection({ mode, selectedDate, activeSlide, gyms, calendarData, onCardClick, onSelectSlide }: CalendarDetailSectionProps) {
+  const carouselRef = useRef<HTMLDivElement>(null);
   const entries = selectedDate ? calendarData[selectedDate] : undefined;
+  const visibleEntries = entries ?? [];
   const emptyLabel = mode === 'record' ? '이 날짜에 등록된 기록이 없습니다.' : '이 날짜에 등록된 세팅 정보가 없습니다.';
+
+  const handleScroll = (event: UIEvent<HTMLDivElement>) => {
+    const container = event.currentTarget;
+    const slides = Array.from(container.children) as HTMLElement[];
+    const nextIndex = slides.reduce(
+      (nearest, slide, index) => {
+        const distance = Math.abs(slide.offsetLeft - container.scrollLeft);
+        return distance < nearest.distance ? { index, distance } : nearest;
+      },
+      { index: 0, distance: Number.POSITIVE_INFINITY },
+    ).index;
+
+    if (nextIndex !== activeSlide) {
+      onSelectSlide(nextIndex);
+    }
+  };
+
+  const handleSelectSlide = (index: number) => {
+    const slide = carouselRef.current?.children[index] as HTMLElement | undefined;
+    slide?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    onSelectSlide(index);
+  };
 
   return (
     <div className="px-4 pb-16">
-      {entries ? (
+      {visibleEntries.length > 0 ? (
         <>
-          <div className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar gap-4">
-            {entries.map((entry, idx) => {
+          <div ref={carouselRef} onScroll={handleScroll} className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar gap-4">
+            {visibleEntries.map((entry, idx) => {
               const gymInfo = gyms.find((gym) => gym.name === entry.gym);
               if (!gymInfo) return null;
 
@@ -85,10 +110,10 @@ export default function CalendarDetailSection({ mode, selectedDate, activeSlide,
               );
             })}
           </div>
-          {entries.length > 1 && (
+          {visibleEntries.length > 1 && (
             <div className="flex items-center justify-center gap-1.5 pt-4 pb-6">
-              {entries.map((_, idx) => (
-                <button key={idx} onClick={() => onSelectSlide(idx)} className={`h-1.5 rounded-full transition-all ${idx === activeSlide ? 'w-4 bg-[#185FA5]' : 'w-1.5 bg-neutral-300'}`} />
+              {visibleEntries.map((_, idx) => (
+                <button key={idx} onClick={() => handleSelectSlide(idx)} className={`h-1.5 rounded-full transition-all ${idx === activeSlide ? 'w-4 bg-[#185FA5]' : 'w-1.5 bg-neutral-300'}`} />
               ))}
             </div>
           )}
