@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { RECORD_DIFFICULTIES } from '../../../mocks/record';
 import { RecordCountType, RecordSectorId, RouteCounts } from '../../../entities/record/types';
 import { RecordDraft } from '../../../app/providers/RecordDraftProvider';
@@ -36,13 +36,29 @@ function formatElapsedTime(totalSeconds: number) {
 
 function parseSessionStart(dateValue: string, timeValue: string) {
   const [yearPart, monthPart, dayPart] = dateValue.split('.').map(Number);
-  const [hourPart, minutePart] = timeValue.split(':').map(Number);
+  const displayTimeMatch = timeValue.match(/^(오전|오후)\s*(\d{1,2}):(\d{2})$/);
+  const [hourPart, minutePart] = displayTimeMatch
+    ? [
+        displayTimeMatch[1] === '오후'
+          ? Number(displayTimeMatch[2]) === 12
+            ? 12
+            : Number(displayTimeMatch[2]) + 12
+          : Number(displayTimeMatch[2]) === 12
+            ? 0
+            : Number(displayTimeMatch[2]),
+        Number(displayTimeMatch[3]),
+      ]
+    : timeValue.split(':').map(Number);
 
   if (!yearPart || !monthPart || !dayPart || Number.isNaN(hourPart) || Number.isNaN(minutePart)) {
     return Date.now();
   }
 
   return new Date(yearPart, monthPart - 1, dayPart, hourPart, minutePart, 0, 0).getTime();
+}
+
+function getInitialElapsedSeconds(dateValue: string, timeValue: string) {
+  return Math.max(0, Math.floor((Date.now() - parseSessionStart(dateValue, timeValue)) / 1000));
 }
 
 export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: UseRecordScreenOptions) {
@@ -52,8 +68,7 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
   const parsedDate = parseRecordDate(initialDate);
   const [date, setDate] = useState(initialDate);
   const [startTime] = useState(initialStartTime);
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  const [pausedAccumulatedMs, setPausedAccumulatedMs] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(() => getInitialElapsedSeconds(initialDate, initialStartTime));
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedYear, setSelectedYear] = useState(parsedDate.year);
   const [selectedMonth, setSelectedMonth] = useState(parsedDate.month);
@@ -73,13 +88,11 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState<{ type: 'pass' | 'rating' | null }>({ type: null });
   const [routeCounts, setRouteCounts] = useState<RouteCounts>({});
-  const pauseStartedAtRef = useRef<number | null>(null);
-
   useEffect(() => {
     if (!isRecording) return;
 
     const timer = window.setInterval(() => {
-      setNowMs(Date.now());
+      setElapsedSeconds((current) => current + 1);
     }, 1000);
 
     return () => window.clearInterval(timer);
@@ -88,7 +101,7 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        setNowMs(Date.now());
+        setElapsedSeconds(getInitialElapsedSeconds(date, startTime));
       }
     };
 
@@ -98,9 +111,6 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
-
-  const sessionStartMs = parseSessionStart(date, startTime);
-  const elapsedSeconds = Math.max(0, Math.floor((nowMs - sessionStartMs - pausedAccumulatedMs) / 1000));
 
   const handleCountChange = (sectorId: RecordSectorId, routeIndex: number, type: RecordCountType, delta: number) => {
     const key = `${sectorId}-${routeIndex}`;
@@ -127,25 +137,16 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
   const getFirstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
 
   const handleDateSelect = (day: number) => {
+    const nextDate = `${selectedYear}.${String(selectedMonth + 1).padStart(2, '0')}.${String(day).padStart(2, '0')}`;
     setSelectedDay(day);
-    setDate(`${selectedYear}.${String(selectedMonth + 1).padStart(2, '0')}.${String(day).padStart(2, '0')}`);
+    setDate(nextDate);
+    setElapsedSeconds(getInitialElapsedSeconds(nextDate, startTime));
+    setIsRecording(true);
     setShowDatePicker(false);
   };
 
   const handleRecordingToggle = () => {
-    if (isRecording) {
-      pauseStartedAtRef.current = Date.now();
-      setIsRecording(false);
-      return;
-    }
-
-    if (pauseStartedAtRef.current !== null) {
-      setPausedAccumulatedMs((current) => current + (Date.now() - pauseStartedAtRef.current!));
-      pauseStartedAtRef.current = null;
-    }
-
-    setNowMs(Date.now());
-    setIsRecording(true);
+    setIsRecording((current) => !current);
   };
 
   const handlePassWarningConfirm = () => {

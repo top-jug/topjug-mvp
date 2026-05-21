@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Pause, Play } from 'lucide-react';
 import DifficultyComparisonModal from '../../app/components/DifficultyComparisonModal';
 import { RECORD_DIFFICULTIES } from '../../mocks/record';
 import RecordRatingCard from './components/RecordRatingCard';
@@ -24,6 +25,7 @@ export default function RecordScreen({
 }) {
   const { state, actions } = useRecordScreen({ onClose, initialDraft, onSubmitComplete });
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [pendingGym, setPendingGym] = useState<string | null>(null);
   const {
     isRecording,
     date,
@@ -58,6 +60,7 @@ export default function RecordScreen({
     setShowNormalModeConfirm,
     setShowSubmitConfirm,
     setShowWarningModal,
+    setRouteCounts,
     handleCountChange,
     getDaysInMonth,
     getFirstDayOfMonth,
@@ -68,6 +71,7 @@ export default function RecordScreen({
     handleSubmitConfirm,
     handleEasyModeConfirm,
     handleNormalModeConfirm,
+    handleRecordingToggle,
   } = actions;
 
   useEffect(() => {
@@ -84,6 +88,26 @@ export default function RecordScreen({
       window.removeEventListener('popstate', handlePopState);
     };
   }, []);
+
+  const handleGymSelect = (gym: string) => {
+    if (gym === selectedGym) {
+      setShowGymModal(false);
+      return;
+    }
+
+    setPendingGym(gym);
+    setShowGymModal(false);
+  };
+
+  const handleGymChangeConfirm = () => {
+    if (!pendingGym) return;
+
+    setSelectedGym(pendingGym);
+    setRouteCounts({});
+    setRating(null);
+    setExpandedSectors({ sector1: false, sector2: false });
+    setPendingGym(null);
+  };
 
   return (
     <div className="h-screen bg-white flex flex-col overflow-hidden">
@@ -124,7 +148,7 @@ export default function RecordScreen({
         </div>
 
         {/* Date and Duration */}
-        <div className="flex items-center justify-center gap-12 py-2 px-8">
+        <div className="flex items-center justify-between gap-3 py-2 px-5">
           <button onClick={() => setShowDatePicker(true)} className="min-h-11 flex items-center gap-2">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgb(59 130 246)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -140,6 +164,15 @@ export default function RecordScreen({
             </svg>
             <span className="text-neutral-700 text-[16px] font-medium">{duration}</span>
           </div>
+          <button
+            type="button"
+            onClick={handleRecordingToggle}
+            aria-label={isRecording ? '일시정지' : '재개'}
+            className="min-h-11 flex items-center gap-1.5 rounded-full px-2.5 text-neutral-700 hover:bg-neutral-50"
+          >
+            {isRecording ? <Pause size={18} strokeWidth={2.4} className="text-blue-500" aria-hidden="true" /> : <Play size={18} strokeWidth={2.4} className="text-blue-500" aria-hidden="true" />}
+            <span className="text-[15px] font-medium">{isRecording ? '일시정지' : '재개'}</span>
+          </button>
         </div>
       </div>
 
@@ -149,11 +182,18 @@ export default function RecordScreen({
           <GymSelectModal
             gyms={RECORD_GYMS}
             selectedGym={selectedGym}
-            onSelect={(gym) => {
-              setSelectedGym(gym);
-              setShowGymModal(false);
-            }}
+            onSelect={handleGymSelect}
             onClose={() => setShowGymModal(false)}
+          />
+        )}
+
+        {pendingGym && (
+          <ConfirmActionModal
+            title={`${pendingGym}(으)로 전환`}
+            description={'하단의 기록은 날아갑니다.\n그래도 변경할까요?'}
+            confirmLabel="전환"
+            onClose={() => setPendingGym(null)}
+            onConfirm={handleGymChangeConfirm}
           />
         )}
 

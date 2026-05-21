@@ -20,6 +20,7 @@ export default function RecordSectorPanel(props: RecordSectorPanelProps) {
         <div className="flex items-center gap-2">
           <div className="cursor-pointer">
             <h4 className="text-[14px] font-semibold">{title}</h4>
+            <p className="mt-1 text-[12px] font-normal text-neutral-500">버튼을 꾹 누르면 숫자가 감소합니다.</p>
           </div>
         </div>
         <svg
