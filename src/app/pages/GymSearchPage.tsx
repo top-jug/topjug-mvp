@@ -8,5 +8,5 @@ interface GymSearchPageProps {
 export default function GymSearchPage({ initialView = 'search' }: GymSearchPageProps) {
   const navigateToScreen = useAppScreenNavigate();
 
-  return <GymSearchScreen initialView={initialView} onNavigate={(screen) => navigateToScreen(screen as AppScreen)} />;
+  return <GymSearchScreen initialView={initialView} onNavigate={(screen, gymId) => navigateToScreen(screen as AppScreen, { gymId })} />;
 }
