@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { MONTH_NAMES, RECORD_GYMS } from '../../mocks/record';
 import CenteredModalShell from '../components/overlay/CenteredModalShell';
-import DifficultyComparisonModal from '../components/DifficultyComparisonModal';
 import { useMemberships } from '../providers/MembershipProvider';
 import { RecordDraft, RecordPassType, useRecordDraft } from '../providers/RecordDraftProvider';
 import { useAppScreenNavigate } from '../navigation';
@@ -182,7 +181,6 @@ export default function RecordStartPage() {
   const [selectedPass, setSelectedPass] = useState<string | null>(draft?.selectedPass ?? null);
   const [tempPassType, setTempPassType] = useState<RecordPassType>('일일이용권');
   const [showGymModal, setShowGymModal] = useState(false);
-  const [showDifficultyModal, setShowDifficultyModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showPassModal, setShowPassModal] = useState(false);
   const [showTimeModal, setShowTimeModal] = useState(false);
@@ -263,14 +261,6 @@ export default function RecordStartPage() {
                 {['bg-red-500', 'bg-orange-500', 'bg-yellow-400', 'bg-lime-500', 'bg-green-500', 'bg-blue-500', 'bg-indigo-600', 'bg-purple-600'].map((color, i) => (
                   <div key={i} className={`w-7 h-7 ${color} rounded-full`}></div>
                 ))}
-              </div>
-              <div className="flex justify-center">
-                <button
-                  onClick={() => setShowDifficultyModal(true)}
-                  className="w-full min-h-11 py-2 bg-neutral-100 text-neutral-700 text-[14px] font-medium rounded-xl hover:bg-neutral-200 transition-colors"
-                >
-                  난이도 비교
-                </button>
               </div>
             </div>
 
@@ -385,7 +375,6 @@ export default function RecordStartPage() {
         />
       )}
 
-      <DifficultyComparisonModal isOpen={showDifficultyModal} onClose={() => setShowDifficultyModal(false)} />
 
       {showDatePicker && (
         <DatePickerModal

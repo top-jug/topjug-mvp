@@ -46,6 +46,13 @@ export default function ProfilePage() {
 
         <div className="bg-white border border-neutral-200 rounded-2xl p-4 space-y-3">
           <div className="text-[15px] font-bold text-neutral-900 px-1">빠른 관리</div>
+          <button onClick={() => navigateToScreen('records')} className="w-full flex items-center justify-between rounded-2xl border border-neutral-200 px-4 py-4 text-left bg-white">
+            <div>
+              <div className="text-[14px] font-semibold text-neutral-900">내 기록</div>
+              <div className="text-[13px] text-neutral-500 mt-1">완료한 운동 기록과 공유 이미지를 확인합니다.</div>
+            </div>
+            <span className="text-[22px] leading-none text-neutral-400">›</span>
+          </button>
           <button onClick={() => navigateToScreen('membership')} className="w-full flex items-center justify-between rounded-2xl border border-neutral-200 px-4 py-4 text-left bg-white">
             <div>
               <div className="text-[14px] font-semibold text-neutral-900">회원권 관리</div>

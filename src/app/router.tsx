@@ -7,6 +7,8 @@ import ProfilePage from './pages/ProfilePage';
 import HomeScreen from '../features/home/HomeScreen';
 import RecordStartPage from './pages/RecordStartPage';
 import RecordPage from './pages/RecordPage';
+import MyRecordsPage from './pages/MyRecordsPage';
+import RecordResultPage from './pages/RecordResultPage';
 
 function PreviewLayout() {
   return (
@@ -27,6 +29,8 @@ export function AppRouter() {
         <Route path="/schedule" element={<CalendarPage />} />
         <Route path="/record/start" element={<RecordStartPage />} />
         <Route path="/record" element={<RecordPage />} />
+        <Route path="/records" element={<MyRecordsPage />} />
+        <Route path="/records/:recordId" element={<RecordResultPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/memberships" element={<MembershipPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
