@@ -8,8 +8,15 @@ export interface CalendarGym {
 
 export interface CalendarEntry {
   gym: string;
+  gymId?: string;
   wall: string;
   recordId?: string;
+  status?: 'scheduled' | 'completed' | 'cancelled';
+  startsAt?: string;
+  endsAt?: string;
+  color?: string;
+  lightBg?: string;
+  darkText?: string;
 }
 
 export type CalendarData = Record<number, CalendarEntry[]>;
