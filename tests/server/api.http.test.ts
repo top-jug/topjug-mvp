@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
-import { eq } from 'drizzle-orm';
+import { and, count, eq } from 'drizzle-orm';
 import { closeDatabase, getDatabase } from '../../src/server/db/client';
-import { auditEvents, gymGrades, gyms, loginAttempts, users } from '../../src/server/db/schema';
+import { auditEvents, gymGrades, gyms, gymSectors, gymWalls, loginAttempts, users } from '../../src/server/db/schema';
 
 const apiBaseUrl = process.env.API_BASE_URL ?? 'http://127.0.0.1:3000/api/v1';
 
@@ -29,8 +29,25 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
     color: '#00ff00',
     rank: 1,
   }).returning();
+  const [wall] = await database.insert(gymWalls).values({
+    gymId: gym.id,
+    code: 'main',
+    name: 'Main Wall',
+  }).returning();
+  const [sector] = await database.insert(gymSectors).values({
+    gymId: gym.id,
+    wallId: wall.id,
+    code: 'a',
+    name: 'Sector A',
+  }).returning();
 
   try {
+    const oversized = await jsonRequest('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ payload: 'x'.repeat(65_537) }),
+    });
+    assert.equal(oversized.status, 413);
+
     const register = await jsonRequest('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, password: 'correct horse battery staple', displayName: 'HTTP Test' }),
@@ -40,7 +57,7 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
     assert.ok(register.headers.get('x-request-id'));
     const refreshCookie = register.headers.get('set-cookie')?.split(';')[0];
     assert.match(refreshCookie ?? '', /^topjug_refresh=/);
-    const registerBody = await register.json() as { data: { accessToken: string } };
+    const registerBody = await register.json() as { data: { accessToken: string; user: { id: string } } };
 
     const me = await jsonRequest('/me', {
       headers: { authorization: `Bearer ${registerBody.data.accessToken}` },
@@ -52,11 +69,13 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
       headers: { authorization: `Bearer ${registerBody.data.accessToken}` },
       body: JSON.stringify({
         gymId: gym.id,
+        accessType: 'day_pass',
         startedAt: '2026-08-23T10:00:00+09:00',
         endedAt: '2026-08-23T12:00:00+09:00',
         rating: 4.5,
         mode: 'normal',
-        counts: [{ gymGradeId: grade.id, attempts: 5, sends: 3 }],
+        sessionType: 'free',
+        counts: [{ gymGradeId: grade.id, gymSectorId: sector.id, attempts: 5, sends: 3 }],
       }),
     });
     assert.equal(created.status, 201);
@@ -76,7 +95,8 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
       headers: { cookie: refreshCookie! },
     });
     assert.equal(refreshed.status, 200);
-    assert.notEqual(refreshed.headers.get('set-cookie')?.split(';')[0], refreshCookie);
+    const rotatedCookie = refreshed.headers.get('set-cookie')?.split(';')[0];
+    assert.notEqual(rotatedCookie, refreshCookie);
 
     const reused = await jsonRequest('/auth/refresh', {
       method: 'POST',
@@ -84,6 +104,31 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
     });
     assert.equal(reused.status, 401);
     assert.equal(reused.headers.get('www-authenticate'), 'Bearer');
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const replay = await jsonRequest('/auth/refresh', {
+        method: 'POST',
+        headers: { cookie: refreshCookie! },
+      });
+      assert.equal(replay.status, 401);
+    }
+    const limitedReplay = await jsonRequest('/auth/refresh', {
+      method: 'POST',
+      headers: { cookie: refreshCookie! },
+    });
+    assert.equal(limitedReplay.status, 429);
+    assert.equal(limitedReplay.headers.get('retry-after'), '900');
+
+    const noOpLogout = await jsonRequest('/auth/logout', {
+      method: 'POST',
+      headers: { cookie: rotatedCookie! },
+    });
+    assert.equal(noOpLogout.status, 204);
+    const [logoutAudits] = await database
+      .select({ count: count() })
+      .from(auditEvents)
+      .where(and(eq(auditEvents.actorUserId, registerBody.data.user.id), eq(auditEvents.action, 'auth.logout')));
+    assert.equal(logoutAudits.count, 0);
   } finally {
     const [user] = await database.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
     if (user) {

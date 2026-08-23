@@ -31,6 +31,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '409':
           $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '503':
@@ -57,6 +59,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '503':
@@ -76,6 +80,8 @@ paths:
                 $ref: '#/components/schemas/TokenResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
   /auth/logout:
@@ -86,6 +92,8 @@ paths:
       responses:
         '204':
           description: Logged out or already logged out
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
   /me:
@@ -109,6 +117,215 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+  /gyms:
+    get:
+      operationId: listGyms
+      summary: Search active gyms for search and home screens
+      security: []
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: regionCode, in: query, schema: { type: string } }
+        - { name: facility, in: query, schema: { type: string } }
+        - { name: tag, in: query, schema: { type: string } }
+        - name: operationStatus
+          in: query
+          schema: { type: string, enum: [active, temporarily_closed, closed, opening_soon], default: active }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        '200':
+          description: Gym search results
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/GymSummary' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /gyms/{gymId}:
+    get:
+      operationId: getGym
+      summary: Get complete gym detail data
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/GymIdPath' }
+      responses:
+        '200':
+          description: Gym details, media, hours, grades, walls, sectors, and setting events
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/GymDetail' } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /me/saved-gyms:
+    get:
+      operationId: listSavedGyms
+      summary: List the current user's saved gyms
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Saved gyms
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { type: array, items: { $ref: '#/components/schemas/GymSummary' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /me/saved-gyms/{gymId}:
+    parameters:
+      - { $ref: '#/components/parameters/GymIdPath' }
+    put:
+      operationId: saveGym
+      summary: Save a gym idempotently
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Gym saved }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: unsaveGym
+      summary: Remove a saved gym idempotently
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Gym removed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /memberships:
+    get:
+      operationId: listMemberships
+      summary: List active memberships and eligible gyms
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Membership list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { type: array, items: { $ref: '#/components/schemas/Membership' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createMembership
+      summary: Create a count or period membership
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MembershipInput' } } }
+      responses:
+        '201':
+          description: Membership created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/Membership' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /memberships/{membershipId}:
+    parameters:
+      - name: membershipId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: replaceMembership
+      summary: Replace editable membership data and eligible gyms
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MembershipInput' } } }
+      responses:
+        '200':
+          description: Membership updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/Membership' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: archiveMembership
+      summary: Archive a membership while retaining its usage ledger
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Membership archived }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /setting-events:
+    get:
+      operationId: listSettingEvents
+      summary: List gym setting events in a time range
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/FromRequired' }
+        - { $ref: '#/components/parameters/ToRequired' }
+        - { $ref: '#/components/parameters/GymId' }
+        - { name: status, in: query, schema: { type: string, enum: [scheduled, completed, cancelled] } }
+      responses:
+        '200':
+          description: Setting events with affected walls and sectors
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { type: array, items: { $ref: '#/components/schemas/SettingEvent' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /records/sessions:
+    get:
+      operationId: getActiveRecordSession
+      summary: Recover the current user's in-progress session, pause state, and draft counts
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Active session or null when none exists
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    oneOf: [{ $ref: '#/components/schemas/ActiveRecordSession' }, { type: 'null' }]
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: startRecordSession
+      summary: Start a recoverable in-progress climbing session
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/StartRecordSessionRequest' } } }
+      responses:
+        '201':
+          description: In-progress session created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/StartedRecordSession' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /records:
     get:
       operationId: listRecords
@@ -160,6 +377,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
         '404':
           $ref: '#/components/responses/NotFound'
         '503':
@@ -196,6 +415,194 @@ paths:
           $ref: '#/components/responses/NotFound'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+  /records/{recordId}/shares:
+    get:
+      operationId: listRecordShares
+      summary: List revocable share metadata without exposing raw tokens
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RecordIdPath' }
+      responses:
+        '200':
+          description: Share lifecycle metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { type: array, items: { $ref: '#/components/schemas/ShareSummary' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createRecordShare
+      summary: Create a revocable public share token and optionally attach an S3 image asset
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RecordIdPath' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateShareRequest' } } }
+      responses:
+        '201':
+          description: Share token returned once
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/CreatedShare' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /records/{recordId}/counts:
+    put:
+      operationId: replaceRecordSessionCounts
+      summary: Persist draft counts for an in-progress session
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/RecordIdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [counts]
+              properties:
+                counts: { type: array, maxItems: 200, items: { $ref: '#/components/schemas/CreateRecordCount' } }
+      responses:
+        '200':
+          description: Draft counts replaced
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/RecordDetail' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /records/{recordId}/shares/{shareId}:
+    delete:
+      operationId: revokeRecordShare
+      summary: Revoke a share owned by the current user
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RecordIdPath' }
+        - name: shareId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Share revoked }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /shares/{token}:
+    get:
+      operationId: getRecordShare
+      summary: Resolve an active public record share
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string, minLength: 40, maxLength: 100 }
+      responses:
+        '200':
+          description: Public record share
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/PublicShare' } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '410': { description: Share expired }
+  /records/{recordId}/pause:
+    post:
+      operationId: pauseRecordSession
+      summary: Pause an in-progress record
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/RecordIdPath' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RecordTransitionRequest' } } } }
+      responses:
+        '200':
+          description: Pause interval created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/RecordPause' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /records/{recordId}/resume:
+    post:
+      operationId: resumeRecordSession
+      summary: Resume a paused record
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/RecordIdPath' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RecordTransitionRequest' } } } }
+      responses:
+        '200':
+          description: Pause interval closed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/RecordPause' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /records/{recordId}/complete:
+    post:
+      operationId: completeRecordSession
+      summary: Complete a record, calculate active time, and consume a count membership atomically
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/RecordIdPath' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CompleteRecordSessionRequest' } } } }
+      responses:
+        '200':
+          description: Session completed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/RecordDetail' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /records/{recordId}/cancel:
+    post:
+      operationId: cancelRecordSession
+      summary: Cancel an in-progress record without consuming a membership
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/RecordIdPath' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RecordTransitionRequest' } } } }
+      responses:
+        '200':
+          description: Session cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/RecordDetail' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 components:
   securitySchemes:
     bearerAuth:
@@ -207,6 +614,26 @@ components:
       in: cookie
       name: topjug_refresh
   parameters:
+    GymIdPath:
+      name: gymId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    RecordIdPath:
+      name: recordId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    FromRequired:
+      name: from
+      in: query
+      required: true
+      schema: { type: string, format: date-time }
+    ToRequired:
+      name: to
+      in: query
+      required: true
+      schema: { type: string, format: date-time }
     From:
       name: from
       in: query
@@ -275,6 +702,12 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     TooManyRequests:
       description: Too many failed authentication attempts
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PayloadTooLarge:
+      description: JSON request body exceeds 64KB
       content:
         application/json:
           schema:
@@ -358,14 +791,334 @@ components:
         createdAt:
           type: string
           format: date-time
+        homeRegion:
+          oneOf:
+            - type: object
+              required: [code, name, parentCode]
+              properties:
+                code: { type: string }
+                name: { type: string }
+                parentCode: { type: [string, 'null'] }
+            - type: 'null'
+        stats:
+          type: object
+          required: [savedGyms, memberships, recordsThisMonth]
+          properties:
+            savedGyms: { type: integer, minimum: 0 }
+            memberships: { type: integer, minimum: 0 }
+            recordsThisMonth: { type: integer, minimum: 0 }
+    MediaReference:
+      type: object
+      required: [id, storageKey, contentType, url]
+      properties:
+        id: { type: string, format: uuid }
+        storageKey: { type: string }
+        contentType: { type: string }
+        url: { type: [string, 'null'], format: uri }
+    GymSummary:
+      type: object
+      required: [id, name, branchName, address, regionCode, operationStatus, facilities, cover]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        branchName: { type: [string, 'null'] }
+        address: { type: string }
+        regionCode: { type: [string, 'null'] }
+        latitude: { type: [number, 'null'] }
+        longitude: { type: [number, 'null'] }
+        operationStatus: { type: string, enum: [active, temporarily_closed, closed, opening_soon] }
+        facilities: { type: array, items: { type: string } }
+        calendarColor: { type: [string, 'null'] }
+        calendarTextColor: { type: [string, 'null'] }
+        brand:
+          oneOf:
+            - type: object
+              required: [id, name]
+              properties:
+                id: { type: string, format: uuid }
+                name: { type: string }
+            - type: 'null'
+        cover:
+          oneOf: [{ $ref: '#/components/schemas/MediaReference' }, { type: 'null' }]
+        tags:
+          type: array
+          items: { $ref: '#/components/schemas/GymTag' }
+        dayPassPrice:
+          oneOf: [{ $ref: '#/components/schemas/GymPrice' }, { type: 'null' }]
+    GymTag:
+      type: object
+      required: [code, label]
+      properties:
+        code: { type: string }
+        label: { type: string }
+    GymDetail:
+      allOf:
+        - $ref: '#/components/schemas/GymSummary'
+        - type: object
+          required: [operatingHoursNote, parkingInfo, media, operatingHours, operatingHourOverrides, prices, grades, walls, settingEvents, sources]
+          properties:
+            phone: { type: [string, 'null'] }
+            websiteUrl: { type: [string, 'null'], format: uri }
+            instagramUrl: { type: [string, 'null'], format: uri }
+            nearbyDirections: { type: [string, 'null'] }
+            operatingHoursNote: { type: [string, 'null'] }
+            parkingInfo: { type: [string, 'null'] }
+            media:
+              type: array
+              items: { $ref: '#/components/schemas/MediaReference' }
+            operatingHours:
+              type: array
+              items: { $ref: '#/components/schemas/OperatingHours' }
+            operatingHourOverrides:
+              type: array
+              items: { $ref: '#/components/schemas/OperatingHoursOverride' }
+            prices:
+              type: array
+              items: { $ref: '#/components/schemas/GymPrice' }
+            grades:
+              type: array
+              items: { $ref: '#/components/schemas/GymGradeReference' }
+            walls:
+              type: array
+              items: { $ref: '#/components/schemas/GymWall' }
+            settingEvents:
+              type: array
+              items: { $ref: '#/components/schemas/SettingEvent' }
+            sources:
+              type: array
+              items:
+                type: object
+                properties:
+                  type: { type: string, enum: [operator, official_site, public_data, user_report] }
+                  sourceName: { type: string }
+                  sourceUrl: { type: [string, 'null'], format: uri }
+                  verifiedAt: { type: [string, 'null'], format: date-time }
+                  lastCheckedAt: { type: [string, 'null'], format: date-time }
+    GymPrice:
+      type: object
+      required: [amount, currency, rawText]
+      properties:
+        amount: { type: [integer, 'null'], minimum: 0 }
+        currency: { type: string, enum: [KRW] }
+        rawText: { type: string }
+        type: { type: string, enum: [day_pass, shoe_rental] }
+    OperatingHours:
+      type: object
+      required: [dayOfWeek, sequence, opensAt, closesAt, isClosed]
+      properties:
+        dayOfWeek: { type: integer, minimum: 0, maximum: 6 }
+        sequence: { type: integer, minimum: 0 }
+        opensAt: { type: [string, 'null'], format: time }
+        closesAt: { type: [string, 'null'], format: time }
+        isClosed: { type: boolean }
+    OperatingHoursOverride:
+      type: object
+      required: [date, sequence, opensAt, closesAt, isClosed]
+      properties:
+        date: { type: string, format: date }
+        sequence: { type: integer, minimum: 0 }
+        opensAt: { type: [string, 'null'], format: time }
+        closesAt: { type: [string, 'null'], format: time }
+        isClosed: { type: boolean }
+        note: { type: [string, 'null'] }
+    GymWall:
+      type: object
+      required: [id, code, name, sortOrder, isActive, mapMedia, sectors]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        sortOrder: { type: integer }
+        isActive: { type: boolean }
+        mapMedia:
+          oneOf: [{ $ref: '#/components/schemas/MediaReference' }, { type: 'null' }]
+        sectors:
+          type: array
+          items: { $ref: '#/components/schemas/GymSector' }
+    GymSector:
+      type: object
+      required: [id, code, name, sortOrder, isActive]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        sortOrder: { type: integer }
+        isActive: { type: boolean }
+    SettingEvent:
+      type: object
+      required: [id, title, status, startsAt, endsAt, note, sectors]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: [string, 'null'] }
+        status: { type: string, enum: [scheduled, completed, cancelled] }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: [string, 'null'], format: date-time }
+        note: { type: [string, 'null'] }
+        sectors: { type: array, items: { $ref: '#/components/schemas/GymSector' } }
+        gym:
+          type: object
+          required: [id, name, branchName, address, calendarColor, calendarTextColor, logo]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            branchName: { type: [string, 'null'] }
+            address: { type: string }
+            calendarColor: { type: [string, 'null'] }
+            calendarTextColor: { type: [string, 'null'] }
+            logo:
+              oneOf: [{ $ref: '#/components/schemas/MediaReference' }, { type: 'null' }]
+    MembershipInput:
+      type: object
+      additionalProperties: false
+      required: [name, type, gymIds, validFrom, validUntil, homeFavorite]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        type: { type: string, enum: [count, period] }
+        gymIds: { type: array, maxItems: 30, uniqueItems: true, items: { type: string, format: uuid } }
+        totalUses: { type: [integer, 'null'], minimum: 0 }
+        remainingUses: { type: [integer, 'null'], minimum: 0 }
+        validFrom: { type: string, format: date-time }
+        validUntil: { type: string, format: date-time }
+        note: { type: [string, 'null'], maxLength: 1000 }
+        homeFavorite: { type: boolean }
+        homeOrder: { type: [integer, 'null'], minimum: 0, maximum: 2 }
+    Membership:
+      allOf:
+        - $ref: '#/components/schemas/MembershipInput'
+        - type: object
+          required: [id, gyms, createdAt, updatedAt]
+          properties:
+            id: { type: string, format: uuid }
+            gyms: { type: array, items: { $ref: '#/components/schemas/GymReference' } }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+            eligibilityStatus: { type: string, enum: [active, unassigned, not_started, expired, exhausted] }
+    StartRecordSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [gymId, accessType, startedAt, mode]
+      properties:
+        gymId: { type: string, format: uuid }
+        accessType: { type: string, enum: [day_pass, membership, other] }
+        membershipId: { type: [string, 'null'], format: uuid }
+        startedAt: { type: string, format: date-time }
+        mode: { type: string, enum: [easy, normal] }
+        sessionType: { type: string, enum: [free, training, project], default: free }
+        note: { type: [string, 'null'], maxLength: 2000 }
+    StartedRecordSession:
+      type: object
+      required: [id, userId, gymId, membershipId, accessType, status, sessionType, startedAt, endedAt, activeDurationSeconds, rating, mode, note, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        gymId: { type: string, format: uuid }
+        membershipId: { type: [string, 'null'], format: uuid }
+        accessType: { type: string, enum: [day_pass, membership, other] }
+        status: { type: string, enum: [in_progress] }
+        sessionType: { type: string, enum: [free, training, project] }
+        startedAt: { type: string, format: date-time }
+        endedAt: { type: 'null' }
+        activeDurationSeconds: { type: 'null' }
+        rating: { type: 'null' }
+        mode: { type: string, enum: [easy, normal] }
+        note: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    RecordTransitionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        at: { type: string, format: date-time }
+    RecordPause:
+      type: object
+      required: [id, recordId, pausedAt, resumedAt]
+      properties:
+        id: { type: string, format: uuid }
+        recordId: { type: string, format: uuid }
+        pausedAt: { type: string, format: date-time }
+        resumedAt: { type: [string, 'null'], format: date-time }
+    ActiveRecordSession:
+      allOf:
+        - $ref: '#/components/schemas/RecordDetail'
+        - type: object
+          required: [isPaused, pauses]
+          properties:
+            isPaused: { type: boolean }
+            pauses: { type: array, items: { $ref: '#/components/schemas/RecordPause' } }
+    CompleteRecordSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [endedAt, counts]
+      properties:
+        endedAt: { type: string, format: date-time }
+        rating: { type: [number, 'null'], minimum: 0.5, maximum: 5, multipleOf: 0.5 }
+        note: { type: [string, 'null'], maxLength: 2000 }
+        counts: { type: array, maxItems: 200, items: { $ref: '#/components/schemas/CreateRecordCount' } }
+    CreateShareRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        mediaAssetId: { type: [string, 'null'], format: uuid }
+        expiresAt: { type: [string, 'null'], format: date-time }
+    CreatedShare:
+      type: object
+      required: [id, token, apiPath, publicUrl, status, expiresAt, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        token: { type: string, readOnly: true }
+        apiPath: { type: string }
+        publicUrl: { type: [string, 'null'], format: uri }
+        status: { type: string, enum: [active] }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+    ShareSummary:
+      type: object
+      required: [id, status, mediaAssetId, expiresAt, revokedAt, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [active, revoked, expired] }
+        mediaAssetId: { type: [string, 'null'], format: uuid }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        revokedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+    PublicShare:
+      type: object
+      required: [id, status, expiresAt, createdAt, media, record, gym, membership]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [active] }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        media:
+          oneOf: [{ $ref: '#/components/schemas/MediaReference' }, { type: 'null' }]
+        record:
+          type: object
+          required: [id, startedAt, endedAt, rating, mode, sessionType, accessType, activeDurationSeconds, sends, attempts]
+          properties:
+            id: { type: string, format: uuid }
+            startedAt: { type: string, format: date-time }
+            endedAt: { type: [string, 'null'], format: date-time }
+            rating: { type: [number, 'null'] }
+            mode: { type: string, enum: [easy, normal] }
+            sessionType: { type: string, enum: [free, training, project] }
+            accessType: { type: string, enum: [day_pass, membership, other] }
+            activeDurationSeconds: { type: [integer, 'null'] }
+            sends: { type: integer }
+            attempts: { type: integer }
+        gym: { $ref: '#/components/schemas/GymReference' }
+        membership:
+          oneOf: [{ $ref: '#/components/schemas/MembershipReference' }, { type: 'null' }]
     CreateRecordRequest:
       type: object
       additionalProperties: false
-      required: [gymId, startedAt, endedAt, mode, counts]
+      required: [gymId, accessType, startedAt, endedAt, mode, counts]
       properties:
         gymId:
           type: string
           format: uuid
+        accessType:
+          type: string
+          enum: [day_pass, membership, other]
         membershipId:
           type: [string, 'null']
           format: uuid
@@ -375,6 +1128,9 @@ components:
         endedAt:
           type: string
           format: date-time
+        activeDurationSeconds:
+          type: integer
+          minimum: 0
         rating:
           type: [number, 'null']
           minimum: 0.5
@@ -383,6 +1139,13 @@ components:
         mode:
           type: string
           enum: [easy, normal]
+        sessionType:
+          type: string
+          enum: [free, training, project]
+          default: free
+        note:
+          type: [string, 'null']
+          maxLength: 2000
         counts:
           type: array
           maxItems: 200
@@ -391,14 +1154,14 @@ components:
     CreateRecordCount:
       type: object
       additionalProperties: false
-      required: [gymGradeId, attempts, sends]
+      required: [gymGradeId, gymSectorId, attempts, sends]
       properties:
         gymGradeId:
           type: string
           format: uuid
-        sectorCode:
-          type: [string, 'null']
-          maxLength: 80
+        gymSectorId:
+          type: string
+          format: uuid
         attempts:
           type: integer
           minimum: 0
@@ -408,7 +1171,7 @@ components:
           description: Must not exceed attempts.
     RecordSummary:
       type: object
-      required: [id, gym, membership, startedAt, endedAt, rating, mode, sends, attempts, createdAt]
+      required: [id, gym, membership, accessType, status, sessionType, startedAt, endedAt, activeDurationSeconds, rating, mode, note, sends, attempts, createdAt]
       properties:
         id:
           type: string
@@ -419,17 +1182,30 @@ components:
           oneOf:
             - $ref: '#/components/schemas/MembershipReference'
             - type: 'null'
+        accessType:
+          type: string
+          enum: [day_pass, membership, other]
+        status:
+          type: string
+          enum: [in_progress, completed, cancelled]
+        sessionType:
+          type: string
+          enum: [free, training, project]
         startedAt:
           type: string
           format: date-time
         endedAt:
-          type: string
+          type: [string, 'null']
           format: date-time
+        activeDurationSeconds:
+          type: [integer, 'null']
         rating:
           type: [number, 'null']
         mode:
           type: string
           enum: [easy, normal]
+        note:
+          type: [string, 'null']
         sends:
           type: integer
         attempts:
@@ -452,13 +1228,20 @@ components:
                 $ref: '#/components/schemas/RecordCount'
     RecordCount:
       type: object
-      required: [id, sectorCode, attempts, sends, grade]
+      required: [id, sector, wall, attempts, sends, grade]
       properties:
         id:
           type: string
           format: uuid
-        sectorCode:
-          type: [string, 'null']
+        sector:
+          $ref: '#/components/schemas/GymSector'
+        wall:
+          type: object
+          required: [id, code, name]
+          properties:
+            id: { type: string, format: uuid }
+            code: { type: string }
+            name: { type: string }
         attempts:
           type: integer
         sends:
@@ -487,7 +1270,7 @@ components:
           type: string
     GymGradeReference:
       type: object
-      required: [id, code, label, color, rank]
+      required: [id, code, label, color, standardCode, rank]
       properties:
         id:
           type: string
@@ -498,6 +1281,8 @@ components:
           type: string
         color:
           type: string
+        standardCode:
+          type: [string, 'null']
         rank:
           type: integer
     RecordListResponse:

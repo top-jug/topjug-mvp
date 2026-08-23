@@ -11,6 +11,26 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: topjug
+          POSTGRES_USER: topjug
+          POSTGRES_PASSWORD: topjug
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U topjug -d topjug"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      APP_PROFILE: local
+      DATABASE_URL: postgresql://topjug:topjug@127.0.0.1:5432/topjug
+      JWT_ACCESS_SECRET: ci-access-secret-that-is-at-least-32-bytes
+      JWT_REFRESH_SECRET: ci-refresh-secret-that-is-at-least-32-bytes
+      AUTH_RATE_LIMIT_PEPPER: ci-rate-limit-pepper-that-is-at-least-32-bytes
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,8 +44,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Apply migrations
+        run: npm run db:migrate
+
+      - name: Test
+        run: npm test && npm run test:integration
+
       - name: Typecheck
         run: npm run typecheck
 
       - name: Build
         run: npm run build
+
+      - name: Test HTTP API
+        run: npm run test:http

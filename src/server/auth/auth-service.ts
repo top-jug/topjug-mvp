@@ -1,12 +1,12 @@
 import 'server-only';
 
 import { timingSafeEqual } from 'node:crypto';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, count, eq, gte, isNull } from 'drizzle-orm';
 import { getDatabase } from '../db/client';
-import { auditEvents, refreshSessions, users } from '../db/schema';
+import { auditEvents, climbingRecords, memberships, refreshSessions, regions, savedGyms, users } from '../db/schema';
 import { ApiError } from '../http/api-error';
 import { hashPassword, verifyPassword } from './password';
-import { clearLoginFailures, consumeLoginAttempts, consumeRegistrationAttempts } from './rate-limit';
+import { clearLoginAttempts, consumeLoginAttempts, consumeRegistrationAttempts } from './rate-limit';
 import { createTokenPair, hashToken, verifyRefreshToken } from './token';
 import { LoginInput, RegisterInput } from './auth-validation';
 import { auditEventValues, writeAuditEvent, writeRequiredAuditEvent } from '../observability/audit';
@@ -62,7 +62,7 @@ export async function registerUser(input: RegisterInput, clientAddress: string) 
 
 export async function loginUser(input: LoginInput, clientAddress: string) {
   const database = getDatabase();
-  const rateLimitKey = await consumeLoginAttempts(input.email, clientAddress);
+  const rateLimitKeys = await consumeLoginAttempts(input.email, clientAddress);
   const rows = await database.select().from(users).where(eq(users.email, input.email)).limit(1);
   const user = rows[0];
   const passwordMatches = await verifyPassword(user?.passwordHash ?? null, input.password);
@@ -72,7 +72,7 @@ export async function loginUser(input: LoginInput, clientAddress: string) {
     throw new ApiError(401, 'INVALID_CREDENTIALS', '이메일 또는 비밀번호를 확인해주세요.');
   }
 
-  await clearLoginFailures(rateLimitKey);
+  await clearLoginAttempts(rateLimitKeys);
   const tokens = await createTokenPair(user.id);
   await database.transaction(async (transaction) => {
     await transaction.insert(refreshSessions).values({
@@ -186,32 +186,60 @@ export async function revokeRefreshToken(refreshToken: string) {
   try {
     claims = await verifyRefreshToken(refreshToken);
   } catch (error) {
-    if (error instanceof ApiError && error.code === 'INVALID_REFRESH_TOKEN') return;
+    if (error instanceof ApiError && error.code === 'INVALID_REFRESH_TOKEN') return false;
     throw error;
   }
 
   setRequestActor(claims.userId);
-  await getDatabase().transaction(async (transaction) => {
-    await transaction
+  return getDatabase().transaction(async (transaction) => {
+    const revoked = await transaction
       .update(refreshSessions)
       .set({ revokedAt: new Date() })
       .where(and(
         eq(refreshSessions.id, claims.sessionId),
         eq(refreshSessions.tokenHash, hashToken(refreshToken)),
         isNull(refreshSessions.revokedAt),
-      ));
+      ))
+      .returning({ id: refreshSessions.id });
+    if (!revoked[0]) return false;
     await transaction.insert(auditEvents).values(auditEventValues({
       action: 'auth.logout',
       actorUserId: claims.userId,
       resourceType: 'refresh_session',
       resourceId: claims.sessionId,
     }));
+    return true;
   });
 }
 
 export async function getUser(userId: string) {
-  const rows = await getDatabase().select().from(users).where(eq(users.id, userId)).limit(1);
+  const database = getDatabase();
+  const rows = await database.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!rows[0]) throw new ApiError(404, 'USER_NOT_FOUND', '사용자를 찾을 수 없습니다.');
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  const [homeRegion, savedGymCount, membershipCount, monthlyRecordCount] = await Promise.all([
+    rows[0].homeRegionCode
+      ? database.select({ code: regions.code, name: regions.name, parentCode: regions.parentCode })
+        .from(regions).where(eq(regions.code, rows[0].homeRegionCode)).limit(1)
+      : Promise.resolve([]),
+    database.select({ total: count() }).from(savedGyms).where(eq(savedGyms.userId, userId)),
+    database.select({ total: count() }).from(memberships).where(and(eq(memberships.userId, userId), isNull(memberships.archivedAt))),
+    database.select({ total: count() }).from(climbingRecords).where(and(
+      eq(climbingRecords.userId, userId),
+      eq(climbingRecords.status, 'completed'),
+      gte(climbingRecords.startedAt, monthStart),
+    )),
+  ]);
   await writeAuditEvent({ action: 'user.read', resourceType: 'user', resourceId: userId });
-  return publicUser(rows[0]);
+  return {
+    ...publicUser(rows[0]),
+    homeRegion: homeRegion[0] ?? null,
+    stats: {
+      savedGyms: savedGymCount[0].total,
+      memberships: membershipCount[0].total,
+      recordsThisMonth: monthlyRecordCount[0].total,
+    },
+  };
 }
