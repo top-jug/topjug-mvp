@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { ActiveGyms, CalendarData, CalendarEntry, CalendarGym } from '../../../entities/calendar/types';
+import { ActiveGyms, CalendarData, CalendarEntry } from '../../../entities/calendar/types';
 import CalendarEntryStack from './CalendarEntryStack';
 
 export interface CalendarGridCell {
@@ -9,13 +9,9 @@ export interface CalendarGridCell {
   month: number;
 }
 
-type CalendarScope = 'month' | 'week';
-
 interface CalendarMonthGridProps {
-  scope: CalendarScope;
   weekdays: string[];
   pages: CalendarGridCell[][];
-  gyms: CalendarGym[];
   activeGyms: ActiveGyms;
   getEntriesForCell: (cell: CalendarGridCell) => CalendarEntry[] | null;
   selectedDate: number | null;
@@ -24,10 +20,7 @@ interface CalendarMonthGridProps {
   onSelectDate: (year: number, month: number, date: number) => void;
   onOpenDateMenu: (year: number, month: number, date: number) => void;
   onShiftPeriod: (direction: -1 | 1) => void;
-  showSelection?: boolean;
-  showWeekTodayHighlight?: boolean;
   containerClassName?: string;
-  weekChipStackClassName?: string;
 }
 
 function chunkCells(cells: CalendarGridCell[], size = 7) {
@@ -42,10 +35,8 @@ function chunkCells(cells: CalendarGridCell[], size = 7) {
 
 export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
   const {
-    scope,
     weekdays,
     pages,
-    gyms,
     activeGyms,
     getEntriesForCell,
     selectedDate,
@@ -54,10 +45,7 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
     onSelectDate,
     onOpenDateMenu,
     onShiftPeriod,
-    showSelection = true,
-    showWeekTodayHighlight = false,
     containerClassName = 'px-5 py-4',
-    weekChipStackClassName = '-space-y-1',
   } = props;
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const scrollTimeoutRef = useRef<number | null>(null);
@@ -67,7 +55,7 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
     if (!node) return;
 
     node.scrollLeft = node.clientWidth;
-  }, [pages, scope]);
+  }, [pages]);
 
   const handleScroll = () => {
     const node = scrollerRef.current;
@@ -90,63 +78,6 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
       }
     }, 120);
   };
-
-  if (scope === 'week') {
-    return (
-      <div className={containerClassName}>
-        <div>
-          <div ref={scrollerRef} onScroll={handleScroll} className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar">
-          {pages.map((page, pageIndex) => (
-            <div key={`week-page-${pageIndex}`} className="w-full flex-shrink-0 snap-center">
-              <div className="space-y-0">
-                {chunkCells(page, 7).map((row, rowIndex) => (
-                  <div key={`week-row-${rowIndex}`} className={`grid grid-cols-7 gap-1.5 ${rowIndex < chunkCells(page, 7).length - 1 ? 'border-b border-neutral-200 pb-2 mb-2' : ''}`}>
-                    {row.map((date, index) => {
-                      const dayData = typeof date.day === 'number' ? getEntriesForCell(date) : null;
-                      const visibleEntries = dayData?.filter((entry) => activeGyms[entry.gym]) ?? [];
-                      const isSelected = date.day === selectedDate && date.month === selectedMonth && date.year === selectedYear;
-                      const isToday = date.day === 12 && date.month === 4 && date.year === 2026;
-                      const weekday = weekdays[index];
-
-                      return (
-                        <button
-                          key={date.key}
-                          onClick={() => typeof date.day === 'number' && onSelectDate(date.year, date.month, date.day)}
-                          onContextMenu={(event) => {
-                            event.preventDefault();
-                            if (typeof date.day === 'number') onOpenDateMenu(date.year, date.month, date.day);
-                          }}
-                          className={`rounded-2xl px-1 py-2 flex flex-col items-center min-h-[84px] transition-colors ${showSelection && isSelected ? 'bg-[#DCEBFA]' : 'bg-white'}`}
-                          disabled={typeof date.day !== 'number'}
-                        >
-                          {typeof date.day === 'number' && (
-                            <>
-                              <div className="text-[11px] leading-none text-neutral-500">{weekday}</div>
-                              <div className="mt-2.5 h-8 flex items-center justify-center">
-                                <div
-                                  className={`text-[17px] leading-none font-bold flex items-center justify-center ${showWeekTodayHighlight && isToday ? 'w-8 h-8 rounded-full bg-[#185FA5] text-white' : ''}`}
-                                >
-                                  {date.day}
-                                </div>
-                              </div>
-                              <div className="mt-2 min-h-[34px] flex items-center justify-center">
-                                <CalendarEntryStack entries={visibleEntries} logoClassName="h-7 w-7" />
-                              </div>
-                            </>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className={containerClassName}>

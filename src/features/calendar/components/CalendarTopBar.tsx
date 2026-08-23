@@ -2,11 +2,9 @@ import TopTabHeader from '../../../app/components/layout/TopTabHeader';
 import { Search } from 'lucide-react';
 
 type CalendarViewMode = 'record' | 'setting';
-type CalendarScope = 'month' | 'week';
 
 interface CalendarTopBarProps {
   mode: CalendarViewMode;
-  scope: CalendarScope;
   periodLabel: string;
   onChangeMode: (mode: CalendarViewMode) => void;
   onOpenPeriod: () => void;
