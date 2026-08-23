@@ -3,15 +3,18 @@ import { MembershipProvider } from './providers/MembershipProvider';
 import { AppRouter } from './router';
 import { RecordDraftProvider } from './providers/RecordDraftProvider';
 import { SavedGymsProvider } from './providers/SavedGymsProvider';
+import { RecordHistoryProvider } from './providers/RecordHistoryProvider';
 
 export default function App() {
   return (
     <BrowserRouter>
       <SavedGymsProvider>
         <MembershipProvider>
-          <RecordDraftProvider>
-            <AppRouter />
-          </RecordDraftProvider>
+          <RecordHistoryProvider>
+            <RecordDraftProvider>
+              <AppRouter />
+            </RecordDraftProvider>
+          </RecordHistoryProvider>
         </MembershipProvider>
       </SavedGymsProvider>
     </BrowserRouter>

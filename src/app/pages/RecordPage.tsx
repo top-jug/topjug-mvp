@@ -2,27 +2,20 @@ import { useRef } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import RecordScreen from '../../features/record/RecordScreen';
 import { useRecordDraft } from '../providers/RecordDraftProvider';
+import { useRecordHistory } from '../providers/RecordHistoryProvider';
 
 export default function RecordPage() {
   const navigate = useNavigate();
   const { draft, clearDraft } = useRecordDraft();
+  const { addRecord } = useRecordHistory();
   const submittedRef = useRef(false);
 
   if (!draft) {
-    return <Navigate to={submittedRef.current ? '/schedule' : '/record/start'} replace />;
+    return <Navigate to={submittedRef.current ? '/records' : '/record/start'} replace />;
   }
 
   const handleClose = () => {
-    if (submittedRef.current) {
-      navigate('/schedule', { replace: true });
-      return;
-    }
-
-    if (window.history.length > 2) {
-      navigate(-2);
-      return;
-    }
-
+    clearDraft();
     navigate('/', { replace: true });
   };
 
@@ -30,10 +23,11 @@ export default function RecordPage() {
     <RecordScreen
       onClose={handleClose}
       initialDraft={draft}
-      onSubmitComplete={() => {
+      onSubmitComplete={(record) => {
         submittedRef.current = true;
-        navigate('/schedule', { replace: true });
+        addRecord(record);
         clearDraft();
+        navigate('/records', { replace: true });
       }}
     />
   );

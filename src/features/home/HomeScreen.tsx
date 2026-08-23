@@ -1,6 +1,4 @@
-import { useState } from 'react';
 import BottomTabBar from '../../app/components/layout/BottomTabBar';
-import NotificationScreen from '../notifications/NotificationScreen';
 import { useAppScreenNavigate } from '../../app/navigation';
 import { HomeTopBar } from './components/HomeTopBar';
 import { HomeCalendarGrid } from './components/HomeCalendarGrid';
@@ -9,12 +7,11 @@ import { HomeMembership } from './components/HomeMembership';
 import { HomeNearbyGyms } from './components/HomeNearbyGyms';
 
 export default function HomeScreen() {
-  const [showNotification, setShowNotification] = useState(false);
   const navigateToScreen = useAppScreenNavigate();
 
   return (
     <>
-      <HomeTopBar onNotificationClick={() => setShowNotification(true)} onProfileClick={() => navigateToScreen('profile')} />
+      <HomeTopBar onProfileClick={() => navigateToScreen('profile')} />
 
       <div className="px-5 overflow-y-auto hide-scrollbar pb-24 min-h-screen">
         <div className="mb-7">
@@ -32,8 +29,6 @@ export default function HomeScreen() {
       </div>
 
       <BottomTabBar activeTab="home" onNavigate={navigateToScreen} />
-
-      {showNotification && <NotificationScreen onClose={() => setShowNotification(false)} />}
     </>
   );
 }

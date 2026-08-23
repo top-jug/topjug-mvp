@@ -7,6 +7,9 @@ import ProfilePage from './pages/ProfilePage';
 import HomeScreen from '../features/home/HomeScreen';
 import RecordStartPage from './pages/RecordStartPage';
 import RecordPage from './pages/RecordPage';
+import MyRecordsPage from './pages/MyRecordsPage';
+import RecordResultPage from './pages/RecordResultPage';
+import RecordSharePage from './pages/RecordSharePage';
 
 function PreviewLayout() {
   return (
@@ -24,9 +27,13 @@ export function AppRouter() {
         <Route path="/gyms" element={<GymSearchPage />} />
         <Route path="/gyms/saved" element={<GymSearchPage initialView="saved" />} />
         <Route path="/gyms/:gymId" element={<GymDetailPage />} />
-        <Route path="/schedule" element={<CalendarPage />} />
+        <Route path="/schedule" element={<Navigate to="/schedule/settings" replace />} />
+        <Route path="/schedule/:calendarView" element={<CalendarPage />} />
         <Route path="/record/start" element={<RecordStartPage />} />
         <Route path="/record" element={<RecordPage />} />
+        <Route path="/records" element={<MyRecordsPage />} />
+        <Route path="/records/:recordId/share" element={<RecordSharePage />} />
+        <Route path="/records/:recordId" element={<RecordResultPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/memberships" element={<MembershipPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
