@@ -1,16 +1,18 @@
 import { useNavigate } from 'react-router';
 import { useRecordHistory } from '../providers/RecordHistoryProvider';
 import { getRecordTotals } from '../../features/record/record-summary';
+import { useNavigateBack } from '../navigation';
 
 export default function MyRecordsPage() {
   const navigate = useNavigate();
+  const navigateBack = useNavigateBack('/profile');
   const { records } = useRecordHistory();
   const totalSuccess = records.reduce((total, record) => total + getRecordTotals(record).success, 0);
 
   return (
     <div className="min-h-screen bg-[#F7F8FA] pb-10">
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-100 bg-white px-5 py-4">
-        <button onClick={() => navigate('/profile')} className="flex h-11 w-8 items-center" aria-label="프로필로 돌아가기">
+        <button onClick={navigateBack} className="flex h-11 w-8 items-center" aria-label="뒤로가기">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m15 18-6-6 6-6" />
           </svg>

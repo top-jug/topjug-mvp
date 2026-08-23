@@ -4,6 +4,7 @@ import { ClimbingRecord } from '../../entities/record/types';
 import { getRecordTotals } from '../../features/record/record-summary';
 import { RECORD_DIFFICULTIES } from '../../mocks/record';
 import { useRecordHistory } from '../providers/RecordHistoryProvider';
+import { useNavigateBack } from '../navigation';
 
 const SECTOR_LABELS: Record<string, string> = {
   easy: '이지 모드',
@@ -30,6 +31,7 @@ function getRouteDetails(record: ClimbingRecord) {
 
 export default function RecordResultPage() {
   const navigate = useNavigate();
+  const navigateBack = useNavigateBack('/records');
   const { recordId } = useParams();
   const { getRecord } = useRecordHistory();
   const record = recordId ? getRecord(recordId) : undefined;
@@ -43,7 +45,7 @@ export default function RecordResultPage() {
   return (
     <div className="min-h-screen bg-[#F7F8FA] pb-10 text-neutral-950">
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-100 bg-white px-5 py-3">
-        <button onClick={() => navigate('/records')} className="flex h-11 w-9 items-center" aria-label="내 기록으로 돌아가기">
+        <button onClick={navigateBack} className="flex h-11 w-9 items-center" aria-label="뒤로가기">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m15 18-6-6 6-6" />
           </svg>

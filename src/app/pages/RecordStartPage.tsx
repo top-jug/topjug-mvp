@@ -4,7 +4,7 @@ import { MONTH_NAMES, RECORD_GYMS } from '../../mocks/record';
 import CenteredModalShell from '../components/overlay/CenteredModalShell';
 import { useMemberships } from '../providers/MembershipProvider';
 import { RecordDraft, RecordPassType, useRecordDraft } from '../providers/RecordDraftProvider';
-import { useAppScreenNavigate } from '../navigation';
+import { useAppScreenNavigate, useNavigateBack } from '../navigation';
 import GymSelectModal from '../../features/record/components/modals/GymSelectModal';
 import DatePickerModal from '../../features/record/components/modals/DatePickerModal';
 import PassSelectModal from '../../features/record/components/modals/PassSelectModal';
@@ -158,6 +158,7 @@ function TimeWheelColumn({ label, items, value, onChange }: TimeWheelColumnProps
 export default function RecordStartPage() {
   const navigate = useNavigate();
   const navigateToScreen = useAppScreenNavigate();
+  const navigateBack = useNavigateBack('/');
   const { draft, setDraft } = useRecordDraft();
   const { countPasses, periodPasses } = useMemberships();
 
@@ -186,15 +187,6 @@ export default function RecordStartPage() {
   const [showTimeModal, setShowTimeModal] = useState(false);
 
   const canStart = Boolean(selectedGym && selectedDate && selectedStartTime && selectedPassType && (selectedPassType === '일일이용권' || selectedPass));
-
-  const handleClose = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-
-    navigate('/', { replace: true });
-  };
 
   const handleDateSelect = (day: number) => {
     setSelectedDay(day);
@@ -225,7 +217,7 @@ export default function RecordStartPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <div className="px-5 pt-5 pb-4 flex items-center justify-between border-b border-neutral-100">
-        <button onClick={handleClose} className="h-11 w-6 flex items-center justify-start rounded-full">
+        <button onClick={navigateBack} className="h-11 w-6 flex items-center justify-start rounded-full" aria-label="뒤로가기">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>

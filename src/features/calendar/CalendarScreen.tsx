@@ -12,6 +12,8 @@ import CalendarPeriodModal from './components/modals/CalendarPeriodModal';
 import { CalendarScope } from './types';
 
 interface CalendarScreenProps {
+  viewMode: CalendarViewMode;
+  onViewModeChange: (mode: CalendarViewMode) => void;
   onNavigate: (screen: string) => void;
   onOpenRecord: (recordId: string) => void;
 }
@@ -113,8 +115,7 @@ function isMockMonth(year: number, month: number) {
   return year === 2026 && month === 4;
 }
 
-export default function CalendarScreen({ onNavigate, onOpenRecord }: CalendarScreenProps) {
-  const [viewMode, setViewMode] = useState<CalendarViewMode>('setting');
+export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate, onOpenRecord }: CalendarScreenProps) {
   const [scope, setScope] = useState<CalendarScope>('month');
   const [selectedDate, setSelectedDate] = useState<number | null>(12);
   const [currentMonth, setCurrentMonth] = useState({ year: 2026, month: 4 });
@@ -261,7 +262,7 @@ export default function CalendarScreen({ onNavigate, onOpenRecord }: CalendarScr
         mode={viewMode}
         scope={scope}
         periodLabel={periodLabel}
-        onChangeMode={setViewMode}
+        onChangeMode={onViewModeChange}
         onOpenPeriod={() => setShowPeriodModal(true)}
         onOpenSearch={() => setShowSearchModal(true)}
       />

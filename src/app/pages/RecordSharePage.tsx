@@ -1,16 +1,17 @@
 import { Clipboard, Download, Share2, X } from 'lucide-react';
 import { useState } from 'react';
-import { Navigate, useNavigate, useParams } from 'react-router';
+import { Navigate, useParams } from 'react-router';
 import { getRecordTotals } from '../../features/record/record-summary';
 import { createRecordShareImage } from '../../features/record/record-share-image';
 import { useRecordHistory } from '../providers/RecordHistoryProvider';
+import { useNavigateBack } from '../navigation';
 
 export default function RecordSharePage() {
-  const navigate = useNavigate();
   const { recordId } = useParams();
   const { getRecord } = useRecordHistory();
   const [status, setStatus] = useState('');
   const record = recordId ? getRecord(recordId) : undefined;
+  const navigateBack = useNavigateBack(record ? `/records/${record.id}` : '/records');
 
   if (!record) return <Navigate to="/records" replace />;
 
@@ -67,7 +68,7 @@ export default function RecordSharePage() {
     <div className="min-h-screen bg-neutral-950 px-5 pb-10 text-white">
       <header className="flex items-center justify-between py-4">
         <div className="text-[14px] font-black tracking-[0.14em]">SHARE YOUR SEND</div>
-        <button onClick={() => navigate(`/records/${record.id}`)} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10" aria-label="공유 화면 닫기">
+        <button onClick={navigateBack} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10" aria-label="뒤로가기">
           <X size={21} />
         </button>
       </header>

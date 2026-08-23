@@ -27,7 +27,8 @@ export function AppRouter() {
         <Route path="/gyms" element={<GymSearchPage />} />
         <Route path="/gyms/saved" element={<GymSearchPage initialView="saved" />} />
         <Route path="/gyms/:gymId" element={<GymDetailPage />} />
-        <Route path="/schedule" element={<CalendarPage />} />
+        <Route path="/schedule" element={<Navigate to="/schedule/settings" replace />} />
+        <Route path="/schedule/:calendarView" element={<CalendarPage />} />
         <Route path="/record/start" element={<RecordStartPage />} />
         <Route path="/record" element={<RecordPage />} />
         <Route path="/records" element={<MyRecordsPage />} />
