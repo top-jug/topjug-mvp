@@ -7,9 +7,9 @@ interface HomeRecentGymsProps {
 
 export function HomeRecentGyms({ onGymClick, onOpen }: HomeRecentGymsProps) {
   const recentGyms = [
-    { name: '더클라임 양재', grade: 'V4' },
-    { name: '피커스 홀딩', grade: 'V3' },
-    { name: '클라이밍랩코', grade: 'V5' },
+    { name: '더클라임 양재', colorClassName: 'bg-red-500' },
+    { name: '피커스 홀딩', colorClassName: 'bg-green-500' },
+    { name: '클라이밍랩코', colorClassName: 'bg-blue-500' },
   ];
 
   return (
@@ -18,7 +18,7 @@ export function HomeRecentGyms({ onGymClick, onOpen }: HomeRecentGymsProps) {
         {recentGyms.map((gym, i) => (
           <div key={i} onClick={onGymClick} className="flex items-center justify-between gap-2 text-[14px] cursor-pointer hover:bg-white -mx-1 px-1 py-1 rounded-lg transition-colors">
             <div className="font-medium truncate">{gym.name}</div>
-            <div className="text-blue-600 font-bold">{gym.grade}</div>
+            <div className={`h-3.5 w-3.5 flex-shrink-0 rounded-full ${gym.colorClassName}`} aria-hidden="true" />
           </div>
         ))}
       </div>

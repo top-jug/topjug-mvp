@@ -10,15 +10,14 @@ export function HomeTopBar({ onNotificationClick, onProfileClick }: HomeTopBarPr
       <div className="flex items-center gap-2">
         <button
           onClick={onNotificationClick}
-          className="w-11 h-11 bg-blue-50 rounded-full flex items-center justify-center relative hover:bg-blue-100 transition-colors"
+          disabled
+          className="w-11 h-11 bg-neutral-100 rounded-full flex items-center justify-center relative text-neutral-300 cursor-not-allowed"
+          aria-label="알림"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgb(59 130 246)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
-          <div className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 bg-red-500 rounded-full flex items-center justify-center">
-            <span className="text-[10px] font-bold text-white">2</span>
-          </div>
         </button>
         <button
           onClick={onProfileClick}
