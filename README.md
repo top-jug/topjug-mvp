@@ -31,10 +31,15 @@ ops/ec2/                EC2 runtime and deployment configuration
 
 `app/[[...path]]`가 기존 React Router 앱을 CSR로 감쌉니다. 백엔드 기능을 추가할 때 Route Handler에는 HTTP 처리만 두고 비즈니스 규칙은 `src/server` 아래의 독립 모듈에 둡니다.
 
-현재 서버 endpoint:
+현재 서버 endpoint는 인증, 암장, 저장 암장, 회원권, 세팅 일정, 기록 lifecycle, 공유 API를 포함합니다. 전체 계약은 [`docs/backend/openapi.yaml`](./docs/backend/openapi.yaml)을 기준으로 연동합니다.
 
 ```text
 GET /api/health
+GET /api/ready
+GET /api/v1/gyms
+GET /api/v1/gyms/{gymId}
+GET /api/v1/records
+POST /api/v1/records/sessions
 ```
 
 ## Deployment

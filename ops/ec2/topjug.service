@@ -9,6 +9,9 @@ User=topjug
 Group=topjug
 WorkingDirectory=/opt/topjug/current
 Environment=NODE_ENV=production
+Environment=APP_PROFILE=production
+Environment=AWS_REGION=ap-northeast-2
+Environment=SSM_PARAMETER_PREFIX=/topjug/prod
 Environment=HOSTNAME=127.0.0.1
 Environment=PORT=3000
 ExecStart=/usr/bin/node server.js

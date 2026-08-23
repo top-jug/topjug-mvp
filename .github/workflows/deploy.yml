@@ -36,11 +36,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Test
+        run: npm test
+
       - name: Typecheck
         run: npm run typecheck
 
       - name: Build
-        run: npm run build
+        run: npm run build && npm run build:migrate
 
       - name: Package standalone application
         run: |
@@ -48,6 +51,12 @@ jobs:
           cp -a .next/standalone/. deploy/
           cp -a .next/static deploy/.next/static
           cp -a public deploy/public
+          cp -a drizzle deploy/drizzle
+          cp -a .migration deploy/.migration
+          cp ops/ec2/topjug.service deploy/topjug.service
+          cp ops/ec2/topjug-security-cleanup.service deploy/topjug-security-cleanup.service
+          cp ops/ec2/topjug-security-cleanup.timer deploy/topjug-security-cleanup.timer
+          cp ops/ec2/Caddyfile deploy/Caddyfile
           tar -czf "topjug-mvp-${GITHUB_SHA}.tar.gz" -C deploy .
 
       - name: Configure AWS credentials
@@ -61,15 +70,17 @@ jobs:
           aws s3 cp "topjug-mvp-${GITHUB_SHA}.tar.gz" \
             "s3://${DEPLOY_BUCKET}/releases/${GITHUB_SHA}.tar.gz"
           aws s3 cp ops/ec2/deploy.sh \
-            "s3://${DEPLOY_BUCKET}/scripts/deploy.sh"
+            "s3://${DEPLOY_BUCKET}/scripts/${GITHUB_SHA}/deploy.sh"
 
       - name: Deploy through Systems Manager
         run: |
+          SCRIPT_SHA256=$(sha256sum ops/ec2/deploy.sh | cut -d ' ' -f1)
+          ARCHIVE_SHA256=$(sha256sum "topjug-mvp-${GITHUB_SHA}.tar.gz" | cut -d ' ' -f1)
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name AWS-RunShellScript \
             --comment "Deploy topjug-mvp ${GITHUB_SHA}" \
-            --parameters "commands=[\"aws s3 cp s3://${DEPLOY_BUCKET}/scripts/deploy.sh /tmp/topjug-deploy.sh\",\"chmod 700 /tmp/topjug-deploy.sh\",\"/tmp/topjug-deploy.sh ${DEPLOY_BUCKET} ${GITHUB_SHA}\"]" \
+            --parameters "commands=[\"aws s3 cp s3://${DEPLOY_BUCKET}/scripts/${GITHUB_SHA}/deploy.sh /tmp/topjug-deploy.sh\",\"printf '${SCRIPT_SHA256}  /tmp/topjug-deploy.sh\\n' | sha256sum -c -\",\"chmod 700 /tmp/topjug-deploy.sh\",\"/tmp/topjug-deploy.sh ${DEPLOY_BUCKET} ${GITHUB_SHA} ${ARCHIVE_SHA256}\"]" \
             --query 'Command.CommandId' \
             --output text)
 
