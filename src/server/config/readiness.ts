@@ -16,20 +16,20 @@ export async function assertReady() {
     throw new ApiError(503, 'SERVICE_NOT_READY', '서비스 설정이 준비되지 않았습니다.');
   }
 
-  const invalidPublicUrl = REQUIRED_PUBLIC_URLS.find((name) => {
-    const value = process.env[name];
-    if (!value) return true;
-    try {
-      return process.env.APP_PROFILE === 'production' && new URL(value).protocol !== 'https:';
-    } catch {
-      return true;
-    }
-  });
-  if (invalidPublicUrl) {
-    throw new ApiError(503, 'SERVICE_NOT_READY', '공개 URL 설정이 준비되지 않았습니다.');
-  }
-
   if (process.env.APP_PROFILE === 'production') {
+    const invalidPublicUrl = REQUIRED_PUBLIC_URLS.find((name) => {
+      const value = process.env[name];
+      if (!value) return true;
+      try {
+        return new URL(value).protocol !== 'https:';
+      } catch {
+        return true;
+      }
+    });
+    if (invalidPublicUrl) {
+      throw new ApiError(503, 'SERVICE_NOT_READY', '공개 URL 설정이 준비되지 않았습니다.');
+    }
+
     try {
       const databaseUrl = new URL(process.env.DATABASE_URL ?? '');
       const sslMode = databaseUrl.searchParams.get('sslmode');
