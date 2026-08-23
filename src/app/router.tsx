@@ -10,6 +10,9 @@ import RecordPage from './pages/RecordPage';
 import MyRecordsPage from './pages/MyRecordsPage';
 import RecordResultPage from './pages/RecordResultPage';
 import RecordSharePage from './pages/RecordSharePage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import { RequireAuth } from '../features/auth/RequireAuth';
 
 function PreviewLayout() {
   return (
@@ -23,19 +26,23 @@ export function AppRouter() {
   return (
     <Routes>
       <Route element={<PreviewLayout />}>
-        <Route path="/" element={<HomeScreen />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route path="/gyms" element={<GymSearchPage />} />
-        <Route path="/gyms/saved" element={<GymSearchPage initialView="saved" />} />
         <Route path="/gyms/:gymId" element={<GymDetailPage />} />
         <Route path="/schedule" element={<Navigate to="/schedule/settings" replace />} />
         <Route path="/schedule/:calendarView" element={<CalendarPage />} />
-        <Route path="/record/start" element={<RecordStartPage />} />
-        <Route path="/record" element={<RecordPage />} />
-        <Route path="/records" element={<MyRecordsPage />} />
-        <Route path="/records/:recordId/share" element={<RecordSharePage />} />
-        <Route path="/records/:recordId" element={<RecordResultPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/memberships" element={<MembershipPage />} />
+        <Route element={<RequireAuth />}>
+          <Route path="/" element={<HomeScreen />} />
+          <Route path="/gyms/saved" element={<GymSearchPage initialView="saved" />} />
+          <Route path="/record/start" element={<RecordStartPage />} />
+          <Route path="/record" element={<RecordPage />} />
+          <Route path="/records" element={<MyRecordsPage />} />
+          <Route path="/records/:recordId/share" element={<RecordSharePage />} />
+          <Route path="/records/:recordId" element={<RecordResultPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/memberships" element={<MembershipPage />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
