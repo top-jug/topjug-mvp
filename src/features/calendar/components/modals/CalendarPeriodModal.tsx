@@ -1,102 +1,111 @@
-import { CalendarScope } from '../../types';
+import { useEffect, useRef, useState } from 'react';
 import BottomSheet from '../../../../app/components/overlay/BottomSheet';
 
 interface CalendarPeriodModalProps {
-  scope: CalendarScope;
-  periodLabel: string;
-  onSelectScope: (scope: CalendarScope) => void;
-  onSelectPeriod: (year: number, month: number, weekOffset?: number) => void;
+  currentYear: number;
+  currentMonth: number;
+  onSelectPeriod: (year: number, month: number) => void;
   onClose: () => void;
 }
 
-const PERIOD_OPTIONS: { year: number; month: number; label: string }[] = [
-  { year: 2026, month: 4, label: '2026년 4월' },
-  { year: 2026, month: 3, label: '2026년 3월' },
-  { year: 2026, month: 2, label: '2026년 2월' },
-  { year: 2026, month: 5, label: '2026년 5월' },
-];
+interface WheelPickerProps {
+  label: string;
+  options: number[];
+  value: number;
+  suffix: string;
+  onChange: (value: number) => void;
+}
 
-const WEEK_OPTIONS: { year: number; month: number; label: string }[] = [
-  { year: 2026, month: 4, label: '4월 1주 (1-5일)' },
-  { year: 2026, month: 4, label: '4월 2주 (6-12일)' },
-  { year: 2026, month: 4, label: '4월 3주 (13-19일)' },
-  { year: 2026, month: 4, label: '4월 4주 (20-26일)' },
-  { year: 2026, month: 4, label: '4월 5주 (27-30일)' },
-];
+const WHEEL_ITEM_HEIGHT = 44;
+const YEAR_OPTIONS = Array.from({ length: 201 }, (_, index) => 1900 + index);
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
 
-export default function CalendarPeriodModal({ scope, periodLabel, onSelectScope, onSelectPeriod, onClose }: CalendarPeriodModalProps) {
-  const currentPeriod = periodLabel;
+function WheelPicker({ label, options, value, suffix, onChange }: WheelPickerProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const handleSelectScope = (newScope: CalendarScope) => {
-    onSelectScope(newScope);
-  };
+  useEffect(() => {
+    const selectedIndex = options.indexOf(value);
+    if (selectedIndex < 0 || !scrollRef.current) return;
 
-  const handleSelectPeriod = (year: number, month: number, weekLabel?: string) => {
-    const weekOffset = weekLabel ? WEEK_OPTIONS.findIndex(w => w.label === weekLabel) + 1 : undefined;
-    onSelectPeriod(year, month, weekOffset);
-    onClose();
+    scrollRef.current.scrollTop = selectedIndex * WHEEL_ITEM_HEIGHT;
+  }, [options, value]);
+
+  const selectNearestValue = () => {
+    const node = scrollRef.current;
+    if (!node) return;
+
+    const nextIndex = Math.max(0, Math.min(options.length - 1, Math.round(node.scrollTop / WHEEL_ITEM_HEIGHT)));
+    const nextValue = options[nextIndex];
+
+    if (nextValue !== value) onChange(nextValue);
   };
 
   return (
-    <BottomSheet onClose={onClose} title="보기 선택">
-          <div className="mb-6">
-            <div className="text-[14px] font-semibold text-neutral-700 mb-3">보기 모드</div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => handleSelectScope('week')}
-                className={`flex-1 py-3 rounded-xl text-[15px] font-medium transition-colors ${
-                  scope === 'week' ? 'bg-blue-500 text-white' : 'bg-neutral-100 text-neutral-700'
-                }`}
-              >
-                주간 보기
-              </button>
-              <button
-                onClick={() => handleSelectScope('month')}
-                className={`flex-1 py-3 rounded-xl text-[15px] font-medium transition-colors ${
-                  scope === 'month' ? 'bg-blue-500 text-white' : 'bg-neutral-100 text-neutral-700'
-                }`}
-              >
-                월간 보기
-              </button>
-            </div>
-          </div>
+    <div>
+      <div className="mb-2 text-center text-[13px] font-medium text-neutral-500">{label}</div>
+      <div className="relative h-[220px] overflow-hidden rounded-2xl bg-neutral-50">
+        <div className="pointer-events-none absolute inset-x-2 top-[88px] z-10 h-11 rounded-xl border-y border-neutral-200 bg-white/80" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[72px] bg-gradient-to-b from-neutral-50 via-neutral-50/90 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-[72px] bg-gradient-to-t from-neutral-50 via-neutral-50/90 to-transparent" />
 
-          <div>
-            <div className="text-[14px] font-semibold text-neutral-700 mb-3">
-              {scope === 'week' ? '주간 선택' : '월간 선택'}
+        <div
+          ref={scrollRef}
+          role="listbox"
+          aria-label={label}
+          tabIndex={0}
+          onScroll={selectNearestValue}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+            event.preventDefault();
+
+            const currentIndex = options.indexOf(value);
+            const direction = event.key === 'ArrowUp' ? -1 : 1;
+            const nextIndex = Math.max(0, Math.min(options.length - 1, currentIndex + direction));
+            onChange(options[nextIndex]);
+          }}
+          className="h-full snap-y snap-mandatory overflow-y-auto overscroll-contain py-[88px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {options.map((option) => (
+            <div
+              key={option}
+              role="option"
+              aria-selected={option === value}
+              className={`flex h-11 snap-center items-center justify-center text-[20px] transition-all ${
+                option === value ? 'font-semibold text-neutral-950' : 'font-normal text-neutral-400'
+              }`}
+            >
+              {option}{suffix}
             </div>
-            <div className="space-y-2">
-              {scope === 'week' ? (
-                WEEK_OPTIONS.map((option) => (
-                  <button
-                    key={option.label}
-                    onClick={() => handleSelectPeriod(option.year, option.month, option.label)}
-                    className={`w-full py-3 px-4 rounded-xl text-[15px] font-medium text-left transition-colors ${
-                      currentPeriod.includes(option.label.split(' ')[0]) 
-                        ? 'bg-blue-500 text-white' 
-                        : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))
-              ) : (
-                PERIOD_OPTIONS.map((option) => (
-                  <button
-                    key={`${option.year}-${option.month}`}
-                    onClick={() => handleSelectPeriod(option.year, option.month)}
-                    className={`w-full py-3 px-4 rounded-xl text-[15px] font-medium text-left transition-colors ${
-                      currentPeriod === option.label 
-                        ? 'bg-blue-500 text-white' 
-                        : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function CalendarPeriodModal({ currentYear, currentMonth, onSelectPeriod, onClose }: CalendarPeriodModalProps) {
+  const [year, setYear] = useState(currentYear);
+  const [month, setMonth] = useState(currentMonth);
+
+  return (
+    <BottomSheet
+      onClose={onClose}
+      title="날짜 선택"
+      bodyClassName="px-6 pb-8 pt-5"
+      headerRight={
+        <button
+          type="button"
+          onClick={() => onSelectPeriod(year, month)}
+          className="h-10 rounded-full px-4 text-[15px] font-semibold text-blue-500"
+        >
+          완료
+        </button>
+      }
+    >
+      <div className="grid grid-cols-2 gap-3">
+        <WheelPicker label="연도" options={YEAR_OPTIONS} value={year} suffix="년" onChange={setYear} />
+        <WheelPicker label="월" options={MONTH_OPTIONS} value={month} suffix="월" onChange={setMonth} />
+      </div>
     </BottomSheet>
   );
 }

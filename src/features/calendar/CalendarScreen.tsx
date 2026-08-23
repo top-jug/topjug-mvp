@@ -9,7 +9,6 @@ import CalendarSearchMenu from './components/CalendarSearchMenu';
 import CalendarTopBar from './components/CalendarTopBar';
 import CalendarDayPopup from './components/modals/CalendarDayPopup';
 import CalendarPeriodModal from './components/modals/CalendarPeriodModal';
-import { CalendarScope } from './types';
 
 interface CalendarScreenProps {
   onNavigate: (screen: string) => void;
@@ -63,49 +62,9 @@ function buildMonthCells(year: number, month: number): CalendarGridCell[] {
   return cells;
 }
 
-function buildWeekCells(year: number, month: number, selectedDate: number | null): CalendarGridCell[] {
-  const anchorDate = new Date(year, month - 1, selectedDate ?? 1);
-  const dayOfWeek = (anchorDate.getDay() + 6) % 7;
-  anchorDate.setDate(anchorDate.getDate() - dayOfWeek);
-
-  return Array.from({ length: 7 }, (_, index) => {
-    const cellDate = new Date(anchorDate);
-    cellDate.setDate(anchorDate.getDate() + index);
-
-    return {
-      key: `week-${cellDate.getFullYear()}-${cellDate.getMonth() + 1}-${cellDate.getDate()}`,
-      day: cellDate.getDate(),
-      year: cellDate.getFullYear(),
-      month: cellDate.getMonth() + 1,
-    };
-  });
-}
-
 function shiftMonth(year: number, month: number, delta: number) {
   const shiftedDate = new Date(year, month - 1 + delta, 1);
   return { year: shiftedDate.getFullYear(), month: shiftedDate.getMonth() + 1 };
-}
-
-function shiftWeek(year: number, month: number, selectedDate: number | null, delta: number) {
-  const shiftedDate = new Date(year, month - 1, selectedDate ?? 1);
-  shiftedDate.setDate(shiftedDate.getDate() + delta * 7);
-  return {
-    year: shiftedDate.getFullYear(),
-    month: shiftedDate.getMonth() + 1,
-    day: shiftedDate.getDate(),
-  };
-}
-
-function formatWeekRangeLabel(cells: CalendarGridCell[]) {
-  const first = cells[0];
-  const last = cells[cells.length - 1];
-  const sameMonth = first.year === last.year && first.month === last.month;
-
-  if (sameMonth) {
-    return `${first.month}월 ${first.day}일 - ${last.day}일`;
-  }
-
-  return `${first.month}월 ${first.day}일 - ${last.month}월 ${last.day}일`;
 }
 
 function isMockMonth(year: number, month: number) {
@@ -114,7 +73,6 @@ function isMockMonth(year: number, month: number) {
 
 export default function CalendarScreen({ onNavigate }: CalendarScreenProps) {
   const [viewMode, setViewMode] = useState<CalendarViewMode>('setting');
-  const [scope, setScope] = useState<CalendarScope>('month');
   const [selectedDate, setSelectedDate] = useState<number | null>(12);
   const [currentMonth, setCurrentMonth] = useState({ year: 2026, month: 4 });
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -147,33 +105,14 @@ export default function CalendarScreen({ onNavigate }: CalendarScreenProps) {
     return isMockMonth(currentMonth.year, currentMonth.month) ? filteredCalendarData : {};
   }, [currentMonth.month, currentMonth.year, filteredCalendarData]);
 
-  const calendarCells = useMemo(() => {
-    return scope === 'month'
-      ? buildMonthCells(currentMonth.year, currentMonth.month)
-      : buildWeekCells(currentMonth.year, currentMonth.month, selectedDate);
-  }, [currentMonth.month, currentMonth.year, scope, selectedDate]);
-
   const periodPages = useMemo(() => {
-    if (scope === 'month') {
-      return [-1, 0, 1].map((delta) => {
-        const target = shiftMonth(currentMonth.year, currentMonth.month, delta);
-        return buildMonthCells(target.year, target.month);
-      });
-    }
-
     return [-1, 0, 1].map((delta) => {
-      const target = shiftWeek(currentMonth.year, currentMonth.month, selectedDate, delta);
-      return buildWeekCells(target.year, target.month, target.day);
+      const target = shiftMonth(currentMonth.year, currentMonth.month, delta);
+      return buildMonthCells(target.year, target.month);
     });
-  }, [currentMonth.month, currentMonth.year, scope, selectedDate]);
+  }, [currentMonth.month, currentMonth.year]);
 
-  const periodLabel = useMemo(() => {
-    if (scope === 'month') {
-      return `${currentMonth.year}년 ${currentMonth.month}월`;
-    }
-
-    return formatWeekRangeLabel(calendarCells);
-  }, [calendarCells, currentMonth.month, currentMonth.year, scope]);
+  const periodLabel = `${currentMonth.year}년 ${currentMonth.month}월`;
 
   const selectedEntries = selectedDate ? visibleCalendarData[selectedDate] ?? [] : [];
 
@@ -246,19 +185,10 @@ export default function CalendarScreen({ onNavigate }: CalendarScreenProps) {
     });
   };
 
-  const moveWeek = (delta: number) => {
-    const anchorDate = new Date(currentMonth.year, currentMonth.month - 1, selectedDate ?? 1);
-    anchorDate.setDate(anchorDate.getDate() + delta * 7);
-    setCurrentMonth({ year: anchorDate.getFullYear(), month: anchorDate.getMonth() + 1 });
-    setSelectedDate(anchorDate.getDate());
-    setActiveSlide(0);
-  };
-
   return (
     <>
       <CalendarTopBar
         mode={viewMode}
-        scope={scope}
         periodLabel={periodLabel}
         onChangeMode={setViewMode}
         onOpenPeriod={() => setShowPeriodModal(true)}
@@ -270,7 +200,6 @@ export default function CalendarScreen({ onNavigate }: CalendarScreenProps) {
         activeGyms={activeGyms}
         onToggleGym={toggleGym}
         onToggleAll={toggleAllGyms}
-        onOpenSettings={() => onNavigate('myGyms')}
       />
 
       {showSearchModal && (
@@ -283,14 +212,12 @@ export default function CalendarScreen({ onNavigate }: CalendarScreenProps) {
 
       {showPeriodModal && (
         <CalendarPeriodModal
-          scope={scope}
-          periodLabel={periodLabel}
-          onSelectScope={(newScope) => setScope(newScope)}
-          onSelectPeriod={(year, month, weekOffset) => {
+          currentYear={currentMonth.year}
+          currentMonth={currentMonth.month}
+          onSelectPeriod={(year, month) => {
             setCurrentMonth({ year, month });
-            if (weekOffset !== undefined) {
-              setSelectedDate((weekOffset - 1) * 7 + 1);
-            }
+            setSelectedDate((date) => Math.min(date ?? 1, getDaysInMonth(year, month)));
+            setActiveSlide(0);
             setShowPeriodModal(false);
           }}
           onClose={() => setShowPeriodModal(false)}
@@ -300,10 +227,8 @@ export default function CalendarScreen({ onNavigate }: CalendarScreenProps) {
       {/* Content - Fixed height without scroll */}
       <div className="pb-24 min-h-screen">
         <CalendarMonthGrid
-          scope={scope}
           weekdays={CALENDAR_WEEKDAYS}
           pages={periodPages}
-          gyms={filterGyms}
           activeGyms={activeGyms}
           getEntriesForCell={getEntriesForCell}
           selectedDate={selectedDate}
@@ -314,8 +239,7 @@ export default function CalendarScreen({ onNavigate }: CalendarScreenProps) {
             setCurrentMonth({ year, month });
             handleDayLongPress(day);
           }}
-          onShiftPeriod={(direction) => (scope === 'month' ? moveMonth(direction) : moveWeek(direction))}
-          showWeekTodayHighlight={true}
+          onShiftPeriod={moveMonth}
         />
 
         <CalendarDetailSection

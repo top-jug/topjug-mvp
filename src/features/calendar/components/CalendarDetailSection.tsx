@@ -60,9 +60,9 @@ export default function CalendarDetailSection({ mode, selectedDate, activeSlide,
                         <div className="w-12 h-12 rounded-xl flex items-center justify-center text-[24px] font-bold" style={{ backgroundColor: gymInfo.lightBg, color: gymInfo.darkText }}>
                           {entry.gym.slice(0, 1)}
                         </div>
-                        <div className="flex-1">
-                          <div className="text-[15px] font-medium">{entry.gym}</div>
-                          <div className="text-[13px] text-neutral-500">{entry.wall}</div>
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                          <div className="truncate text-[16px] font-semibold text-neutral-900">{entry.gym}</div>
+                          <div className="flex-shrink-0 text-[15px] font-medium text-neutral-600">{entry.wall}</div>
                         </div>
                       </div>
                       <div className="h-32 bg-neutral-800 rounded-lg mb-2 overflow-hidden">

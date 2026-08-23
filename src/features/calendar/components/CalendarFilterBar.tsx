@@ -1,15 +1,13 @@
 import { ActiveGyms, CalendarGym } from '../../../entities/calendar/types';
-import { Settings } from 'lucide-react';
 
 interface CalendarFilterBarProps {
   gyms: CalendarGym[];
   activeGyms: ActiveGyms;
   onToggleGym: (gymName: string) => void;
   onToggleAll: () => void;
-  onOpenSettings: () => void;
 }
 
-export default function CalendarFilterBar({ gyms, activeGyms, onToggleGym, onToggleAll, onOpenSettings }: CalendarFilterBarProps) {
+export default function CalendarFilterBar({ gyms, activeGyms, onToggleGym, onToggleAll }: CalendarFilterBarProps) {
   const allSelected = gyms.length > 0 && gyms.every((gym) => activeGyms[gym.name]);
 
   return (
@@ -43,14 +41,6 @@ export default function CalendarFilterBar({ gyms, activeGyms, onToggleGym, onTog
             </button>
           );
         })}
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          aria-label="내 암장 설정"
-          className="w-9 h-9 rounded-full bg-white border border-neutral-200 text-neutral-700 flex items-center justify-center flex-shrink-0"
-        >
-          <Settings size={17} strokeWidth={2.2} aria-hidden="true" />
-        </button>
       </div>
     </div>
   );
