@@ -55,7 +55,7 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
           ]}
           activeTab={activeView}
           onChangeTab={handleChangeView}
-          containerClassName="px-5 pt-5 pb-3 bg-white"
+          containerClassName="px-5 pt-5 pb-2 bg-white"
         />
 
         {activeView === 'search' && (

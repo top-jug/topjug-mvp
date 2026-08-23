@@ -5,7 +5,7 @@ interface GymSearchInputProps {
 
 export default function GymSearchInput({ value, onChange }: GymSearchInputProps) {
   return (
-    <div className="px-5 py-3 bg-white">
+    <div className="px-5 pb-3 pt-2 bg-white">
       <div className="relative">
         <input
           type="text"
