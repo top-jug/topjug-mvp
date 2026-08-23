@@ -39,6 +39,34 @@ export interface RecordShareModel {
 export function getRecordDifficultySummaries(record: ClimbingRecord): ShareDifficultySummary[] {
   const summaries = new Map<number, ShareDifficultySummary>();
 
+  if (record.apiCounts?.length) {
+    const orderedCounts = [...record.apiCounts].sort((left, right) => left.gradeRank - right.gradeRank);
+    const gradeIndexes = new Map<string, number>();
+
+    orderedCounts.forEach((counts) => {
+      if (counts.success === 0 && counts.attempt === 0) return;
+
+      const difficultyIndex = gradeIndexes.get(counts.gradeId) ?? gradeIndexes.size;
+      gradeIndexes.set(counts.gradeId, difficultyIndex);
+
+      const current = summaries.get(difficultyIndex) ?? {
+        difficultyIndex,
+        colorClassName: '',
+        colorHex: counts.gradeColor ?? DIFFICULTY_HEX_COLORS[difficultyIndex] ?? '#A3A3A3',
+        colorName: counts.gradeCode,
+        grade: counts.gradeLabel,
+        success: 0,
+        attempt: 0,
+      };
+
+      current.success += counts.success;
+      current.attempt += counts.attempt;
+      summaries.set(difficultyIndex, current);
+    });
+
+    return Array.from(summaries.values()).sort((left, right) => left.difficultyIndex - right.difficultyIndex);
+  }
+
   Object.entries(record.routeCounts).forEach(([routeKey, counts]) => {
     if (counts.success === 0 && counts.attempt === 0) return;
 
@@ -72,7 +100,7 @@ export function createRecordShareModel(record: ClimbingRecord, options: RecordSh
   return {
     totals: getRecordTotals(record),
     difficulties: allDifficulties.filter((difficulty) => selectedIndexes.has(difficulty.difficultyIndex)),
-    highestCompletedDifficulty: allDifficulties.find((difficulty) => difficulty.success > 0),
+    highestCompletedDifficulty: [...allDifficulties].reverse().find((difficulty) => difficulty.success > 0),
     durationLabel: formatRecordDuration(record.duration),
     comment: options.comment.trim(),
   };

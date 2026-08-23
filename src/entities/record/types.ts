@@ -24,6 +24,21 @@ export interface PeriodPass {
 
 export type RouteCounts = Record<string, { success: number; attempt: number }>;
 
+export interface RecordRouteDetail {
+  id: string;
+  sectorId: string;
+  sectorName: string;
+  wallId: string;
+  wallName: string;
+  gradeId: string;
+  gradeCode: string;
+  gradeLabel: string;
+  gradeColor: string | null;
+  gradeRank: number;
+  success: number;
+  attempt: number;
+}
+
 export interface ClimbingRecord {
   id: string;
   gym: string;
@@ -33,5 +48,10 @@ export interface ClimbingRecord {
   rating: number;
   mode: 'easy' | 'normal';
   routeCounts: RouteCounts;
+  apiCounts?: RecordRouteDetail[];
+  startedAt?: string;
+  endedAt?: string | null;
+  accessType?: 'day_pass' | 'membership' | 'other';
+  sessionType?: 'free' | 'training' | 'project';
   createdAt: string;
 }

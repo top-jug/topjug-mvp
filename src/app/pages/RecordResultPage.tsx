@@ -1,8 +1,10 @@
 import { Share2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router';
 import { ClimbingRecord } from '../../entities/record/types';
 import { getRecordTotals } from '../../features/record/record-summary';
 import { RECORD_DIFFICULTIES } from '../../mocks/record';
+import { getRecord as fetchRecord, mapApiRecordDetail } from '../api/record-api';
 import { useRecordHistory } from '../providers/RecordHistoryProvider';
 import { useNavigateBack } from '../navigation';
 
@@ -12,7 +14,37 @@ const SECTOR_LABELS: Record<string, string> = {
   sector2: '2 Sector (Cave)',
 };
 
-function getRouteDetails(record: ClimbingRecord) {
+interface RouteDetail {
+  key: string;
+  sector: string;
+  difficulty?: {
+    color: string;
+    name: string;
+    grade: string;
+    hexColor?: string | null;
+  };
+  success: number;
+  attempt: number;
+}
+
+function getRouteDetails(record: ClimbingRecord): RouteDetail[] {
+  if (record.apiCounts?.length) {
+    return record.apiCounts
+      .filter((counts) => counts.success > 0 || counts.attempt > 0)
+      .map((counts) => ({
+        key: counts.id,
+        sector: `${counts.wallName} · ${counts.sectorName}`,
+        difficulty: {
+          color: '',
+          name: counts.gradeCode,
+          grade: counts.gradeLabel,
+          hexColor: counts.gradeColor,
+        },
+        success: counts.success,
+        attempt: counts.attempt,
+      }));
+  }
+
   return Object.entries(record.routeCounts)
     .filter(([, counts]) => counts.success > 0 || counts.attempt > 0)
     .map(([key, counts]) => {
@@ -34,7 +66,68 @@ export default function RecordResultPage() {
   const navigateBack = useNavigateBack('/records');
   const { recordId } = useParams();
   const { getRecord } = useRecordHistory();
-  const record = recordId ? getRecord(recordId) : undefined;
+  const [record, setRecord] = useState<ClimbingRecord | undefined>(() => recordId ? getRecord(recordId) : undefined);
+  const [isLoading, setIsLoading] = useState(Boolean(recordId));
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!recordId) return;
+
+    let isActive = true;
+    setIsLoading(true);
+    setError(null);
+
+    fetchRecord(recordId)
+      .then((payload) => {
+        if (!isActive) return;
+        setRecord(mapApiRecordDetail(payload.data));
+      })
+      .catch((fetchError) => {
+        if (!isActive) return;
+        setError(fetchError instanceof Error ? fetchError.message : '기록을 불러오지 못했어요.');
+      })
+      .finally(() => {
+        if (isActive) setIsLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [recordId]);
+
+  if (!recordId) return <Navigate to="/records" replace />;
+
+  if (isLoading && !record) {
+    return (
+      <div className="min-h-screen bg-[#F7F8FA] pb-10 text-neutral-950">
+        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-100 bg-white px-5 py-3">
+          <button onClick={navigateBack} className="flex h-11 w-9 items-center" aria-label="뒤로가기">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+          <h1 className="text-[18px] font-bold">기록 상세</h1>
+          <div className="w-9" />
+        </header>
+        <main className="space-y-4 px-5 py-5">
+          <div className="h-[172px] animate-pulse rounded-3xl border border-neutral-200 bg-white" />
+          <div className="h-[260px] animate-pulse rounded-3xl border border-neutral-200 bg-white" />
+        </main>
+      </div>
+    );
+  }
+
+  if (error && !record) {
+    return (
+      <div className="min-h-screen bg-[#F7F8FA] px-5 pb-10 pt-24 text-center text-neutral-950">
+        <div className="text-[18px] font-bold">기록을 찾을 수 없어요</div>
+        <div className="mt-2 text-[13px] text-neutral-500">{error}</div>
+        <button onClick={() => navigate('/records', { replace: true })} className="mt-6 h-12 rounded-2xl bg-neutral-950 px-5 text-[14px] font-bold text-white">
+          목록으로 돌아가기
+        </button>
+      </div>
+    );
+  }
 
   if (!record) return <Navigate to="/records" replace />;
 
@@ -102,7 +195,10 @@ export default function RecordResultPage() {
                     <div className="min-w-0">
                       <div className="text-[11px] text-neutral-500">{route.sector}</div>
                       <div className="mt-1 flex items-center gap-2 text-[14px] font-bold">
-                        <span className={`h-4 w-4 rounded-full ${route.difficulty?.color ?? 'bg-neutral-300'}`} />
+                        <span
+                          className={`h-4 w-4 rounded-full ${route.difficulty?.color ?? 'bg-neutral-300'}`}
+                          style={route.difficulty?.hexColor ? { backgroundColor: route.difficulty.hexColor } : undefined}
+                        />
                         {route.difficulty ? `${route.difficulty.name} (${route.difficulty.grade})` : '난이도 미지정'}
                       </div>
                     </div>

@@ -10,6 +10,7 @@ import RecordPage from './pages/RecordPage';
 import MyRecordsPage from './pages/MyRecordsPage';
 import RecordResultPage from './pages/RecordResultPage';
 import RecordSharePage from './pages/RecordSharePage';
+import PublicRecordSharePage from './pages/PublicRecordSharePage';
 
 function PreviewLayout() {
   return (
@@ -34,6 +35,7 @@ export function AppRouter() {
         <Route path="/records" element={<MyRecordsPage />} />
         <Route path="/records/:recordId/share" element={<RecordSharePage />} />
         <Route path="/records/:recordId" element={<RecordResultPage />} />
+        <Route path="/shares/:token" element={<PublicRecordSharePage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/memberships" element={<MembershipPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
