@@ -11,7 +11,7 @@ export function HomeMembership({ onOpen }: HomeMembershipProps) {
   const hiddenCount = memberships.filter(m => m.isFavorite).length - visibleMemberships.length;
 
   return (
-    <HomeSectionShell title="회원권" onAction={onOpen} actionLabel="순서 편집">
+    <HomeSectionShell title="회원권" onAction={onOpen} actionLabel="회원권 수정">
       <div className="space-y-2.5">
         {visibleMemberships.map((membership) => (
           <div key={membership.id} className="flex items-center justify-between gap-2 text-[14px]">

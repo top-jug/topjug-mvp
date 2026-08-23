@@ -10,7 +10,7 @@ export default function BottomTabBar({ activeTab, onNavigate }: BottomTabBarProp
   const inactiveStroke = 'rgb(163 163 163)';
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 h-28 px-5 pb-4 pt-2 pointer-events-auto">
+    <div className="fixed bottom-0 left-0 right-0 z-50 h-24 px-5 pb-2 pt-1 pointer-events-auto">
       <div className="w-full h-full flex items-center justify-between">
         <div className="bg-white border border-neutral-200 rounded-full h-[68px] flex items-center justify-around px-4 flex-1 mr-3 shadow-[0_-4px_16px_rgba(15,23,42,0.08)]">
           <button onClick={() => onNavigate('home')} className="flex flex-col items-center gap-1.5 px-4">
