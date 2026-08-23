@@ -18,6 +18,7 @@ env:
   AWS_ROLE_ARN: arn:aws:iam::345736953998:role/topjug-mvp-github-deploy-role
   DEPLOY_BUCKET: topjug-mvp-deploy-345736953998-ap-northeast-2
   INSTANCE_ID: i-0076602b269b8469f
+  RDS_HOST: topjug-mvp-postgres.c5i8wgs6krzp.ap-northeast-2.rds.amazonaws.com
 
 jobs:
   deploy:
@@ -72,6 +73,103 @@ jobs:
           aws s3 cp ops/ec2/deploy.sh \
             "s3://${DEPLOY_BUCKET}/scripts/${GITHUB_SHA}/deploy.sh"
 
+      - name: Run migrations through private tunnel
+        run: |
+          if ! command -v session-manager-plugin >/dev/null 2>&1; then
+            curl --fail --silent --show-error --location \
+              https://s3.amazonaws.com/session-manager-downloads/plugin/1.2.835.0/ubuntu_64bit/session-manager-plugin.deb \
+              --output /tmp/session-manager-plugin.deb
+            echo "7c6dcad12518571cc7959a713e6a8ae1bdf6ed66fd9bee37dc189e39ca58ae03  /tmp/session-manager-plugin.deb" \
+              | sha256sum --check
+            sudo dpkg --install /tmp/session-manager-plugin.deb
+          fi
+
+          MIGRATION_DATABASE_URL=$(aws ssm get-parameter \
+            --name /topjug/prod/migration-database-url \
+            --with-decryption \
+            --query Parameter.Value \
+            --output text)
+          echo "::add-mask::${MIGRATION_DATABASE_URL}"
+          RUNTIME_DATABASE_URL=$(aws ssm get-parameter \
+            --name /topjug/prod/runtime-database-url \
+            --with-decryption \
+            --query Parameter.Value \
+            --output text)
+          echo "::add-mask::${RUNTIME_DATABASE_URL}"
+          MIGRATION_PASSWORD=$(DATABASE_URL="$MIGRATION_DATABASE_URL" node -e \
+            "process.stdout.write(decodeURIComponent(new URL(process.env.DATABASE_URL).password))")
+          RUNTIME_PASSWORD=$(DATABASE_URL="$RUNTIME_DATABASE_URL" node -e \
+            "process.stdout.write(decodeURIComponent(new URL(process.env.DATABASE_URL).password))")
+          echo "::add-mask::${MIGRATION_PASSWORD}"
+          echo "::add-mask::${RUNTIME_PASSWORD}"
+
+          MIGRATION_DATABASE_URL="$MIGRATION_DATABASE_URL" \
+            RUNTIME_DATABASE_URL="$RUNTIME_DATABASE_URL" \
+            RDS_HOST="$RDS_HOST" \
+            node <<'NODE'
+          const migration = new URL(process.env.MIGRATION_DATABASE_URL);
+          const runtime = new URL(process.env.RUNTIME_DATABASE_URL);
+          for (const url of [migration, runtime]) {
+            if (url.protocol !== 'postgresql:' || url.hostname !== process.env.RDS_HOST) {
+              throw new Error('Database URL does not target the configured production RDS host');
+            }
+            if (url.searchParams.get('sslmode') !== 'require') {
+              throw new Error('SSM tunnel deployment requires sslmode=require');
+            }
+            if (url.port && url.port !== '5432') {
+              throw new Error('Database URL must use PostgreSQL port 5432');
+            }
+          }
+          if (migration.pathname !== runtime.pathname) {
+            throw new Error('Migration and runtime URLs must target the same database');
+          }
+          NODE
+
+          aws ssm start-session \
+            --target "$INSTANCE_ID" \
+            --document-name AWS-StartPortForwardingSessionToRemoteHost \
+            --parameters "host=${RDS_HOST},portNumber=5432,localPortNumber=15432" \
+            >/tmp/topjug-migration-tunnel.log 2>&1 &
+          TUNNEL_PID=$!
+          trap 'kill "$TUNNEL_PID" 2>/dev/null || true; wait "$TUNNEL_PID" 2>/dev/null || true' EXIT
+
+          node <<'NODE'
+          const net = require('node:net');
+          let attempts = 0;
+          const connect = () => {
+            const socket = net.connect(15432, '127.0.0.1');
+            socket.once('connect', () => {
+              socket.destroy();
+              process.exit(0);
+            });
+            socket.once('error', () => {
+              socket.destroy();
+              if (++attempts >= 30) process.exit(1);
+              setTimeout(connect, 1000);
+            });
+          };
+          connect();
+          NODE
+
+          LOCAL_DATABASE_URL=$(DATABASE_URL="$MIGRATION_DATABASE_URL" node -e \
+            "const url=new URL(process.env.DATABASE_URL); url.hostname='127.0.0.1'; url.port='15432'; process.stdout.write(url.toString())")
+          LOCAL_RUNTIME_DATABASE_URL=$(DATABASE_URL="$RUNTIME_DATABASE_URL" node -e \
+            "const url=new URL(process.env.DATABASE_URL); url.hostname='127.0.0.1'; url.port='15432'; process.stdout.write(url.toString())")
+          echo "::add-mask::${LOCAL_DATABASE_URL}"
+          echo "::add-mask::${LOCAL_RUNTIME_DATABASE_URL}"
+          APP_PROFILE=production \
+            MIGRATION_DATABASE_URL="$LOCAL_DATABASE_URL" \
+            RUNTIME_DATABASE_URL="$LOCAL_RUNTIME_DATABASE_URL" \
+            node .migration/provision-runtime-db-role.cjs --apply
+          APP_PROFILE=production \
+            DATABASE_URL="$LOCAL_DATABASE_URL" \
+            MIGRATIONS_FOLDER="$GITHUB_WORKSPACE/drizzle" \
+            node .migration/migrate.cjs
+          APP_PROFILE=production \
+            MIGRATION_DATABASE_URL="$LOCAL_DATABASE_URL" \
+            RUNTIME_DATABASE_URL="$LOCAL_RUNTIME_DATABASE_URL" \
+            node .migration/provision-runtime-db-role.cjs --apply --verify-schema
+
       - name: Deploy through Systems Manager
         run: |
           SCRIPT_SHA256=$(sha256sum ops/ec2/deploy.sh | cut -d ' ' -f1)
@@ -84,11 +182,29 @@ jobs:
             --query 'Command.CommandId' \
             --output text)
 
-          aws ssm wait command-executed \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID"
+          STATUS="Pending"
+          for ATTEMPT in $(seq 1 90); do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$INSTANCE_ID" \
+              --query Status \
+              --output text 2>/dev/null || true)
+            case "$STATUS" in
+              Success|Cancelled|TimedOut|Failed|Cancelling) break ;;
+              *) sleep 5 ;;
+            esac
+          done
+
+          case "$STATUS" in
+            Success|Cancelled|TimedOut|Failed|Cancelling) ;;
+            *)
+              aws ssm cancel-command --command-id "$COMMAND_ID" || true
+              STATUS="TimedOut"
+              ;;
+          esac
 
           aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$INSTANCE_ID" \
             --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}'
+          [ "$STATUS" = "Success" ]

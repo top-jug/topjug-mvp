@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { basename, extname, join, relative, resolve } from "node:path";
 import { HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import { parse } from "csv-parse/sync";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { strFromU8, unzipSync } from "fflate";
 import postgres from "postgres";
@@ -20,6 +21,9 @@ const SOURCE_NAME = "topjug_initial_research_2026-08-23";
 const DEFAULT_ARCHIVE = "../암장최초데이터베이스.zip";
 const DEFAULT_LOGO_DIRECTORY = "../암장로고들";
 const EXCLUDED_GYMS = new Set(["더클라임 신사"]);
+const EXPECTED_RESEARCHED_GYMS = 32;
+const EXPECTED_IMPORTED_GYMS = 31;
+const EXPECTED_BRANDS = 7;
 
 const requiredColumns = [
   "지점",
@@ -108,6 +112,33 @@ async function objectChecksum(s3: S3Client, bucket: string, key: string) {
     if (status === 404) return undefined;
     throw error;
   }
+}
+
+async function connectionString() {
+  let value = process.env.DATABASE_URL;
+  if (!value) {
+    const prefix = process.env.SSM_PARAMETER_PREFIX;
+    if (!prefix) throw new Error("DATABASE_URL or SSM_PARAMETER_PREFIX is required unless --dry-run is used.");
+    const normalizedPrefix = `/${prefix.split("/").filter(Boolean).join("/")}`;
+    const name = `${normalizedPrefix}/runtime-database-url`;
+    const ssm = new SSMClient({ region: process.env.AWS_REGION ?? "ap-northeast-2" });
+    try {
+      const response = await ssm.send(new GetParameterCommand({ Name: name, WithDecryption: true }));
+      if (!response.Parameter?.Value) throw new Error(`Required SSM parameter is empty: ${name}`);
+      value = response.Parameter.Value;
+    } finally {
+      ssm.destroy();
+    }
+  }
+  const parsed = new URL(value);
+  const productionTarget =
+    process.env.APP_PROFILE === "production" ||
+    process.env.SSM_PARAMETER_PREFIX?.split("/").includes("prod") ||
+    parsed.hostname.endsWith(".rds.amazonaws.com");
+  if (productionTarget && (parsed.protocol !== "postgresql:" || !["require", "verify-full"].includes(parsed.searchParams.get("sslmode") ?? ""))) {
+    throw new Error("Production DATABASE_URL must use PostgreSQL with sslmode=require or verify-full.");
+  }
+  return value;
 }
 
 function instagramUrl(handle: string) {
@@ -223,6 +254,7 @@ function parseRows(csv: string) {
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes("--dry-run");
+  const apply = args.includes("--apply");
   const archiveArg =
     args.find((argument) => !argument.startsWith("--")) ?? DEFAULT_ARCHIVE;
   const logoDirectoryArg =
@@ -239,10 +271,14 @@ async function main() {
     .filter((row) => !logoFiles.has(row.externalId))
     .map((row) => row.location);
 
-  if (researchedRows.length !== 32)
+  const brandCount = new Set(rows.map((row) => row.brand)).size;
+  if (researchedRows.length !== EXPECTED_RESEARCHED_GYMS)
     throw new Error(
-      `Expected 32 researched gyms, received ${researchedRows.length}.`,
+      `Expected ${EXPECTED_RESEARCHED_GYMS} researched gyms, received ${researchedRows.length}.`,
     );
+  if (rows.length !== EXPECTED_IMPORTED_GYMS) throw new Error(`Expected ${EXPECTED_IMPORTED_GYMS} imported gyms, received ${rows.length}.`);
+  if (brandCount !== EXPECTED_BRANDS) throw new Error(`Expected ${EXPECTED_BRANDS} brands, received ${brandCount}.`);
+  if (logoFiles.size !== EXPECTED_IMPORTED_GYMS) throw new Error(`Expected ${EXPECTED_IMPORTED_GYMS} logos, received ${logoFiles.size}.`);
   if (missingLogos.length > 0)
     throw new Error(`Missing logos: ${missingLogos.join(", ")}`);
   if (dryRun) {
@@ -254,7 +290,7 @@ async function main() {
           researchedGyms: researchedRows.length,
           excludedGyms: [...EXCLUDED_GYMS],
           gyms: rows.length,
-          brands: new Set(rows.map((row) => row.brand)).size,
+          brands: brandCount,
           logos: logoFiles.size,
           missingLogos,
         },
@@ -265,8 +301,7 @@ async function main() {
     process.exit(0);
   }
 
-  if (!process.env.DATABASE_URL)
-    throw new Error("DATABASE_URL is required unless --dry-run is used.");
+  if (!apply) throw new Error("Database import requires the explicit --apply flag.");
   const bucket = process.env.MEDIA_S3_BUCKET;
   if (!bucket)
     throw new Error("MEDIA_S3_BUCKET is required unless --dry-run is used.");
@@ -275,33 +310,22 @@ async function main() {
     endpoint: process.env.MEDIA_S3_ENDPOINT,
     forcePathStyle: process.env.MEDIA_S3_FORCE_PATH_STYLE === "true",
   });
-  const client = postgres(process.env.DATABASE_URL, { max: 1 });
+  const mediaPublicBaseUrl = process.env.MEDIA_PUBLIC_BASE_URL;
+  if (!process.env.MEDIA_S3_ENDPOINT && (!mediaPublicBaseUrl || new URL(mediaPublicBaseUrl).protocol !== "https:")) {
+    throw new Error("MEDIA_PUBLIC_BASE_URL must be an HTTPS URL when using AWS S3.");
+  }
+  const client = postgres(await connectionString(), { max: 1, connect_timeout: 10 });
   const database = drizzle(client);
   const uploadedLogoByExternalId = new Map<
     string,
     { storageKey: string; byteSize: number; checksumSha256: string }
   >();
   const now = new Date();
+  let uploadedObjects = 0;
+  let reusedObjects = 0;
 
   try {
-    const mediaRequired = new Set<string>();
-    for (const row of rows) {
-      const [source] = await database
-        .select({ gymId: gymSources.gymId })
-        .from(gymSources)
-        .where(and(eq(gymSources.sourceName, SOURCE_NAME), eq(gymSources.externalId, row.externalId)))
-        .limit(1);
-      if (!source) {
-        mediaRequired.add(row.externalId);
-        continue;
-      }
-      const roles = await database.select({ type: gymMedia.type }).from(gymMedia).where(eq(gymMedia.gymId, source.gymId));
-      if (!["logo", "cover", "photo"].every((type) => roles.some((media) => media.type === type))) {
-        mediaRequired.add(row.externalId);
-      }
-    }
     for (const [externalId, sourcePath] of logoFiles) {
-      if (!mediaRequired.has(externalId)) continue;
       const body = await readFile(sourcePath);
       const storageKey = `gyms/initial/${externalId}/logo.jpg`;
       const checksumSha256 = createHash("sha256").update(body).digest("hex");
@@ -320,6 +344,9 @@ async function main() {
             Metadata: { source: SOURCE_NAME, sha256: checksumSha256 },
           }),
         );
+        uploadedObjects += 1;
+      } else {
+        reusedObjects += 1;
       }
       uploadedLogoByExternalId.set(externalId, {
         storageKey,
@@ -327,7 +354,7 @@ async function main() {
         checksumSha256,
       });
     }
-    await database.transaction(async (transaction) => {
+    const { summary, sharedAssetSummary } = await database.transaction(async (transaction) => {
       for (const row of rows) {
         const [brand] = await transaction
           .insert(gymBrands)
@@ -489,8 +516,63 @@ async function main() {
           });
         }
       }
+      const [summary] = await transaction.execute<{
+        gyms: number;
+        brands: number;
+        assets: number;
+        logos: number;
+        covers: number;
+        photos: number;
+      }>(sql`
+        select
+          count(distinct source.gym_id)::int as gyms,
+          count(distinct gym.brand_id)::int as brands,
+          count(distinct asset.id)::int as assets,
+          count(*) filter (where media.type = 'logo')::int as logos,
+          count(*) filter (where media.type = 'cover')::int as covers,
+          count(*) filter (where media.type = 'photo')::int as photos
+        from gym_sources source
+        join gyms gym on gym.id = source.gym_id
+        join gym_media media on media.gym_id = source.gym_id
+        join media_assets asset on asset.id = media.media_asset_id and asset.status = 'ready'
+        where source.source_name = ${SOURCE_NAME}
+      `);
+      const [sharedAssetSummary] = await transaction.execute<{ gyms: number }>(sql`
+        select count(*)::int as gyms from (
+          select media.gym_id
+          from gym_sources source
+          join gym_media media on media.gym_id = source.gym_id
+          where source.source_name = ${SOURCE_NAME} and media.type in ('logo', 'cover', 'photo')
+          group by media.gym_id
+          having count(*) filter (where media.type = 'logo') = 1
+            and count(*) filter (where media.type = 'cover') = 1
+            and count(*) filter (where media.type = 'photo') = 1
+            and count(distinct media.media_asset_id) = 1
+        ) verified
+      `);
+      const expected = EXPECTED_IMPORTED_GYMS;
+      if (
+        summary.gyms !== expected ||
+        summary.brands !== EXPECTED_BRANDS ||
+        summary.assets !== expected ||
+        summary.logos !== expected ||
+        summary.covers !== expected ||
+        summary.photos !== expected ||
+        sharedAssetSummary.gyms !== expected
+      ) {
+        throw new Error(`Post-import verification failed: ${JSON.stringify({ ...summary, sharedAssetGyms: sharedAssetSummary.gyms })}`);
+      }
+      return { summary, sharedAssetSummary };
     });
-    console.log(`Imported ${rows.length} gyms from ${csvName}.`);
+    console.log(JSON.stringify({
+      event: "initial_gym_import_completed",
+      source: SOURCE_NAME,
+      csvName,
+      ...summary,
+      sharedAssetGyms: sharedAssetSummary.gyms,
+      uploadedObjects,
+      reusedObjects,
+    }));
   } finally {
     await client.end();
     s3.destroy();
