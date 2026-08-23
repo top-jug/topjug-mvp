@@ -1,4 +1,5 @@
 import { ImageWithFallback } from '../../../../app/components/figma/ImageWithFallback';
+import sectorMap from '../../../../imports/image-4.png';
 import RecordModalShell from './RecordModalShell';
 
 interface WallInfoModalProps {
@@ -14,7 +15,7 @@ export default function WallInfoModal({ wallId, onClose }: WallInfoModalProps) {
       <h3 className="text-lg font-bold mb-4">{isMainWall ? '1 Sector (Main Wall) 정보' : '2 Sector (Cave) 정보'}</h3>
 
       <div className="mb-4 bg-neutral-800 rounded-xl overflow-hidden">
-        <ImageWithFallback src="/src/imports/image-4.png" alt="Sector Map" className="w-full h-48 object-contain" />
+        <ImageWithFallback src={sectorMap.src} alt="Sector Map" className="w-full h-48 object-contain" />
       </div>
 
       <div className="space-y-3 mb-6">

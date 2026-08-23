@@ -1,6 +1,7 @@
 import { UIEvent, useRef } from 'react';
 import { ImageWithFallback } from '../../../app/components/figma/ImageWithFallback';
 import { CalendarData, CalendarGym } from '../../../entities/calendar/types';
+import sectorMap from '../../../imports/image-4.png';
 
 interface CalendarDetailSectionProps {
   mode: 'record' | 'setting';
@@ -65,7 +66,7 @@ export default function CalendarDetailSection({ mode, selectedDate, activeSlide,
                         </div>
                       </div>
                       <div className="h-32 bg-neutral-800 rounded-lg mb-2 overflow-hidden">
-                        <ImageWithFallback src="/src/imports/image-4.png" alt="Sector Map" className="w-full h-full object-contain" />
+                        <ImageWithFallback src={sectorMap.src} alt="Sector Map" className="w-full h-full object-contain" />
                       </div>
                       <div className="flex items-center gap-1 text-[13px] text-neutral-500">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

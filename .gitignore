@@ -6,6 +6,8 @@ node_modules/
 # Build
 dist/
 build/
+.next/
+out/
 
 # Environment
 .env
@@ -39,3 +41,5 @@ coverage/
 
 # Misc
 *.local
+*.tsbuildinfo
+.vercel

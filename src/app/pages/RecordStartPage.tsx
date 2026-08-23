@@ -48,7 +48,7 @@ function parseTimeValue(value: string) {
   const [hourPart, minutePart] = value.split(':').map(Number);
   const hour = Number.isNaN(hourPart) ? 0 : hourPart;
   const minute = Number.isNaN(minutePart) ? 0 : minutePart;
-  const period = hour >= 12 ? '오후' : '오전';
+  const period: (typeof TIME_PERIODS)[number] = hour >= 12 ? '오후' : '오전';
   const displayHour = hour % 12 === 0 ? 12 : hour % 12;
 
   return {

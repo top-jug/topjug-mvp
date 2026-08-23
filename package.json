@@ -1,11 +1,12 @@
 {
-  "name": "@figma/my-make-file",
+  "name": "topjug-mvp",
   "private": true,
-  "version": "0.0.1",
-  "type": "module",
+  "version": "0.1.0",
   "scripts": {
-    "build": "vite build",
-    "dev": "vite"
+    "build": "next build",
+    "dev": "next dev",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -48,10 +49,13 @@
     "input-otp": "1.4.2",
     "lucide-react": "0.487.0",
     "motion": "12.23.24",
+    "next": "16.3.2",
     "next-themes": "0.4.6",
+    "react": "19.2.8",
     "react-day-picker": "8.10.1",
     "react-dnd": "16.0.1",
     "react-dnd-html5-backend": "16.0.1",
+    "react-dom": "19.2.8",
     "react-hook-form": "7.55.0",
     "react-popper": "2.3.0",
     "react-resizable-panels": "2.1.7",
@@ -65,26 +69,11 @@
     "vaul": "1.1.2"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "4.1.12",
-    "@vitejs/plugin-react": "4.7.0",
-    "tailwindcss": "4.1.12",
-    "vite": "^6.4.2"
-  },
-  "peerDependencies": {
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "react-dom": {
-      "optional": true
-    }
-  },
-  "pnpm": {
-    "overrides": {
-      "vite": "6.3.5"
-    }
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3"
   }
 }

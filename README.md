@@ -1,11 +1,50 @@
+# TopJug MVP
 
-  # 탑저그 프로젝트 소개 (복사) (Copy)
+TopJug의 모바일 클라이밍 기록 앱을 Next.js로 포팅한 MVP입니다. 기존 React CSR 화면을 유지하면서 Next.js App Router가 웹과 향후 API의 실행 기반을 제공합니다.
 
-  This is a code bundle for 탑저그 프로젝트 소개 (복사) (Copy). The original project is available at https://www.figma.com/design/eY4pvuYYFYOjuqSpUuSA1R/%ED%83%91%EC%A0%80%EA%B7%B8-%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8-%EC%86%8C%EA%B0%9C--%EB%B3%B5%EC%82%AC---Copy-.
+## Local Development
 
-  ## Running the code
+Node.js 22와 npm을 사용합니다.
 
-  Run `npm i` to install the dependencies.
+```bash
+npm ci
+npm run dev
+```
 
-  Run `npm run dev` to start the development server. 
-   
+검증 명령:
+
+```bash
+npm run typecheck
+npm run build
+```
+
+## Architecture
+
+```text
+app/                    Next.js routes and API adapters
+src/app/                Existing CSR application and providers
+src/features/           Product features
+src/entities/           Client-side domain types
+src/server/http/        Shared API boundary and error handling
+ops/ec2/                EC2 runtime and deployment configuration
+```
+
+`app/[[...path]]`가 기존 React Router 앱을 CSR로 감쌉니다. 백엔드 기능을 추가할 때 Route Handler에는 HTTP 처리만 두고 비즈니스 규칙은 `src/server` 아래의 독립 모듈에 둡니다.
+
+현재 서버 endpoint:
+
+```text
+GET /api/health
+```
+
+## Deployment
+
+`main`에 push하면 GitHub Actions가 다음 순서로 배포합니다.
+
+1. TypeScript 검사와 Next.js production build
+2. standalone 산출물을 S3에 업로드
+3. GitHub OIDC로 AWS IAM role 획득
+4. AWS Systems Manager로 EC2 배포 명령 실행
+5. systemd 서비스 재시작 및 health check
+
+Docker와 장기 AWS access key는 사용하지 않습니다. Caddy가 `topjug.kr`의 TLS 인증서와 reverse proxy를 담당합니다.

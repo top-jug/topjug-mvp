@@ -9,13 +9,13 @@ import CalendarSearchMenu from './components/CalendarSearchMenu';
 import CalendarTopBar from './components/CalendarTopBar';
 import CalendarDayPopup from './components/modals/CalendarDayPopup';
 import CalendarPeriodModal from './components/modals/CalendarPeriodModal';
+import { CalendarScope } from './types';
 
 interface CalendarScreenProps {
   onNavigate: (screen: string) => void;
 }
 
 type CalendarViewMode = 'record' | 'setting';
-export type CalendarScope = 'month' | 'week';
 
 const CALENDAR_MODE_DATA: Record<CalendarViewMode, CalendarData> = {
   record: CALENDAR_RECORD_ENTRIES,
