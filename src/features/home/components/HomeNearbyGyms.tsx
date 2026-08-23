@@ -1,6 +1,4 @@
 import { useMemo } from 'react';
-import { useSavedGyms } from '../../../app/providers/SavedGymsProvider';
-import { GymSearchItem } from '../../../entities/gym/types';
 import { GYM_SEARCH_ITEMS } from '../../../mocks/gym-search';
 import { HomeSectionShell } from './HomeSectionShell';
 
@@ -10,16 +8,21 @@ interface HomeNearbyGymsProps {
 }
 
 export function HomeNearbyGyms({ onGymClick, onOpen }: HomeNearbyGymsProps) {
-  const { savedGymIds } = useSavedGyms();
-  const favoriteGyms = useMemo(
-    () => savedGymIds.map((id) => GYM_SEARCH_ITEMS.find((gym) => gym.id === id)).filter((gym): gym is GymSearchItem => Boolean(gym)),
-    [savedGymIds],
-  );
+  const recommendedGyms = useMemo(() => {
+    const gyms = [...GYM_SEARCH_ITEMS];
+
+    for (let i = gyms.length - 1; i > 0; i -= 1) {
+      const randomIndex = Math.floor(Math.random() * (i + 1));
+      [gyms[i], gyms[randomIndex]] = [gyms[randomIndex], gyms[i]];
+    }
+
+    return gyms.slice(0, 3);
+  }, []);
 
   return (
-    <HomeSectionShell title="즐겨찾기 암장" onAction={onOpen} actionLabel="더보기" bordered={false}>
+    <HomeSectionShell title="추천 암장" onAction={onOpen} actionLabel="더보기" bordered={false}>
       <div className="flex gap-3 overflow-x-auto hide-scrollbar -mx-5 px-5">
-        {favoriteGyms.map((gym) => (
+        {recommendedGyms.map((gym) => (
           <div key={gym.id} onClick={onGymClick} className="flex-shrink-0 w-[280px] border border-neutral-200 rounded-2xl overflow-hidden cursor-pointer hover:border-blue-500 transition-colors bg-white">
             <div className="h-40 bg-neutral-200 relative">
               <img src={gym.image} alt={gym.name} className="h-full w-full object-cover" />
@@ -38,11 +41,6 @@ export function HomeNearbyGyms({ onGymClick, onOpen }: HomeNearbyGymsProps) {
             </div>
           </div>
         ))}
-        {favoriteGyms.length === 0 && (
-          <div className="w-full rounded-2xl border border-dashed border-neutral-200 bg-white px-4 py-8 text-center text-[14px] text-neutral-400">
-            등록된 암장이 없어요
-          </div>
-        )}
       </div>
     </HomeSectionShell>
   );

@@ -23,7 +23,7 @@ export default function HomeScreen() {
           <HomeMembership onOpen={() => navigateToScreen('membership')} />
         </div>
 
-        <HomeNearbyGyms onGymClick={() => navigateToScreen('detail')} onOpen={() => navigateToScreen('myGyms')} />
+        <HomeNearbyGyms onGymClick={() => navigateToScreen('detail')} onOpen={() => navigateToScreen('gymSearch')} />
 
         <div className="h-2"></div>
       </div>
