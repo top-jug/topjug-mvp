@@ -1,22 +1,27 @@
 export type RecordCountType = 'success' | 'attempt';
-export type RecordSectorId = 'easy' | 'sector1' | 'sector2';
+export type RecordSectorId = string;
 
 export interface DifficultyOption {
+  id: string;
   color: string;
   name: string;
   grade: string;
 }
 
 export interface CountPass {
-  id: number;
+  id: string;
+  name: string;
   gym: string;
+  gymIds: string[];
   remaining: number;
   total: number;
 }
 
 export interface PeriodPass {
-  id: number;
+  id: string;
+  name: string;
   gym: string;
+  gymIds: string[];
   daysLeft: number;
   expiryDate: string;
   expiryDay: string;

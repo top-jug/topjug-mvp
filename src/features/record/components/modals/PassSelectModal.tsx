@@ -5,7 +5,7 @@ interface PassSelectModalProps {
   passType: '횟수권' | '기간권';
   countPasses: CountPass[];
   periodPasses: PeriodPass[];
-  onSelect: (selectedPassType: '횟수권' | '기간권', selectedPass: string) => void;
+  onSelect: (selectedPassType: '횟수권' | '기간권', selectedPass: string, membershipId: string) => void;
   onClose: () => void;
 }
 
@@ -27,10 +27,11 @@ export default function PassSelectModal({ passType, countPasses, periodPasses, o
               return (
                 <button
                   key={pass.id}
-                  onClick={() => onSelect('횟수권', `${pass.gym} : 현재 (${pass.remaining}/${pass.total}) → 사용후 (${afterUse}/${pass.total})`)}
+                  onClick={() => onSelect('횟수권', `${pass.name} : 현재 (${pass.remaining}/${pass.total}) → 사용후 (${afterUse}/${pass.total})`, pass.id)}
                   className="w-full p-4 border border-neutral-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
                 >
-                  <div className="font-semibold text-[15px] mb-1">{pass.gym}</div>
+                  <div className="font-semibold text-[15px] mb-1">{pass.name}</div>
+                  <div className="text-[12px] text-neutral-500 mb-1">{pass.gym}</div>
                   <div className="text-[13px] text-neutral-600">
                     남은 횟수: <span className="font-bold text-blue-600">{pass.remaining}/{pass.total}</span>
                   </div>
@@ -42,10 +43,11 @@ export default function PassSelectModal({ passType, countPasses, periodPasses, o
               return (
                 <button
                   key={pass.id}
-                  onClick={() => onSelect('기간권', `${pass.gym} : ${pass.daysLeft}일 남음 | 만료: ${expiryDateFormatted}(${pass.expiryDay})`)}
+                  onClick={() => onSelect('기간권', `${pass.name} : ${pass.daysLeft}일 남음 | 만료: ${expiryDateFormatted}(${pass.expiryDay})`, pass.id)}
                   className="w-full p-4 border border-neutral-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
                 >
-                  <div className="font-semibold text-[15px] mb-1">{pass.gym}</div>
+                  <div className="font-semibold text-[15px] mb-1">{pass.name}</div>
+                  <div className="text-[12px] text-neutral-500 mb-1">{pass.gym}</div>
                   <div className="text-[13px] text-neutral-600">
                     남은 기간: <span className="font-bold text-blue-600">{pass.daysLeft}일</span>
                   </div>
