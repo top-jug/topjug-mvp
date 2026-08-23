@@ -1,0 +1,21 @@
+name: topjug-local
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: topjug
+      POSTGRES_USER: topjug
+      POSTGRES_PASSWORD: topjug
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U topjug -d topjug"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    volumes:
+      - topjug-postgres:/var/lib/postgresql/data
+
+volumes:
+  topjug-postgres:

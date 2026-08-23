@@ -40,7 +40,7 @@ jobs:
         run: npm run typecheck
 
       - name: Build
-        run: npm run build
+        run: npm run build && npm run build:migrate
 
       - name: Package standalone application
         run: |
@@ -48,6 +48,9 @@ jobs:
           cp -a .next/standalone/. deploy/
           cp -a .next/static deploy/.next/static
           cp -a public deploy/public
+          cp -a drizzle deploy/drizzle
+          cp -a .migration deploy/.migration
+          cp ops/ec2/topjug.service deploy/topjug.service
           tar -czf "topjug-mvp-${GITHUB_SHA}.tar.gz" -C deploy .
 
       - name: Configure AWS credentials
