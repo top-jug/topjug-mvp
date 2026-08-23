@@ -5,25 +5,36 @@ import { MembershipItem } from '../../mocks/memberships';
 
 interface MembershipScreenProps {
   memberships: MembershipItem[];
+  gymOptions: Array<{ gymName: string; gymId: string; lightBg: string; darkText: string }>;
+  isLoading: boolean;
+  error: string | null;
+  actionError: string | null;
+  onRetry: () => void;
   onClose: () => void;
-  onAddMembership: (membership: MembershipItem) => void;
-  onUpdateMembership: (membership: MembershipItem) => void;
-  onDeleteMembership: (membershipId: string) => void;
+  onAddMembership: (membership: MembershipItem) => Promise<void>;
+  onUpdateMembership: (membership: MembershipItem) => Promise<void>;
+  onDeleteMembership: (membershipId: string) => Promise<void>;
 }
 
-const GYM_OPTIONS = [
-  { gymName: '더클라임', lightBg: '#E6F1FB', darkText: '#0C447C' },
-  { gymName: '피커스', lightBg: '#F7E8D7', darkText: '#6A3F0A' },
-  { gymName: '클라이밍랩코', lightBg: '#F0E8FA', darkText: '#5A2D84' },
-];
-
 const UNASSIGNED_GYM = {
+  gymId: '',
   gymName: '',
   lightBg: '#F5F5F5',
   darkText: '#525252',
 };
 
-export default function MembershipScreen({ memberships, onClose, onAddMembership, onUpdateMembership, onDeleteMembership }: MembershipScreenProps) {
+export default function MembershipScreen({
+  memberships,
+  gymOptions,
+  isLoading,
+  error,
+  actionError,
+  onRetry,
+  onClose,
+  onAddMembership,
+  onUpdateMembership,
+  onDeleteMembership,
+}: MembershipScreenProps) {
   const countPasses = memberships.filter((membership) => membership.passType === 'count').length;
   const periodPasses = memberships.length - countPasses;
   const [showAddSheet, setShowAddSheet] = useState(false);
@@ -39,6 +50,8 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
   const [endDate, setEndDate] = useState('2026.05.20');
   const [note, setNote] = useState('저녁 시간대 사용 예정');
   const [favoriteMessage, setFavoriteMessage] = useState('');
+  const [formMessage, setFormMessage] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const resetForm = () => {
     setGymName('');
@@ -84,18 +97,24 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
     resetForm();
   };
 
-  const handleDeleteMembership = () => {
+  const handleDeleteMembership = async () => {
     if (!deletingMembershipId) return;
-    onDeleteMembership(deletingMembershipId);
-    setDeletingMembershipId(null);
+    try {
+      await onDeleteMembership(deletingMembershipId);
+      setDeletingMembershipId(null);
+    } catch (requestError) {
+      setFavoriteMessage(requestError instanceof Error ? requestError.message : '회원권을 보관하지 못했습니다.');
+    }
   };
 
-  const handleSaveMembership = () => {
-    const gymInfo = GYM_OPTIONS.find((option) => option.gymName === gymName) ?? UNASSIGNED_GYM;
+  const handleSaveMembership = async () => {
+    const gymInfo = gymOptions.find((option) => option.gymName === gymName) ?? UNASSIGNED_GYM;
     const currentMembership = memberships.find((membership) => membership.id === editingMembershipId);
+    const gymIds = gymInfo.gymName ? [gymInfo.gymId] : currentMembership?.gymIds ?? [];
 
     const nextMembership: MembershipItem = {
       id: editingMembershipId ?? `${gymName || 'unassigned'}-${Date.now()}`,
+      gymIds,
       gymName,
       passName,
       passType,
@@ -107,18 +126,28 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
       endDate,
       note,
       isFavorite: currentMembership?.isFavorite ?? false,
+      homeOrder: currentMembership?.homeOrder ?? null,
     };
 
-    if (editingMembershipId) {
-      onUpdateMembership(nextMembership);
-    } else {
-      onAddMembership(nextMembership);
-    }
+    setIsSaving(true);
+    setFormMessage('');
 
-    closeSheet();
+    try {
+      if (editingMembershipId) {
+        await onUpdateMembership(nextMembership);
+      } else {
+        await onAddMembership(nextMembership);
+      }
+
+      closeSheet();
+    } catch (requestError) {
+      setFormMessage(requestError instanceof Error ? requestError.message : '회원권을 저장하지 못했습니다.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleToggleFavorite = (membership: MembershipItem) => {
+  const handleToggleFavorite = async (membership: MembershipItem) => {
     const favoriteCount = memberships.filter((item) => item.isFavorite).length;
 
     if (!membership.isFavorite && favoriteCount >= 3) {
@@ -127,7 +156,15 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
     }
 
     setFavoriteMessage('');
-    onUpdateMembership({ ...membership, isFavorite: !membership.isFavorite });
+    try {
+      await onUpdateMembership({
+        ...membership,
+        isFavorite: !membership.isFavorite,
+        homeOrder: !membership.isFavorite ? favoriteCount : null,
+      });
+    } catch (requestError) {
+      setFavoriteMessage(requestError instanceof Error ? requestError.message : '홈 표시 상태를 변경하지 못했습니다.');
+    }
   };
 
   return (
@@ -152,6 +189,11 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
             {favoriteMessage}
           </div>
         )}
+        {actionError && !favoriteMessage && (
+          <div className="rounded-2xl bg-red-50 px-4 py-3 text-[13px] font-medium text-red-600" role="status">
+            {actionError}
+          </div>
+        )}
         <div className="rounded-2xl border border-neutral-200 p-5 bg-white">
           <div className="text-[14px] text-neutral-500">보유 중인 회원권</div>
           <div className="text-[28px] font-bold text-neutral-950 mt-1">{memberships.length}개</div>
@@ -172,7 +214,23 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
         </div>
 
         <div className="space-y-3">
-          {memberships.map((membership) => (
+          {error ? (
+            <div className="rounded-3xl border border-dashed border-neutral-300 bg-white px-6 py-12 text-center">
+              <div className="text-[16px] font-bold text-neutral-900">{error}</div>
+              <button onClick={onRetry} className="mt-4 rounded-full bg-blue-500 px-4 py-2 text-[13px] font-semibold text-white">
+                다시 시도
+              </button>
+            </div>
+          ) : isLoading ? (
+            <div className="rounded-3xl border border-neutral-200 bg-white px-6 py-12 text-center text-[14px] text-neutral-500">
+              회원권을 불러오는 중입니다.
+            </div>
+          ) : memberships.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-neutral-300 bg-white px-6 py-12 text-center">
+              <div className="text-[16px] font-bold text-neutral-900">등록된 회원권이 없어요</div>
+              <div className="mt-2 text-[13px] text-neutral-500">추가 버튼으로 첫 회원권을 등록해보세요.</div>
+            </div>
+          ) : memberships.map((membership) => (
             <div key={membership.id} className="rounded-2xl border border-neutral-200 p-4 bg-white">
               <div className="flex items-start gap-3">
                 <div
@@ -233,7 +291,7 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
                 <div className="text-[13px] font-semibold text-neutral-700 mb-2">암장</div>
                 <select value={gymName} onChange={(event) => setGymName(event.target.value)} className="w-full h-12 rounded-2xl border border-neutral-200 px-4 bg-white text-[15px] text-neutral-900 outline-none">
                   <option value="">선택 안 함</option>
-                  {GYM_OPTIONS.map((option) => (
+                  {gymOptions.map((option) => (
                     <option key={option.gymName} value={option.gymName}>{option.gymName}</option>
                   ))}
                 </select>
@@ -287,7 +345,14 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
               </label>
 
             <div className="pt-2 border-t border-neutral-100">
-              <button onClick={handleSaveMembership} className="w-full h-12 rounded-2xl bg-blue-500 text-white text-[15px] font-semibold">{editingMembershipId ? '회원권 수정 저장' : '회원권 저장'}</button>
+              {formMessage && <div className="mb-3 rounded-2xl bg-red-50 px-4 py-3 text-[13px] font-medium text-red-600">{formMessage}</div>}
+              <button
+                onClick={handleSaveMembership}
+                disabled={isSaving}
+                className="w-full h-12 rounded-2xl bg-blue-500 text-white text-[15px] font-semibold disabled:bg-neutral-300"
+              >
+                {isSaving ? '저장 중' : editingMembershipId ? '회원권 수정 저장' : '회원권 저장'}
+              </button>
             </div>
         </BottomSheet>
       )}
