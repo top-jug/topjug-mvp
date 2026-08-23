@@ -12,7 +12,7 @@ export default function ProfilePage() {
     <>
       <div className="px-5 pt-5 pb-10 space-y-4 bg-white min-h-screen">
         <div className="relative flex items-center justify-center">
-          <button onClick={() => window.history.back()} className="absolute left-0 h-11 w-6 flex items-center justify-start rounded-full text-neutral-900">
+          <button onClick={() => navigateToScreen('home')} className="absolute left-0 h-11 w-6 flex items-center justify-start rounded-full text-neutral-900" aria-label="홈으로 돌아가기">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M15 18l-6-6 6-6" />
             </svg>

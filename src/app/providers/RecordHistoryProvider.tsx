@@ -15,7 +15,15 @@ const RecordHistoryContext = createContext<RecordHistoryContextValue | null>(nul
 function loadRecords() {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    return stored ? (JSON.parse(stored) as ClimbingRecord[]) : INITIAL_RECORD_HISTORY;
+    if (!stored) return INITIAL_RECORD_HISTORY;
+
+    const savedRecords = JSON.parse(stored) as ClimbingRecord[];
+    if (!Array.isArray(savedRecords)) return INITIAL_RECORD_HISTORY;
+
+    const savedIds = new Set(savedRecords.map((record) => record.id));
+    const records = [...savedRecords, ...INITIAL_RECORD_HISTORY.filter((record) => !savedIds.has(record.id))];
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    return records;
   } catch {
     return INITIAL_RECORD_HISTORY;
   }

@@ -12,10 +12,11 @@ interface CalendarDetailSectionProps {
   gyms: CalendarGym[];
   calendarData: CalendarData;
   onCardClick: () => void;
+  onOpenRecord: (recordId: string) => void;
   onSelectSlide: (index: number) => void;
 }
 
-export default function CalendarDetailSection({ mode, selectedDate, activeSlide, gyms, calendarData, onCardClick, onSelectSlide }: CalendarDetailSectionProps) {
+export default function CalendarDetailSection({ mode, selectedDate, activeSlide, gyms, calendarData, onCardClick, onOpenRecord, onSelectSlide }: CalendarDetailSectionProps) {
   const carouselRef = useRef<HTMLDivElement>(null);
   const entries = selectedDate ? calendarData[selectedDate] : undefined;
   const visibleEntries = entries ?? [];
@@ -77,7 +78,11 @@ export default function CalendarDetailSection({ mode, selectedDate, activeSlide,
                       </div>
                     </div>
                   ) : (
-                    <div className="border border-neutral-200 rounded-xl p-4 bg-white">
+                    <button
+                      type="button"
+                      onClick={() => entry.recordId && onOpenRecord(entry.recordId)}
+                      className="w-full border border-neutral-200 rounded-xl p-4 bg-white text-left transition-colors hover:border-neutral-300"
+                    >
                       <div className="flex items-start justify-between gap-3 mb-3 mt-2">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-[28px] font-bold flex-shrink-0" style={{ backgroundColor: gymInfo.lightBg, color: gymInfo.darkText }}>
@@ -105,7 +110,7 @@ export default function CalendarDetailSection({ mode, selectedDate, activeSlide,
                       <div className="rounded-xl border border-neutral-200 px-3 py-3 text-[13px] text-neutral-600 leading-6">
                         {entry.gym}에서 남긴 운동 기록입니다. 상세 기록 수정은 작성 화면에서 이어집니다.
                       </div>
-                    </div>
+                    </button>
                   )}
                 </div>
               );
