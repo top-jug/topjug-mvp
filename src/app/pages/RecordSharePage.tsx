@@ -9,6 +9,15 @@ import {
   RecordShareModel,
   ShareDifficultySummary,
 } from '../../features/record/record-share-model';
+import {
+  ApiShareSummary,
+  createRecordShare as requestCreateRecordShare,
+  getRecord as fetchRecord,
+  listRecordShares,
+  mapApiRecordDetail,
+  publicShareUrl,
+  revokeRecordShare,
+} from '../api/record-api';
 import { useNavigateBack } from '../navigation';
 import { useRecordHistory } from '../providers/RecordHistoryProvider';
 
@@ -18,13 +27,44 @@ const MAX_COMMENT_LENGTH = 40;
 export default function RecordSharePage() {
   const { recordId } = useParams();
   const { getRecord } = useRecordHistory();
-  const record = recordId ? getRecord(recordId) : undefined;
+  const [record, setRecord] = useState<ClimbingRecord | undefined>(() => recordId ? getRecord(recordId) : undefined);
+  const [shares, setShares] = useState<ApiShareSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(Boolean(recordId));
+  const [isCreatingLink, setIsCreatingLink] = useState(false);
+  const [revokingShareId, setRevokingShareId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const navigateBack = useNavigateBack(record ? `/records/${record.id}` : '/records');
   const difficultySummaries = useMemo(() => record ? getRecordDifficultySummaries(record) : [], [record]);
   const [view, setView] = useState<'edit' | 'preview'>('edit');
   const [selectedDifficultyIndexes, setSelectedDifficultyIndexes] = useState<number[]>([]);
   const [comment, setComment] = useState('');
   const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    if (!recordId) return;
+
+    let isActive = true;
+    setIsLoading(true);
+    setError(null);
+
+    Promise.all([fetchRecord(recordId), listRecordShares(recordId)])
+      .then(([recordPayload, sharePayload]) => {
+        if (!isActive) return;
+        setRecord(mapApiRecordDetail(recordPayload.data));
+        setShares(sharePayload.data);
+      })
+      .catch((fetchError) => {
+        if (!isActive) return;
+        setError(fetchError instanceof Error ? fetchError.message : '공유 정보를 불러오지 못했어요.');
+      })
+      .finally(() => {
+        if (isActive) setIsLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [recordId]);
 
   useEffect(() => {
     setView('edit');
@@ -44,6 +84,39 @@ export default function RecordSharePage() {
     () => record ? createRecordShareModel(record, shareOptions) : undefined,
     [record, shareOptions],
   );
+
+  if (!recordId) return <Navigate to="/records" replace />;
+
+  if (isLoading && !record) {
+    return (
+      <div className="min-h-screen bg-[#F7F8FA] pb-10 text-neutral-950">
+        <header className="sticky top-0 z-10 grid grid-cols-[44px_1fr_44px] items-center border-b border-neutral-100 bg-white px-4 py-3">
+          <button type="button" onClick={navigateBack} className="flex h-11 w-11 items-center justify-center" aria-label="기록 상세로 돌아가기">
+            <ArrowLeft size={22} />
+          </button>
+          <h1 className="text-center text-[18px] font-bold">공유 이미지 편집</h1>
+          <div />
+        </header>
+        <main className="mx-auto max-w-md space-y-4 px-5 py-5">
+          <div className="h-[86px] animate-pulse rounded-3xl border border-neutral-200 bg-white" />
+          <div className="h-[230px] animate-pulse rounded-3xl border border-neutral-200 bg-white" />
+          <div className="h-[92px] animate-pulse rounded-3xl border border-neutral-200 bg-white" />
+        </main>
+      </div>
+    );
+  }
+
+  if (error && !record) {
+    return (
+      <div className="min-h-screen bg-[#F7F8FA] px-5 pb-10 pt-24 text-center text-neutral-950">
+        <div className="text-[18px] font-bold">공유할 기록을 찾을 수 없어요</div>
+        <div className="mt-2 text-[13px] text-neutral-500">{error}</div>
+        <button onClick={navigateBack} className="mt-6 h-12 rounded-2xl bg-neutral-950 px-5 text-[14px] font-bold text-white">
+          돌아가기
+        </button>
+      </div>
+    );
+  }
 
   if (!record || !shareModel) return <Navigate to="/records" replace />;
 
@@ -95,20 +168,49 @@ export default function RecordSharePage() {
   };
 
   const handleShare = async () => {
+    setIsCreatingLink(true);
     try {
       const { file } = await getImageFile();
-      const shareData = { files: [file], title: `${record.gym} 클라이밍 기록`, text: '오늘의 클라이밍 기록 #TopJug' };
+      const payload = await requestCreateRecordShare(record.id);
+      const nextShareUrl = publicShareUrl(payload.data);
+      setShares((current) => [payload.data, ...current.filter((share) => share.id !== payload.data.id)]);
+
+      const shareData = {
+        files: [file],
+        title: `${record.gym} 클라이밍 기록`,
+        text: `오늘의 클라이밍 기록 #TopJug ${nextShareUrl}`,
+      };
 
       if (!navigator.share || !navigator.canShare?.(shareData)) {
-        setStatus('이 브라우저에서는 공유 기능을 지원하지 않아요.');
+        await navigator.clipboard.writeText(nextShareUrl);
+        setStatus('공유 링크를 만들고 클립보드에 복사했어요.');
         return;
       }
 
       await navigator.share(shareData);
-      setStatus('기록을 공유했어요.');
+      setStatus('공유 링크를 만들었어요.');
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
-      setStatus('기록을 공유하지 못했어요.');
+      setStatus(error instanceof Error ? error.message : '공유 링크를 만들지 못했어요.');
+    } finally {
+      setIsCreatingLink(false);
+    }
+  };
+
+  const handleRevokeShare = async (shareId: string) => {
+    setRevokingShareId(shareId);
+    setStatus('');
+
+    try {
+      await revokeRecordShare(record.id, shareId);
+      setShares((current) => current.map((share) => (
+        share.id === shareId ? { ...share, status: 'revoked', revokedAt: new Date().toISOString() } : share
+      )));
+      setStatus('공유 링크를 폐기했어요.');
+    } catch (revokeError) {
+      setStatus(revokeError instanceof Error ? revokeError.message : '공유 링크를 폐기하지 못했어요.');
+    } finally {
+      setRevokingShareId(null);
     }
   };
 
@@ -153,9 +255,10 @@ export default function RecordSharePage() {
         <div className="mt-7 grid grid-cols-3 gap-5">
           <ActionButton label="저장" icon={<Download size={22} />} onClick={handleSave} />
           <ActionButton label="복사" icon={<Clipboard size={21} />} onClick={handleCopy} />
-          <ActionButton label="공유" icon={<Share2 size={21} />} onClick={handleShare} />
+          <ActionButton label={isCreatingLink ? '생성 중' : '공유'} icon={<Share2 size={21} />} onClick={handleShare} disabled={isCreatingLink} />
         </div>
         <div className="mt-4 min-h-5 text-center text-[12px] text-neutral-500" role="status">{status}</div>
+        <ShareList shares={shares} revokingShareId={revokingShareId} onRevoke={handleRevokeShare} />
       </main>
     </div>
   );
@@ -233,7 +336,11 @@ function ShareEditor(props: ShareEditorProps) {
                       className="h-5 w-5 flex-shrink-0 accent-blue-500"
                       aria-label={`${difficulty.colorName} 난이도 ${difficulty.grade} 공유 이미지에 표시`}
                     />
-                    <span className={`h-7 w-7 flex-shrink-0 rounded-full border border-black/10 ${difficulty.colorClassName}`} aria-hidden="true" />
+                    <span
+                      className={`h-7 w-7 flex-shrink-0 rounded-full border border-black/10 ${difficulty.colorClassName}`}
+                      style={{ backgroundColor: difficulty.colorHex }}
+                      aria-hidden="true"
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="block text-[15px] font-bold text-neutral-900">({difficulty.grade})</span>
                       <span className="mt-0.5 block text-[12px] text-neutral-500">완등 {difficulty.success} · 도전 {difficulty.attempt}</span>
@@ -371,15 +478,80 @@ function DifficultyDot({ difficulty, sizeClassName }: { difficulty: ShareDifficu
   return (
     <span
       className={`${sizeClassName} inline-block flex-shrink-0 rounded-full border border-black/10 ${difficulty.colorClassName}`}
+      style={{ backgroundColor: difficulty.colorHex }}
       role="img"
       aria-label={`${difficulty.colorName} 난이도`}
     />
   );
 }
 
-function ActionButton({ label, icon, onClick }: { label: string; icon: React.ReactNode; onClick: () => void }) {
+function ShareList({
+  shares,
+  revokingShareId,
+  onRevoke,
+}: {
+  shares: ApiShareSummary[];
+  revokingShareId: string | null;
+  onRevoke: (shareId: string) => void;
+}) {
   return (
-    <button onClick={onClick} className="flex flex-col items-center gap-2 text-[12px] font-semibold text-neutral-600">
+    <section className="mt-6 rounded-3xl border border-neutral-200 bg-white p-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-[16px] font-bold">공유 링크</h2>
+        <span className="text-[12px] text-neutral-400">{shares.length}개</span>
+      </div>
+
+      {shares.length === 0 ? (
+        <div className="mt-4 rounded-2xl bg-neutral-50 px-4 py-8 text-center text-[13px] text-neutral-500">
+          아직 만든 공유 링크가 없습니다.
+        </div>
+      ) : (
+        <div className="mt-4 space-y-2">
+          {shares.map((share) => {
+            const isActive = share.status === 'active';
+
+            return (
+              <div key={share.id} className="flex items-center justify-between gap-3 rounded-2xl bg-neutral-50 px-4 py-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 rounded-full ${isActive ? 'bg-green-500' : 'bg-neutral-300'}`} />
+                    <span className="text-[14px] font-bold text-neutral-900">{shareStatusLabel(share.status)}</span>
+                  </div>
+                  <div className="mt-1 text-[12px] text-neutral-500">
+                    생성 {new Date(share.createdAt).toLocaleString('ko-KR')}
+                  </div>
+                  {share.expiresAt && (
+                    <div className="mt-0.5 text-[11px] text-neutral-400">
+                      만료 {new Date(share.expiresAt).toLocaleString('ko-KR')}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onRevoke(share.id)}
+                  disabled={!isActive || revokingShareId === share.id}
+                  className="h-9 flex-shrink-0 rounded-xl bg-white px-3 text-[12px] font-bold text-red-600 disabled:text-neutral-300"
+                >
+                  {revokingShareId === share.id ? '폐기 중' : '폐기'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function shareStatusLabel(status: ApiShareSummary['status']) {
+  if (status === 'active') return '활성';
+  if (status === 'expired') return '만료';
+  return '폐기됨';
+}
+
+function ActionButton({ label, icon, onClick, disabled = false }: { label: string; icon: React.ReactNode; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button onClick={onClick} disabled={disabled} className="flex flex-col items-center gap-2 text-[12px] font-semibold text-neutral-600 disabled:opacity-50">
       <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-blue-600 shadow-md active:scale-95">{icon}</span>
       {label}
     </button>
