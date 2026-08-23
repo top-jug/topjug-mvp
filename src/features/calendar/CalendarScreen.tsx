@@ -14,6 +14,7 @@ interface CalendarScreenProps {
   viewMode: CalendarViewMode;
   onViewModeChange: (mode: CalendarViewMode) => void;
   onNavigate: (screen: string) => void;
+  onOpenGym: (gymId: string) => void;
   onOpenRecord: (recordId: string) => void;
 }
 
@@ -74,7 +75,7 @@ function isMockMonth(year: number, month: number) {
   return year === 2026 && month === 4;
 }
 
-export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate, onOpenRecord }: CalendarScreenProps) {
+export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate, onOpenGym, onOpenRecord }: CalendarScreenProps) {
   const [selectedDate, setSelectedDate] = useState<number | null>(12);
   const [currentMonth, setCurrentMonth] = useState({ year: 2026, month: 4 });
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -155,12 +156,6 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
   const handleDayLongPress = (day: number) => {
     setPopupDate(day);
     setShowDayPopup(true);
-  };
-
-  const handleCardClick = () => {
-    if (!selectedDate || !visibleCalendarData[selectedDate]) return;
-    const maxSlide = visibleCalendarData[selectedDate].length - 1;
-    setActiveSlide((activeSlide + 1) % (maxSlide + 1));
   };
 
   const handleSelectFullDate = (year: number, month: number, date: number) => {
@@ -252,7 +247,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
           activeSlide={activeSlide}
           gyms={filterGyms}
           calendarData={visibleCalendarData}
-          onCardClick={handleCardClick}
+          onOpenGym={onOpenGym}
           onOpenRecord={onOpenRecord}
           onSelectSlide={setActiveSlide}
         />
@@ -267,6 +262,10 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
           gyms={filterGyms}
           calendarData={visibleCalendarData}
           onClose={() => setShowDayPopup(false)}
+          onOpenGym={(gymId) => {
+            setShowDayPopup(false);
+            onOpenGym(gymId);
+          }}
           onOpenRecord={onOpenRecord}
           onGoToRecord={() => {
             setShowDayPopup(false);

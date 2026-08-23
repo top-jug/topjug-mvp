@@ -11,12 +11,12 @@ interface CalendarDetailSectionProps {
   activeSlide: number;
   gyms: CalendarGym[];
   calendarData: CalendarData;
-  onCardClick: () => void;
+  onOpenGym: (gymId: string) => void;
   onOpenRecord: (recordId: string) => void;
   onSelectSlide: (index: number) => void;
 }
 
-export default function CalendarDetailSection({ mode, selectedDate, activeSlide, gyms, calendarData, onCardClick, onOpenRecord, onSelectSlide }: CalendarDetailSectionProps) {
+export default function CalendarDetailSection({ mode, selectedDate, activeSlide, gyms, calendarData, onOpenGym, onOpenRecord, onSelectSlide }: CalendarDetailSectionProps) {
   const carouselRef = useRef<HTMLDivElement>(null);
   const entries = selectedDate ? calendarData[selectedDate] : undefined;
   const visibleEntries = entries ?? [];
@@ -56,7 +56,11 @@ export default function CalendarDetailSection({ mode, selectedDate, activeSlide,
               return (
                 <div key={`${entry.gym}-${idx}`} className="w-full flex-shrink-0 snap-center">
                   {mode === 'setting' ? (
-                    <div onClick={onCardClick} className="border border-neutral-200 rounded-xl p-3 cursor-pointer hover:border-neutral-300 transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => onOpenGym(gymInfo.id)}
+                      className="w-full border border-neutral-200 rounded-xl p-3 text-left cursor-pointer hover:border-neutral-300 transition-colors"
+                    >
                       <div className="flex items-center gap-3 mb-2">
                         <div className="w-12 h-12 rounded-xl flex items-center justify-center text-[24px] font-bold" style={{ backgroundColor: gymInfo.lightBg, color: gymInfo.darkText }}>
                           {entry.gym.slice(0, 1)}
@@ -76,7 +80,7 @@ export default function CalendarDetailSection({ mode, selectedDate, activeSlide,
                         </svg>
                         <span>서울특별시 강남구</span>
                       </div>
-                    </div>
+                    </button>
                   ) : (
                     <button
                       type="button"

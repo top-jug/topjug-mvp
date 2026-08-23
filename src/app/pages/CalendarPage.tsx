@@ -15,6 +15,7 @@ export default function CalendarPage() {
       viewMode={viewMode}
       onViewModeChange={(mode) => navigate(`/schedule/${mode === 'record' ? 'records' : 'settings'}`, { replace: true })}
       onNavigate={(screen) => navigateToScreen(screen as AppScreen)}
+      onOpenGym={(gymId) => navigate(`/gyms/${gymId}`)}
       onOpenRecord={(recordId) => navigate(`/records/${recordId}`)}
     />
   );
