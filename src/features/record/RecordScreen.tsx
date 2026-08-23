@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Pause, Play } from 'lucide-react';
-import DifficultyComparisonModal from '../../app/components/DifficultyComparisonModal';
 import { RECORD_DIFFICULTIES } from '../../mocks/record';
 import RecordRatingCard from './components/RecordRatingCard';
 import RecordRouteList from './components/RecordRouteList';
@@ -21,7 +20,7 @@ export default function RecordScreen({
 }: {
   onClose: () => void;
   initialDraft?: RecordDraft | null;
-  onSubmitComplete?: () => void;
+  onSubmitComplete?: Parameters<typeof useRecordScreen>[0]['onSubmitComplete'];
 }) {
   const { state, actions } = useRecordScreen({ onClose, initialDraft, onSubmitComplete });
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -38,7 +37,6 @@ export default function RecordScreen({
     selectedMonth,
     selectedDay,
     showGymModal,
-    showDifficultyModal,
     expandedSectors,
     rating,
     isEasyMode,
@@ -53,7 +51,6 @@ export default function RecordScreen({
     setShowDatePicker,
     setShowGymModal,
     setSelectedGym,
-    setShowDifficultyModal,
     setExpandedSectors,
     setRating,
     setShowEasyModeConfirm,
@@ -215,26 +212,13 @@ export default function RecordScreen({
         <div className="border border-neutral-200 rounded-2xl my-4">
           <div className="px-4 py-3">
             <h3 className="text-[15px] font-bold mb-3">난이도 체계</h3>
-            <div className="flex items-center justify-center gap-3 mb-3">
+            <div className="flex items-center justify-center gap-3">
               {['bg-red-500', 'bg-orange-500', 'bg-yellow-400', 'bg-lime-500', 'bg-green-500', 'bg-blue-500', 'bg-indigo-600', 'bg-purple-600'].map((color, i) => (
                 <div key={i} className={`w-7 h-7 ${color} rounded-full`}></div>
               ))}
             </div>
-            <div className="flex justify-center">
-              <button
-                onClick={() => setShowDifficultyModal(true)}
-                className="w-full min-h-11 py-2 bg-neutral-100 text-neutral-700 text-[14px] font-medium rounded-xl hover:bg-neutral-200 transition-colors"
-              >
-                난이도 비교
-              </button>
-            </div>
           </div>
         </div>
-
-        <DifficultyComparisonModal
-          isOpen={showDifficultyModal}
-          onClose={() => setShowDifficultyModal(false)}
-        />
 
         {showEasyModeConfirm && (
           <ConfirmActionModal

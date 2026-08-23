@@ -1,15 +1,13 @@
 interface HomeTopBarProps {
-  onNotificationClick: () => void;
   onProfileClick: () => void;
 }
 
-export function HomeTopBar({ onNotificationClick, onProfileClick }: HomeTopBarProps) {
+export function HomeTopBar({ onProfileClick }: HomeTopBarProps) {
   return (
     <div className="px-5 pt-5 pb-3 bg-white flex items-center justify-between">
       <h1 className="text-[28px] font-bold tracking-[-0.03em]">홈</h1>
       <div className="flex items-center gap-2">
         <button
-          onClick={onNotificationClick}
           disabled
           className="w-11 h-11 bg-neutral-100 rounded-full flex items-center justify-center relative text-neutral-300 cursor-not-allowed"
           aria-label="알림"

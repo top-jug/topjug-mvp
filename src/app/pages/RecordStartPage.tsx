@@ -2,10 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { MONTH_NAMES, RECORD_GYMS } from '../../mocks/record';
 import CenteredModalShell from '../components/overlay/CenteredModalShell';
-import DifficultyComparisonModal from '../components/DifficultyComparisonModal';
 import { useMemberships } from '../providers/MembershipProvider';
 import { RecordDraft, RecordPassType, useRecordDraft } from '../providers/RecordDraftProvider';
-import { useAppScreenNavigate } from '../navigation';
+import { useAppScreenNavigate, useNavigateBack } from '../navigation';
 import GymSelectModal from '../../features/record/components/modals/GymSelectModal';
 import DatePickerModal from '../../features/record/components/modals/DatePickerModal';
 import PassSelectModal from '../../features/record/components/modals/PassSelectModal';
@@ -159,6 +158,7 @@ function TimeWheelColumn({ label, items, value, onChange }: TimeWheelColumnProps
 export default function RecordStartPage() {
   const navigate = useNavigate();
   const navigateToScreen = useAppScreenNavigate();
+  const navigateBack = useNavigateBack('/');
   const { draft, setDraft } = useRecordDraft();
   const { countPasses, periodPasses } = useMemberships();
 
@@ -182,21 +182,11 @@ export default function RecordStartPage() {
   const [selectedPass, setSelectedPass] = useState<string | null>(draft?.selectedPass ?? null);
   const [tempPassType, setTempPassType] = useState<RecordPassType>('일일이용권');
   const [showGymModal, setShowGymModal] = useState(false);
-  const [showDifficultyModal, setShowDifficultyModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showPassModal, setShowPassModal] = useState(false);
   const [showTimeModal, setShowTimeModal] = useState(false);
 
   const canStart = Boolean(selectedGym && selectedDate && selectedStartTime && selectedPassType && (selectedPassType === '일일이용권' || selectedPass));
-
-  const handleClose = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-
-    navigate('/', { replace: true });
-  };
 
   const handleDateSelect = (day: number) => {
     setSelectedDay(day);
@@ -227,7 +217,7 @@ export default function RecordStartPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <div className="px-5 pt-5 pb-4 flex items-center justify-between border-b border-neutral-100">
-        <button onClick={handleClose} className="h-11 w-6 flex items-center justify-start rounded-full">
+        <button onClick={navigateBack} className="h-11 w-6 flex items-center justify-start rounded-full" aria-label="뒤로가기">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
@@ -263,14 +253,6 @@ export default function RecordStartPage() {
                 {['bg-red-500', 'bg-orange-500', 'bg-yellow-400', 'bg-lime-500', 'bg-green-500', 'bg-blue-500', 'bg-indigo-600', 'bg-purple-600'].map((color, i) => (
                   <div key={i} className={`w-7 h-7 ${color} rounded-full`}></div>
                 ))}
-              </div>
-              <div className="flex justify-center">
-                <button
-                  onClick={() => setShowDifficultyModal(true)}
-                  className="w-full min-h-11 py-2 bg-neutral-100 text-neutral-700 text-[14px] font-medium rounded-xl hover:bg-neutral-200 transition-colors"
-                >
-                  난이도 비교
-                </button>
               </div>
             </div>
 
@@ -385,7 +367,6 @@ export default function RecordStartPage() {
         />
       )}
 
-      <DifficultyComparisonModal isOpen={showDifficultyModal} onClose={() => setShowDifficultyModal(false)} />
 
       {showDatePicker && (
         <DatePickerModal
