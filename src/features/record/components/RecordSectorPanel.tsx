@@ -3,12 +3,12 @@ import { DifficultyOption, RecordCountType, RecordSectorId, RouteCounts } from '
 
 interface RecordSectorPanelProps {
   title: string;
-  sectorId: Exclude<RecordSectorId, 'easy'>;
+  sectorId: RecordSectorId;
   expanded: boolean;
   onToggle: () => void;
   difficulties: DifficultyOption[];
   routeCounts: RouteCounts;
-  onCountChange: (sectorId: RecordSectorId, routeIndex: number, type: RecordCountType, delta: number) => void;
+  onCountChange: (sectorId: RecordSectorId, gradeId: string, type: RecordCountType, delta: number) => void;
 }
 
 export default function RecordSectorPanel(props: RecordSectorPanelProps) {

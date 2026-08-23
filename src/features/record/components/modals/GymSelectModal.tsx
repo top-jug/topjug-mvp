@@ -1,13 +1,13 @@
 import RecordModalShell from './RecordModalShell';
 
 interface GymSelectModalProps {
-  gyms: string[];
-  selectedGym: string;
-  onSelect: (gym: string) => void;
+  gyms: Array<{ id: string; name: string }>;
+  selectedGymId: string;
+  onSelect: (gym: { id: string; name: string }) => void;
   onClose: () => void;
 }
 
-export default function GymSelectModal({ gyms, selectedGym, onSelect, onClose }: GymSelectModalProps) {
+export default function GymSelectModal({ gyms, selectedGymId, onSelect, onClose }: GymSelectModalProps) {
   return (
     <RecordModalShell onClose={onClose}>
       <h3 className="text-lg font-bold mb-4">클라이밍장 선택</h3>
@@ -15,13 +15,13 @@ export default function GymSelectModal({ gyms, selectedGym, onSelect, onClose }:
       <div className="space-y-2 mb-6 max-h-[300px] overflow-y-auto">
         {gyms.map((gym) => (
           <button
-            key={gym}
+            key={gym.id}
             onClick={() => onSelect(gym)}
             className={`w-full p-4 rounded-xl text-left transition-colors ${
-              selectedGym === gym ? 'bg-blue-500 text-white font-medium' : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-700'
+              selectedGymId === gym.id ? 'bg-blue-500 text-white font-medium' : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-700'
             }`}
           >
-            {gym}
+            {gym.name}
           </button>
         ))}
       </div>

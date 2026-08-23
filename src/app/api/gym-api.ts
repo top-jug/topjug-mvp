@@ -60,6 +60,25 @@ export interface GymGrade {
   rank: number;
 }
 
+export interface GymSector {
+  id: string;
+  code: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  mapMedia?: GymMediaReference | null;
+}
+
+export interface GymWall {
+  id: string;
+  code: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  mapMedia: GymMediaReference | null;
+  sectors: GymSector[];
+}
+
 export interface ApiGymDetail extends ApiGymSummary {
   phone: string | null;
   websiteUrl: string | null;
@@ -71,12 +90,7 @@ export interface ApiGymDetail extends ApiGymSummary {
   operatingHours: GymOperatingHours[];
   prices: GymPrice[];
   grades: GymGrade[];
-  walls: Array<{
-    id: string;
-    code: string;
-    name: string;
-    mapMedia: GymMediaReference | null;
-  }>;
+  walls: GymWall[];
   settingEvents: Array<{ id: string; startsAt: string }>;
 }
 

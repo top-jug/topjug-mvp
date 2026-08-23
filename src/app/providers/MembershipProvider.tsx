@@ -47,7 +47,8 @@ function formatDisplayDate(value: string) {
 }
 
 function formatGymName(gym: { name: string; branchName: string | null }) {
-  return [gym.name, gym.branchName].filter(Boolean).join(' ');
+  if (!gym.branchName || gym.name.includes(gym.branchName)) return gym.name;
+  return `${gym.name} ${gym.branchName}`;
 }
 
 function colorsForIndex(index: number) {
@@ -99,12 +100,16 @@ function buildRecordPasses(memberships: MembershipItem[]) {
   const countPasses: CountPass[] = [];
   const periodPasses: PeriodPass[] = [];
 
-  memberships.forEach((membership, index) => {
+  memberships.forEach((membership) => {
+    if (membership.eligibilityStatus !== 'active') return;
+
     if (membership.passType === 'count') {
       const [remainingPart, totalPart] = membership.remainingValue.replace('회', '').split('/').map((part) => Number(part.trim()));
       countPasses.push({
-        id: index + 1,
+        id: membership.id,
+        name: membership.passName,
         gym: membership.gymName || '암장 미선택',
+        gymIds: membership.gymIds ?? [],
         remaining: remainingPart || 0,
         total: totalPart || 0,
       });
@@ -114,8 +119,10 @@ function buildRecordPasses(memberships: MembershipItem[]) {
     const expiry = parseKoreanDate(membership.endDate);
     const daysLeft = Math.max(0, Math.ceil((expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
     periodPasses.push({
-      id: index + 1,
+      id: membership.id,
+      name: membership.passName,
       gym: membership.gymName || '암장 미선택',
+      gymIds: membership.gymIds ?? [],
       daysLeft,
       expiryDate: `${expiry.getFullYear()}-${String(expiry.getMonth() + 1).padStart(2, '0')}-${String(expiry.getDate()).padStart(2, '0')}`,
       expiryDay: DAY_LABELS[expiry.getDay()],

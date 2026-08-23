@@ -12,7 +12,7 @@ interface ApiMembershipRef {
   name: string;
 }
 
-interface ApiRecordBase {
+export interface ApiRecordBase {
   id: string;
   gym: ApiGymRef;
   membership: ApiMembershipRef | null;
@@ -61,6 +61,60 @@ export interface ApiRecordCount {
 export interface ApiRecordDetail extends ApiRecordBase {
   updatedAt: string;
   counts: ApiRecordCount[];
+}
+
+export interface ApiRecordPause {
+  id: string;
+  recordId: string;
+  pausedAt: string;
+  resumedAt: string | null;
+}
+
+export interface ApiActiveRecordSession extends ApiRecordDetail {
+  isPaused: boolean;
+  pauses: ApiRecordPause[];
+}
+
+export interface ApiStartedRecordSession {
+  id: string;
+  userId: string;
+  gymId: string;
+  membershipId: string | null;
+  accessType: ApiRecordBase['accessType'];
+  status: 'in_progress';
+  sessionType: ApiRecordBase['sessionType'];
+  startedAt: string;
+  endedAt: null;
+  activeDurationSeconds: null;
+  rating: null;
+  mode: ApiRecordBase['mode'];
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiRecordCountInput {
+  gymGradeId: string;
+  gymSectorId: string;
+  attempts: number;
+  sends: number;
+}
+
+export interface StartRecordSessionInput {
+  gymId: string;
+  accessType: ApiRecordBase['accessType'];
+  membershipId?: string | null;
+  startedAt: string;
+  mode: ApiRecordBase['mode'];
+  sessionType: ApiRecordBase['sessionType'];
+  note?: string | null;
+}
+
+export interface CompleteRecordSessionInput {
+  endedAt: string;
+  rating?: number | null;
+  note?: string | null;
+  counts: ApiRecordCountInput[];
 }
 
 export interface RecordListParams {
@@ -129,6 +183,52 @@ export function listRecords(params: RecordListParams = {}) {
 
 export function getRecord(recordId: string) {
   return apiRequest<{ data: ApiRecordDetail }>(`/api/v1/records/${recordId}`);
+}
+
+export function getActiveRecordSession() {
+  return apiRequest<{ data: ApiActiveRecordSession | null }>('/api/v1/records/sessions');
+}
+
+export function startRecordSession(input: StartRecordSessionInput) {
+  return apiRequest<{ data: ApiStartedRecordSession }>('/api/v1/records/sessions', {
+    method: 'POST',
+    body: input,
+  });
+}
+
+export function replaceRecordSessionCounts(recordId: string, counts: ApiRecordCountInput[]) {
+  return apiRequest<{ data: ApiRecordDetail }>(`/api/v1/records/${recordId}/counts`, {
+    method: 'PUT',
+    body: { counts },
+  });
+}
+
+export function pauseRecordSession(recordId: string, at = new Date().toISOString()) {
+  return apiRequest<{ data: ApiRecordPause }>(`/api/v1/records/${recordId}/pause`, {
+    method: 'POST',
+    body: { at },
+  });
+}
+
+export function resumeRecordSession(recordId: string, at = new Date().toISOString()) {
+  return apiRequest<{ data: ApiRecordPause }>(`/api/v1/records/${recordId}/resume`, {
+    method: 'POST',
+    body: { at },
+  });
+}
+
+export function completeRecordSession(recordId: string, input: CompleteRecordSessionInput) {
+  return apiRequest<{ data: ApiRecordDetail }>(`/api/v1/records/${recordId}/complete`, {
+    method: 'POST',
+    body: input,
+  });
+}
+
+export function cancelRecordSession(recordId: string, at = new Date().toISOString()) {
+  return apiRequest<{ data: ApiRecordDetail }>(`/api/v1/records/${recordId}/cancel`, {
+    method: 'POST',
+    body: { at },
+  });
 }
 
 export function listRecordShares(recordId: string) {
