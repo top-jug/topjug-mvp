@@ -1,9 +1,11 @@
 import GymDetailScreen from '../../features/gym-detail/GymDetailScreen';
-import { AppScreen, useAppScreenNavigate, useNavigateBack } from '../navigation';
+import { Navigate, useParams } from 'react-router';
+import { useNavigateBack } from '../navigation';
 
 export default function GymDetailPage() {
   const navigateBack = useNavigateBack('/gyms');
-  const navigateToScreen = useAppScreenNavigate();
+  const { gymId } = useParams();
 
-  return <GymDetailScreen onClose={navigateBack} onNavigate={(screen) => navigateToScreen(screen as AppScreen)} />;
+  if (!gymId) return <Navigate to="/gyms" replace />;
+  return <GymDetailScreen gymId={gymId} onClose={navigateBack} />;
 }

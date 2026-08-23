@@ -17,6 +17,12 @@ const FACILITY_ICONS = {
       <path d="M7 11V7a5 5 0 0 1 10 0v4" />
     </>
   ),
+  rental: (
+    <>
+      <path d="M5 15c3-1 5-4 6-9 2 4 4 7 8 9" />
+      <path d="M4 15h16v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+    </>
+  ),
 } as const;
 
 import { GymFacility } from '../../../entities/gym/types';
