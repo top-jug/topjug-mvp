@@ -1,4 +1,5 @@
 export interface CalendarGym {
+  id: string;
   name: string;
   color: string;
   lightBg: string;

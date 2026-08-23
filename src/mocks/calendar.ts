@@ -1,10 +1,10 @@
 import { CalendarData, CalendarGym } from '../entities/calendar/types';
 
 export const CALENDAR_GYMS: CalendarGym[] = [
-  { name: '더클라임 강남', color: '#185FA5', lightBg: '#E6F1FB', darkText: '#0C447C' },
-  { name: '더클라임 양재', color: '#3B6D11', lightBg: '#EAF3DE', darkText: '#27500A' },
-  { name: '클라임웍스 홍대', color: '#D85A30', lightBg: '#FAECE7', darkText: '#712B13' },
-  { name: '더클라임 신촌', color: '#854F0B', lightBg: '#FAEEDA', darkText: '#633806' },
+  { id: 'the-climb-gangnam', name: '더클라임 강남', color: '#185FA5', lightBg: '#E6F1FB', darkText: '#0C447C' },
+  { id: 'the-climb-yangjae', name: '더클라임 양재', color: '#3B6D11', lightBg: '#EAF3DE', darkText: '#27500A' },
+  { id: 'climbworks-hongdae', name: '클라임웍스 홍대', color: '#D85A30', lightBg: '#FAECE7', darkText: '#712B13' },
+  { id: 'the-climb-sinchon', name: '더클라임 신촌', color: '#854F0B', lightBg: '#FAEEDA', darkText: '#633806' },
 ];
 
 export const CALENDAR_SETTING_ENTRIES: CalendarData = {
