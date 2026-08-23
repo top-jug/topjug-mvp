@@ -63,6 +63,7 @@ npm run local:up
 npm run db:migrate:local
 npm run dev:local
 npm run test:integration:local
+npm run test:http:local
 npm run typecheck
 npm test
 npm run build
