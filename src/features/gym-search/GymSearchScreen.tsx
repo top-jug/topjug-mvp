@@ -47,19 +47,19 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
 
   return (
     <>
-      <TopTabHeader
-        tabs={[
-          { value: 'search', label: '검색' },
-          { value: 'saved', label: '내 암장' },
-        ]}
-        activeTab={activeView}
-        onChangeTab={handleChangeView}
-        containerClassName="px-5 pt-5 pb-3 bg-white border-b border-neutral-100"
-      />
+      <div className="sticky top-0 z-20 bg-white border-b border-neutral-100">
+        <TopTabHeader
+          tabs={[
+            { value: 'search', label: '검색' },
+            { value: 'saved', label: '내 암장' },
+          ]}
+          activeTab={activeView}
+          onChangeTab={handleChangeView}
+          containerClassName="px-5 pt-5 pb-3 bg-white"
+        />
 
-      {activeView === 'search' ? (
-        <>
-          <div className="sticky top-0 z-20 bg-white border-b border-neutral-100">
+        {activeView === 'search' && (
+          <>
             <GymSearchInput value={searchQuery} onChange={setSearchQuery} />
 
             <GymSearchTabs
@@ -69,8 +69,12 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
               onSelectTab={handleSelectTab}
               onOpenRegion={() => setShowRegionFilter(true)}
             />
-          </div>
+          </>
+        )}
+      </div>
 
+      {activeView === 'search' ? (
+        <>
           {showRegionFilter && (
             <RegionFilterModal
               showSubRegion={showSubRegion}
@@ -86,6 +90,7 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
               onSelectRegion={(region) => {
                 if (GYM_SEARCH_SUB_REGIONS[region]) {
                   setSelectedRegion(region);
+                  setSelectedSubRegion(null);
                   setShowSubRegion(true);
                 } else {
                   setSelectedRegion(region);

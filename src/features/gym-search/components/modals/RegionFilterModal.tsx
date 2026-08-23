@@ -10,7 +10,7 @@ interface RegionFilterModalProps {
   onBack: () => void;
   onClose: () => void;
   onSelectRegion: (region: string) => void;
-  onSelectSubRegion: (subRegion: string) => void;
+  onSelectSubRegion: (subRegion: string | null) => void;
 }
 
 export default function RegionFilterModal(props: RegionFilterModalProps) {
@@ -57,6 +57,16 @@ export default function RegionFilterModal(props: RegionFilterModalProps) {
         ) : (
           <div className="mb-6">
             <div className="flex flex-wrap gap-2">
+              {['서울', '경기'].includes(selectedRegion) && (
+                <button
+                  onClick={() => onSelectSubRegion(null)}
+                  className={`px-4 py-2 rounded-full text-[13px] font-medium transition-colors ${
+                    selectedSubRegion === null ? 'bg-blue-500 text-white' : 'bg-neutral-100 text-neutral-700'
+                  }`}
+                >
+                  전체
+                </button>
+              )}
               {subRegions[selectedRegion]?.map((subRegion) => (
                 <button
                   key={subRegion}
