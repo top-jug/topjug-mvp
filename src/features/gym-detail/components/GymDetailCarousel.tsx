@@ -1,3 +1,4 @@
+import { UIEvent, useRef } from 'react';
 import { ImageWithFallback } from '../../../app/components/figma/ImageWithFallback';
 
 interface GymDetailCarouselProps {
@@ -5,25 +6,34 @@ interface GymDetailCarouselProps {
   photos: string[];
   mapImage: string;
   calendarDays: Array<number | ''>;
-  onCycleSlide: () => void;
+  onSlideChange: (index: number) => void;
 }
 
-export default function GymDetailCarousel({ currentSlide, photos, mapImage, calendarDays, onCycleSlide }: GymDetailCarouselProps) {
+const SLIDE_TITLES = ['암장캘린더', '암장 사진', '지도'];
+
+export default function GymDetailCarousel({ currentSlide, photos, mapImage, calendarDays, onSlideChange }: GymDetailCarouselProps) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = (event: UIEvent<HTMLDivElement>) => {
+    const container = event.currentTarget;
+    if (container.clientWidth === 0) return;
+
+    const nextSlide = Math.max(0, Math.min(SLIDE_TITLES.length - 1, Math.round(container.scrollLeft / container.clientWidth)));
+    if (nextSlide !== currentSlide) onSlideChange(nextSlide);
+  };
+
   return (
     <div className="px-5 mb-4">
-      <div className="overflow-hidden mb-2 mt-2">
-        <div className="flex transition-transform duration-300" style={{ transform: `translateX(-${currentSlide * 100}%)` }}>
-          {['암장캘린더', '암장 사진', '지도'].map((title) => (
-            <div key={title} className="w-full flex-shrink-0 flex items-center justify-between px-0 py-3">
-              <h2 className="text-[18px] font-bold text-neutral-900">{title}</h2>
-            </div>
-          ))}
-        </div>
+      <div className="mb-2 mt-2 flex items-center justify-between px-0 py-3">
+        <h2 className="text-[18px] font-bold text-neutral-900">{SLIDE_TITLES[currentSlide]}</h2>
       </div>
 
-      <div className="w-full rounded-2xl overflow-hidden relative select-none cursor-pointer" onClick={onCycleSlide}>
-        <div className="flex transition-transform duration-300" style={{ transform: `translateX(-${currentSlide * 100}%)` }}>
-          <div className="w-full flex-shrink-0 min-h-[300px] bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-4 relative flex flex-col">
+      <div
+        ref={scrollerRef}
+        onScroll={handleScroll}
+        className="flex w-full snap-x snap-mandatory overflow-x-auto rounded-2xl select-none touch-pan-x cursor-grab active:cursor-grabbing [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+          <div className="w-full flex-shrink-0 snap-center min-h-[300px] bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-4 relative flex flex-col">
             <div className="text-center mb-4">
               <h3 className="text-[18px] font-bold text-neutral-900">2026년 4월</h3>
             </div>
@@ -50,7 +60,7 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, cale
             </div>
           </div>
 
-          <div className="w-full flex-shrink-0 rounded-2xl bg-white border border-neutral-200 p-3 min-h-[300px]">
+          <div className="w-full flex-shrink-0 snap-center rounded-2xl bg-white border border-neutral-200 p-3 min-h-[300px]">
             <div className="grid grid-cols-[1.5fr_1fr] gap-3 h-full min-h-[276px]">
               <div className="rounded-2xl overflow-hidden">
                 <ImageWithFallback src={photos[0]} alt="Gym Photo Main" className="w-full h-full object-cover" />
@@ -70,7 +80,7 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, cale
             </div>
           </div>
 
-          <div className="w-full flex-shrink-0 min-h-[300px] bg-gradient-to-br from-blue-50 via-green-50 to-blue-100 rounded-2xl relative">
+          <div className="w-full flex-shrink-0 snap-center min-h-[300px] bg-gradient-to-br from-blue-50 via-green-50 to-blue-100 rounded-2xl relative overflow-hidden">
             <img src={mapImage} alt="Map" className="w-full h-full object-cover opacity-40" />
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="relative">
@@ -107,12 +117,11 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, cale
               <span className="text-[12px] font-medium">MAP APPS</span>
             </button>
           </div>
-        </div>
       </div>
 
       <div className="flex justify-center gap-1.5 mt-3 mb-4">
-        {[0, 1, 2].map((index) => (
-          <div key={index} className={`w-1.5 h-1.5 rounded-full transition-colors ${currentSlide === index ? 'bg-blue-500' : 'bg-neutral-300'}`} />
+        {SLIDE_TITLES.map((title, index) => (
+          <div key={title} className={`w-1.5 h-1.5 rounded-full transition-colors ${currentSlide === index ? 'bg-blue-500' : 'bg-neutral-300'}`} />
         ))}
       </div>
     </div>

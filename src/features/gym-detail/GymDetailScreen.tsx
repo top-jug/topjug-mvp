@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import DifficultyComparisonModal from '../../app/components/DifficultyComparisonModal';
 import { GYM_DETAIL_CALENDAR_DAYS, GYM_DETAIL_DIFFICULTY_COLORS, GYM_DETAIL_FACILITIES, GYM_DETAIL_INFO, GYM_DETAIL_TITLE } from '../../mocks/gym-detail';
 import GymDetailCarousel from './components/GymDetailCarousel';
 import GymDetailHeader from './components/GymDetailHeader';
@@ -10,11 +9,6 @@ import GymInfoSection from './components/GymInfoSection';
 export default function GymDetailScreen({ onClose }: { onClose: () => void; onNavigate: (screen: string) => void }) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
-  const [showDifficultyModal, setShowDifficultyModal] = useState(false);
-
-  const handleSlideClick = () => {
-    setCurrentSlide((currentSlide + 1) % 3);
-  };
 
   return (
     <>
@@ -22,9 +16,9 @@ export default function GymDetailScreen({ onClose }: { onClose: () => void; onNa
 
       {/* Content */}
       <div className="overflow-y-auto pb-10 min-h-screen">
-        <GymDetailCarousel currentSlide={currentSlide} photos={GYM_DETAIL_INFO.photos} mapImage={GYM_DETAIL_INFO.mapImage} calendarDays={GYM_DETAIL_CALENDAR_DAYS} onCycleSlide={handleSlideClick} />
+        <GymDetailCarousel currentSlide={currentSlide} photos={GYM_DETAIL_INFO.photos} mapImage={GYM_DETAIL_INFO.mapImage} calendarDays={GYM_DETAIL_CALENDAR_DAYS} onSlideChange={setCurrentSlide} />
 
-        <GymDifficultySection colors={GYM_DETAIL_DIFFICULTY_COLORS} onOpenComparison={() => setShowDifficultyModal(true)} />
+        <GymDifficultySection colors={GYM_DETAIL_DIFFICULTY_COLORS} />
 
         <GymInfoSection
           address={GYM_DETAIL_INFO.address}
@@ -36,12 +30,6 @@ export default function GymDetailScreen({ onClose }: { onClose: () => void; onNa
         <GymFacilitiesSection facilities={GYM_DETAIL_FACILITIES} />
 
       </div>
-
-      <DifficultyComparisonModal
-        isOpen={showDifficultyModal}
-        onClose={() => setShowDifficultyModal(false)}
-      />
-
     </>
   );
 }
