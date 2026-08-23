@@ -9,10 +9,11 @@ interface CalendarDayPopupProps {
   gyms: CalendarGym[];
   calendarData: CalendarData;
   onClose: () => void;
+  onOpenRecord: (recordId: string) => void;
   onGoToRecord: () => void;
 }
 
-export default function CalendarDayPopup({ mode, year, month, day, gyms, calendarData, onClose, onGoToRecord }: CalendarDayPopupProps) {
+export default function CalendarDayPopup({ mode, year, month, day, gyms, calendarData, onClose, onOpenRecord, onGoToRecord }: CalendarDayPopupProps) {
   const entries = calendarData[day];
   const emptyLabel = mode === 'record' ? '이 날짜에 등록된 기록이 없습니다.' : '이 날짜에 등록된 세팅 정보가 없습니다.';
 
@@ -33,7 +34,13 @@ export default function CalendarDayPopup({ mode, year, month, day, gyms, calenda
             const gymInfo = gyms.find((gym) => gym.name === entry.gym);
             if (!gymInfo) return null;
             return (
-              <div key={`${entry.gym}-${idx}`} className="border border-neutral-200 rounded-xl p-3 mb-2">
+              <button
+                type="button"
+                key={`${entry.gym}-${idx}`}
+                onClick={() => entry.recordId && onOpenRecord(entry.recordId)}
+                disabled={mode !== 'record' || !entry.recordId}
+                className="w-full border border-neutral-200 rounded-xl p-3 mb-2 text-left disabled:cursor-default"
+              >
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-bold" style={{ backgroundColor: gymInfo.lightBg, color: gymInfo.darkText }}>
                     {entry.gym.slice(0, 2)}
@@ -43,7 +50,7 @@ export default function CalendarDayPopup({ mode, year, month, day, gyms, calenda
                     <div className="text-[11px] text-neutral-500">{mode === 'record' ? `기록: ${entry.wall}` : entry.wall}</div>
                   </div>
                 </div>
-              </div>
+              </button>
             );
           })
         ) : (

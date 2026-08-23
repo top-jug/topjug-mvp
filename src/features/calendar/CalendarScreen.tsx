@@ -11,7 +11,10 @@ import CalendarDayPopup from './components/modals/CalendarDayPopup';
 import CalendarPeriodModal from './components/modals/CalendarPeriodModal';
 
 interface CalendarScreenProps {
+  viewMode: CalendarViewMode;
+  onViewModeChange: (mode: CalendarViewMode) => void;
   onNavigate: (screen: string) => void;
+  onOpenRecord: (recordId: string) => void;
 }
 
 type CalendarViewMode = 'record' | 'setting';
@@ -71,8 +74,7 @@ function isMockMonth(year: number, month: number) {
   return year === 2026 && month === 4;
 }
 
-export default function CalendarScreen({ onNavigate }: CalendarScreenProps) {
-  const [viewMode, setViewMode] = useState<CalendarViewMode>('setting');
+export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate, onOpenRecord }: CalendarScreenProps) {
   const [selectedDate, setSelectedDate] = useState<number | null>(12);
   const [currentMonth, setCurrentMonth] = useState({ year: 2026, month: 4 });
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -190,7 +192,7 @@ export default function CalendarScreen({ onNavigate }: CalendarScreenProps) {
       <CalendarTopBar
         mode={viewMode}
         periodLabel={periodLabel}
-        onChangeMode={setViewMode}
+        onChangeMode={onViewModeChange}
         onOpenPeriod={() => setShowPeriodModal(true)}
         onOpenSearch={() => setShowSearchModal(true)}
       />
@@ -251,6 +253,7 @@ export default function CalendarScreen({ onNavigate }: CalendarScreenProps) {
           gyms={filterGyms}
           calendarData={visibleCalendarData}
           onCardClick={handleCardClick}
+          onOpenRecord={onOpenRecord}
           onSelectSlide={setActiveSlide}
         />
       </div>
@@ -264,6 +267,7 @@ export default function CalendarScreen({ onNavigate }: CalendarScreenProps) {
           gyms={filterGyms}
           calendarData={visibleCalendarData}
           onClose={() => setShowDayPopup(false)}
+          onOpenRecord={onOpenRecord}
           onGoToRecord={() => {
             setShowDayPopup(false);
             onNavigate('record');

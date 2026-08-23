@@ -38,6 +38,7 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
   const [startDate, setStartDate] = useState('2026.04.20');
   const [endDate, setEndDate] = useState('2026.05.20');
   const [note, setNote] = useState('저녁 시간대 사용 예정');
+  const [favoriteMessage, setFavoriteMessage] = useState('');
 
   const resetForm = () => {
     setGymName('');
@@ -91,6 +92,7 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
 
   const handleSaveMembership = () => {
     const gymInfo = GYM_OPTIONS.find((option) => option.gymName === gymName) ?? UNASSIGNED_GYM;
+    const currentMembership = memberships.find((membership) => membership.id === editingMembershipId);
 
     const nextMembership: MembershipItem = {
       id: editingMembershipId ?? `${gymName || 'unassigned'}-${Date.now()}`,
@@ -104,6 +106,7 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
       startDate,
       endDate,
       note,
+      isFavorite: currentMembership?.isFavorite ?? false,
     };
 
     if (editingMembershipId) {
@@ -119,9 +122,11 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
     const favoriteCount = memberships.filter((item) => item.isFavorite).length;
 
     if (!membership.isFavorite && favoriteCount >= 3) {
+      setFavoriteMessage('홈에 표시할 회원권은 최대 3개까지 선택할 수 있어요.');
       return;
     }
 
+    setFavoriteMessage('');
     onUpdateMembership({ ...membership, isFavorite: !membership.isFavorite });
   };
 
@@ -142,6 +147,11 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
       </div>
 
       <div className="px-5 space-y-4">
+        {favoriteMessage && (
+          <div className="rounded-2xl bg-amber-50 px-4 py-3 text-[13px] font-medium text-amber-800" role="status">
+            {favoriteMessage}
+          </div>
+        )}
         <div className="rounded-2xl border border-neutral-200 p-5 bg-white">
           <div className="text-[14px] text-neutral-500">보유 중인 회원권</div>
           <div className="text-[28px] font-bold text-neutral-950 mt-1">{memberships.length}개</div>
@@ -215,12 +225,6 @@ export default function MembershipScreen({ memberships, onClose, onAddMembership
           ))}
         </div>
 
-        <div className="rounded-2xl border border-neutral-200 px-4 py-4 bg-white">
-          <div className="text-[15px] font-bold text-neutral-950">알림 메모</div>
-          <div className="text-[13px] text-neutral-500 mt-2 leading-6">
-            만료 7일 전, 횟수권 1회 남음 상태에서 푸시 알림을 받도록 설정된 상태입니다.
-          </div>
-        </div>
       </div>
 
       {showAddSheet && (

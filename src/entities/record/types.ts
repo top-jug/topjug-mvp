@@ -23,3 +23,15 @@ export interface PeriodPass {
 }
 
 export type RouteCounts = Record<string, { success: number; attempt: number }>;
+
+export interface ClimbingRecord {
+  id: string;
+  gym: string;
+  date: string;
+  duration: string;
+  passLabel: string;
+  rating: number;
+  mode: 'easy' | 'normal';
+  routeCounts: RouteCounts;
+  createdAt: string;
+}

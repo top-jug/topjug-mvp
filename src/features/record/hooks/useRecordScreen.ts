@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { RECORD_DIFFICULTIES } from '../../../mocks/record';
-import { RecordCountType, RecordSectorId, RouteCounts } from '../../../entities/record/types';
+import { ClimbingRecord, RecordCountType, RecordSectorId, RouteCounts } from '../../../entities/record/types';
 import { RecordDraft } from '../../../app/providers/RecordDraftProvider';
 
 interface UseRecordScreenOptions {
   onClose: () => void;
   initialDraft?: RecordDraft | null;
-  onSubmitComplete?: () => void;
+  onSubmitComplete?: (record: ClimbingRecord) => void;
 }
 
 const DEFAULT_DATE = '2026.04.09';
@@ -79,7 +79,6 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
   const [tempPassType, setTempPassType] = useState('일일이용권');
   const [showGymModal, setShowGymModal] = useState(false);
   const [selectedGym, setSelectedGym] = useState(initialDraft?.selectedGym ?? DEFAULT_GYM);
-  const [showDifficultyModal, setShowDifficultyModal] = useState(false);
   const [expandedSectors, setExpandedSectors] = useState<{ [key: string]: boolean }>({ sector1: false, sector2: false });
   const [rating, setRating] = useState<number | null>(null);
   const [isEasyMode, setIsEasyMode] = useState(false);
@@ -174,10 +173,18 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
   };
 
   const handleSubmitConfirm = () => {
-    alert('운동 기록이 제출되었습니다!');
     setShowSubmitConfirm(false);
-    onSubmitComplete?.();
-    onClose();
+    onSubmitComplete?.({
+      id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `record-${Date.now()}`,
+      gym: selectedGym,
+      date,
+      duration: formatElapsedTime(elapsedSeconds),
+      passLabel: selectedPass ?? selectedPassType ?? '미선택',
+      rating: rating ?? 0,
+      mode: isEasyMode ? 'easy' : 'normal',
+      routeCounts,
+      createdAt: new Date().toISOString(),
+    });
   };
 
   const handleEasyModeConfirm = () => {
@@ -225,7 +232,6 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
       tempPassType,
       showGymModal,
       selectedGym,
-      showDifficultyModal,
       expandedSectors,
       rating,
       isEasyMode,
@@ -247,7 +253,6 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
       setTempPassType,
       setShowGymModal,
       setSelectedGym,
-      setShowDifficultyModal,
       setExpandedSectors,
       setRating,
       setIsEasyMode,

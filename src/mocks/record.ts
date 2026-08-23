@@ -1,4 +1,4 @@
-import { CountPass, DifficultyOption, PeriodPass } from '../entities/record/types';
+import { ClimbingRecord, CountPass, DifficultyOption, PeriodPass } from '../entities/record/types';
 
 export const RECORD_DIFFICULTIES: DifficultyOption[] = [
   { color: 'bg-purple-600', name: '보라', grade: 'V8' },
@@ -24,3 +24,57 @@ export const PERIOD_PASSES: PeriodPass[] = [
 export const RECORD_GYMS = ['더클라임 양재', '더클라임 신림', '피커스 홀딩', '볼더리엉 학리', '클라이밍파크'];
 
 export const MONTH_NAMES = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
+
+function createCalendarRecord(id: string, gym: string, date: string, success: number, attempt: number, rating: number): ClimbingRecord {
+  return {
+    id,
+    gym,
+    date,
+    duration: '01:30:00',
+    passLabel: '일일이용권',
+    rating,
+    mode: 'normal',
+    routeCounts: {
+      'sector1-4': { success, attempt },
+    },
+    createdAt: `${date.replaceAll('.', '-')}T12:30:00.000Z`,
+  };
+}
+
+export const INITIAL_RECORD_HISTORY: ClimbingRecord[] = [
+  {
+    id: 'sample-1',
+    gym: '더클라임 양재',
+    date: '2026.08.21',
+    duration: '01:42:18',
+    passLabel: '횟수권',
+    rating: 4.5,
+    mode: 'normal',
+    routeCounts: {
+      'sector1-5': { success: 4, attempt: 6 },
+      'sector1-4': { success: 3, attempt: 5 },
+      'sector2-3': { success: 1, attempt: 4 },
+    },
+    createdAt: '2026-08-21T12:42:18.000Z',
+  },
+  {
+    id: 'sample-2',
+    gym: '피커스 홀딩',
+    date: '2026.08.17',
+    duration: '02:05:44',
+    passLabel: '일일이용권',
+    rating: 4,
+    mode: 'easy',
+    routeCounts: {
+      'easy-4': { success: 5, attempt: 8 },
+      'easy-3': { success: 2, attempt: 6 },
+    },
+    createdAt: '2026-08-17T13:05:44.000Z',
+  },
+  createCalendarRecord('calendar-2026-04-24-0', '클라임웍스 홍대', '2026.04.24', 6, 11, 4),
+  createCalendarRecord('calendar-2026-04-19-0', '더클라임 신촌', '2026.04.19', 4, 9, 3.5),
+  createCalendarRecord('calendar-2026-04-12-1', '더클라임 양재', '2026.04.12', 5, 10, 4.5),
+  createCalendarRecord('calendar-2026-04-12-0', '더클라임 강남', '2026.04.12', 3, 8, 3.5),
+  createCalendarRecord('calendar-2026-04-08-0', '클라임웍스 홍대', '2026.04.08', 4, 7, 4),
+  createCalendarRecord('calendar-2026-04-03-0', '더클라임 강남', '2026.04.03', 4, 9, 4),
+];
