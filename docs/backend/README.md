@@ -52,15 +52,16 @@ The `local` profile uses PostgreSQL and MinIO from `compose.yaml`; the Next.js p
 The `production` profile requires `SSM_PARAMETER_PREFIX=/topjug/prod`. Next.js loads these SecureString values during server startup:
 
 ```text
-/topjug/prod/database-url
+/topjug/prod/runtime-database-url
+/topjug/prod/migration-database-url
 /topjug/prod/jwt-access-secret
 /topjug/prod/jwt-refresh-secret
 /topjug/prod/auth-rate-limit-pepper
 ```
 
-The EC2 role needs path-scoped `ssm:GetParameters`, `ssm:GetParameter` for the migration runner, and `kms:Decrypt` only when a customer-managed KMS key is used. Missing or empty parameters fail startup. Deployment applies packaged Drizzle migrations before switching the release symlink, then checks `/api/ready`, which verifies secrets and the database connection.
+The runtime URL uses the restricted `topjug_app` role; the migration URL uses the schema owner and is readable only by the GitHub OIDC deployment role. The EC2 role has explicit read access to the four runtime parameters, not the whole production path. CI applies packaged Drizzle migrations through a short-lived SSM database tunnel before sending the release command, then deployment checks `/api/ready`, which verifies secrets and the runtime database connection.
 
-Initial gym data is a controlled one-time operation, not part of every deployment. On an operator machine with the researched ZIP, logo directory, production `DATABASE_URL`, `MEDIA_S3_BUCKET`, `MEDIA_PUBLIC_BASE_URL`, `AWS_REGION`, and S3 write credentials, run `npm run db:import:gyms:check` followed by `npm run db:import:gyms`. The importer uses deterministic S3 keys and database source IDs, so a retry does not duplicate gyms, assets, or media roles.
+Initial gym data is a controlled one-time operation, not part of every deployment. Production RDS is private, so run the bundled importer on EC2 through SSM with `SSM_PARAMETER_PREFIX`, `MEDIA_S3_BUCKET`, `MEDIA_PUBLIC_BASE_URL`, and an explicit `--apply`. Grant media write access only for the import and remove it afterward. The importer verifies the expected 31 gyms, 7 brands, 31 assets, and 93 media roles; a second run must upload no objects. See the [production database and media runbook](../operations/production-data.md).
 
 ## Observability
 
@@ -94,3 +95,4 @@ Do not edit generated SQL migration files after they have been applied. Change `
 - [ERD and domain decisions](./erd.md)
 - [OpenAPI contract](./openapi.yaml)
 - [Low-cost RDS plan](./rds.md)
+- [Production database and media runbook](../operations/production-data.md)

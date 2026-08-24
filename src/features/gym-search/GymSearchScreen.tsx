@@ -1,16 +1,32 @@
-import { useMemo, useState } from 'react';
-import TopTabHeader from '../../app/components/layout/TopTabHeader';
+import { useEffect, useMemo, useState } from 'react';
+import { ApiClientError } from '../../app/api/api-client';
+import { ApiGymSummary, listGyms } from '../../app/api/gym-api';
 import BottomTabBar from '../../app/components/layout/BottomTabBar';
+import TopTabHeader from '../../app/components/layout/TopTabHeader';
 import { useSavedGyms } from '../../app/providers/SavedGymsProvider';
-import { GYM_SEARCH_ITEMS, GYM_SEARCH_REGIONS, GYM_SEARCH_SUB_REGIONS, GYM_SEARCH_TABS } from '../../mocks/gym-search';
+import { GYM_SEARCH_REGIONS, GYM_SEARCH_SUB_REGIONS, GYM_SEARCH_TABS } from './gym-search-options';
 import GymSearchInput from './components/GymSearchInput';
 import GymSearchList from './components/GymSearchList';
 import GymSearchTabs from './components/GymSearchTabs';
 import RegionFilterModal from './components/modals/RegionFilterModal';
 
+const PAGE_SIZE = 10;
+const FACILITY_CODES: Record<string, string> = {
+  샤워실: 'shower',
+  킬터보드: 'kilter_board',
+  스트레칭: 'stretching_zone',
+  주차가능: 'parking',
+};
+
 interface GymSearchScreenProps {
   initialView?: 'search' | 'saved';
-  onNavigate: (screen: string) => void;
+  onNavigate: (screen: string, gymId?: string) => void;
+}
+
+function listErrorMessage(error: unknown) {
+  if (error instanceof ApiClientError) return error.message;
+  if (error instanceof Error) return error.message;
+  return '암장 목록을 불러오지 못했습니다.';
 }
 
 export default function GymSearchScreen({ initialView = 'search', onNavigate }: GymSearchScreenProps) {
@@ -21,38 +37,84 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
   const [selectedRegion, setSelectedRegion] = useState('서울');
   const [selectedSubRegion, setSelectedSubRegion] = useState<string | null>(null);
   const [showSubRegion, setShowSubRegion] = useState(false);
-  const { savedGymIds, isSavedGym, toggleSavedGym } = useSavedGyms();
-  const [visibleSavedGymIds, setVisibleSavedGymIds] = useState(savedGymIds);
-  const [savedCountSnapshot, setSavedCountSnapshot] = useState(savedGymIds.length);
+  const [gyms, setGyms] = useState<ApiGymSummary[]>([]);
+  const [isLoadingGyms, setIsLoadingGyms] = useState(true);
+  const [gymError, setGymError] = useState<string | null>(null);
+  const [requestVersion, setRequestVersion] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const {
+    savedGyms,
+    isLoading: isLoadingSavedGyms,
+    error: savedGymsError,
+    actionError,
+    pendingGymIds,
+    isSavedGym,
+    refreshSavedGyms,
+    toggleSavedGym,
+  } = useSavedGyms();
 
-  const savedGyms = useMemo(() => GYM_SEARCH_ITEMS.filter((gym) => visibleSavedGymIds.includes(gym.id)), [visibleSavedGymIds]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setIsLoadingGyms(true);
+      setGymError(null);
+
+      try {
+        const response = await listGyms({
+          q: searchQuery.trim() || undefined,
+          facility: selectedTabs[0] ? FACILITY_CODES[selectedTabs[0]] : undefined,
+          limit: 100,
+          signal: controller.signal,
+        });
+        setGyms(response.data);
+        setVisibleCount(PAGE_SIZE);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setGyms([]);
+        setGymError(listErrorMessage(error));
+      } finally {
+        if (!controller.signal.aborted) setIsLoadingGyms(false);
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [requestVersion, searchQuery, selectedTabs]);
+
+  const filteredGyms = useMemo(() => gyms.filter((gym) => {
+    const regionText = selectedSubRegion ?? selectedRegion;
+    const matchesRegion = !regionText || gym.address.includes(regionText) || gym.regionCode === regionText;
+    const matchesFacilities = selectedTabs.every((tab) => gym.facilities.includes(FACILITY_CODES[tab]));
+    return matchesRegion && matchesFacilities;
+  }), [gyms, selectedRegion, selectedSubRegion, selectedTabs]);
+
+  const visibleGyms = filteredGyms.slice(0, visibleCount);
 
   const handleSelectTab = (tab: string) => {
+    setVisibleCount(PAGE_SIZE);
     if (tab === '전체') {
       setSelectedTabs([]);
       return;
     }
-
-    setSelectedTabs((current) => (current.includes(tab) ? current.filter((item) => item !== tab) : [...current, tab]));
+    setSelectedTabs((current) => current.includes(tab) ? current.filter((item) => item !== tab) : [...current, tab]);
   };
 
-  const handleChangeView = (tab: 'search' | 'saved') => {
-    if (tab === 'saved') {
-      setVisibleSavedGymIds(savedGymIds);
-      setSavedCountSnapshot(savedGymIds.length);
-    }
+  const handleChangeView = (view: 'search' | 'saved') => {
+    setActiveView(view);
+    if (view === 'saved') void refreshSavedGyms();
+  };
 
-    setActiveView(tab);
+  const handleToggleSavedGym = (gym: ApiGymSummary) => {
+    void toggleSavedGym(gym).catch(() => undefined);
   };
 
   return (
     <>
-      <div className="sticky top-0 z-20 bg-white border-b border-neutral-100">
+      <div className="sticky top-0 z-20 border-b border-neutral-100 bg-white">
         <TopTabHeader
-          tabs={[
-            { value: 'search', label: '검색' },
-            { value: 'saved', label: '내 암장' },
-          ]}
+          tabs={[{ value: 'search', label: '검색' }, { value: 'saved', label: '내 암장' }]}
           activeTab={activeView}
           onChangeTab={handleChangeView}
           containerClassName="px-5 pt-5 pb-2 bg-white"
@@ -61,7 +123,6 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
         {activeView === 'search' && (
           <>
             <GymSearchInput value={searchQuery} onChange={setSearchQuery} />
-
             <GymSearchTabs
               selectedTabs={selectedTabs}
               tabs={GYM_SEARCH_TABS}
@@ -73,6 +134,8 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
         )}
       </div>
 
+      {actionError && <div className="mx-5 mt-3 rounded-2xl bg-red-50 px-4 py-3 text-[13px] font-medium text-red-600" role="status">{actionError}</div>}
+
       {activeView === 'search' ? (
         <>
           {showRegionFilter && (
@@ -83,46 +146,49 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
               regions={GYM_SEARCH_REGIONS}
               subRegions={GYM_SEARCH_SUB_REGIONS}
               onBack={() => setShowSubRegion(false)}
-              onClose={() => {
-                setShowRegionFilter(false);
-                setShowSubRegion(false);
-              }}
+              onClose={() => { setShowRegionFilter(false); setShowSubRegion(false); }}
               onSelectRegion={(region) => {
-                if (GYM_SEARCH_SUB_REGIONS[region]) {
-                  setSelectedRegion(region);
-                  setSelectedSubRegion(null);
-                  setShowSubRegion(true);
-                } else {
-                  setSelectedRegion(region);
-                  setSelectedSubRegion(null);
-                  setShowRegionFilter(false);
-                }
+                setVisibleCount(PAGE_SIZE);
+                setSelectedRegion(region);
+                setSelectedSubRegion(null);
+                if (GYM_SEARCH_SUB_REGIONS[region]) setShowSubRegion(true);
+                else setShowRegionFilter(false);
               }}
               onSelectSubRegion={(subRegion) => {
+                setVisibleCount(PAGE_SIZE);
                 setSelectedSubRegion(subRegion);
                 setShowRegionFilter(false);
                 setShowSubRegion(false);
               }}
             />
           )}
-
           <GymSearchList
-            gyms={GYM_SEARCH_ITEMS}
-            onSelectGym={() => onNavigate('detail')}
+            gyms={visibleGyms}
+            onSelectGym={(gym) => onNavigate('detail', gym.id)}
             title="암장"
+            countOverride={filteredGyms.length}
             isSavedGym={isSavedGym}
-            onToggleSavedGym={toggleSavedGym}
-            showMapButton
+            onToggleSavedGym={handleToggleSavedGym}
+            isSavingGym={(gymId) => pendingGymIds.includes(gymId)}
+            isLoading={isLoadingGyms}
+            error={gymError}
+            onRetry={() => setRequestVersion((version) => version + 1)}
+            hasMore={visibleCount < filteredGyms.length}
+            onLoadMore={() => setVisibleCount((count) => count + PAGE_SIZE)}
           />
         </>
       ) : (
         <GymSearchList
           gyms={savedGyms}
-          onSelectGym={() => onNavigate('detail')}
+          onSelectGym={(gym) => onNavigate('detail', gym.id)}
           title="내 암장"
           isSavedGym={isSavedGym}
-          onToggleSavedGym={toggleSavedGym}
-          countOverride={savedCountSnapshot}
+          onToggleSavedGym={handleToggleSavedGym}
+          isSavingGym={(gymId) => pendingGymIds.includes(gymId)}
+          isLoading={isLoadingSavedGyms}
+          error={savedGymsError}
+          emptyMessage="저장한 암장이 없어요."
+          onRetry={() => void refreshSavedGyms()}
         />
       )}
 

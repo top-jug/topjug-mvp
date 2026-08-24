@@ -1,28 +1,48 @@
 export type RecordCountType = 'success' | 'attempt';
-export type RecordSectorId = 'easy' | 'sector1' | 'sector2';
+export type RecordSectorId = string;
 
 export interface DifficultyOption {
+  id: string;
   color: string;
   name: string;
   grade: string;
 }
 
 export interface CountPass {
-  id: number;
+  id: string;
+  name: string;
   gym: string;
+  gymIds: string[];
   remaining: number;
   total: number;
 }
 
 export interface PeriodPass {
-  id: number;
+  id: string;
+  name: string;
   gym: string;
+  gymIds: string[];
   daysLeft: number;
   expiryDate: string;
   expiryDay: string;
 }
 
 export type RouteCounts = Record<string, { success: number; attempt: number }>;
+
+export interface RecordRouteDetail {
+  id: string;
+  sectorId: string;
+  sectorName: string;
+  wallId: string;
+  wallName: string;
+  gradeId: string;
+  gradeCode: string;
+  gradeLabel: string;
+  gradeColor: string | null;
+  gradeRank: number;
+  success: number;
+  attempt: number;
+}
 
 export interface ClimbingRecord {
   id: string;
@@ -33,5 +53,10 @@ export interface ClimbingRecord {
   rating: number;
   mode: 'easy' | 'normal';
   routeCounts: RouteCounts;
+  apiCounts?: RecordRouteDetail[];
+  startedAt?: string;
+  endedAt?: string | null;
+  accessType?: 'day_pass' | 'membership' | 'other';
+  sessionType?: 'free' | 'training' | 'project';
   createdAt: string;
 }

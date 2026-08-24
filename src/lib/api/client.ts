@@ -41,7 +41,7 @@ export class ApiClient {
   private readonly unauthorizedListeners = new Set<UnauthorizedListener>();
 
   constructor(
-    private readonly fetchImplementation: Fetch = globalThis.fetch,
+    private readonly fetchImplementation: Fetch = (...args) => globalThis.fetch(...args),
     private readonly createRequestId: () => string = () => crypto.randomUUID(),
   ) {}
 
@@ -122,8 +122,8 @@ export class ApiClient {
       this.assertCurrentSession(auth, token, requestGeneration);
       return response;
     } catch (error) {
+      this.assertCurrentSession(auth, token, requestGeneration);
       if (!(error instanceof ApiClientError) || error.status !== 401 || auth !== 'required') throw error;
-      if (requestGeneration !== this.sessionGeneration) throw new ApiClientError('인증 상태가 변경되었습니다.', 401, 'AUTH_SESSION_CHANGED');
       if (token && this.accessToken && token !== this.accessToken) {
         const replacementToken = this.accessToken;
         const response = await this.send<T>(path, options, replacementToken);

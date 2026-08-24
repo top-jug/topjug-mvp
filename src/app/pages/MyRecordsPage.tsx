@@ -6,7 +6,7 @@ import { useNavigateBack } from '../navigation';
 export default function MyRecordsPage() {
   const navigate = useNavigate();
   const navigateBack = useNavigateBack('/profile');
-  const { records } = useRecordHistory();
+  const { records, isLoading, isLoadingMore, error, hasMore, refresh, loadMore } = useRecordHistory();
   const totalSuccess = records.reduce((total, record) => total + getRecordTotals(record).success, 0);
 
   return (
@@ -43,7 +43,21 @@ export default function MyRecordsPage() {
             <span className="text-[12px] text-neutral-400">최근 순</span>
           </div>
 
-          {records.length === 0 ? (
+          {isLoading ? (
+            <div className="space-y-3">
+              {[0, 1, 2].map((index) => (
+                <div key={index} className="h-[98px] animate-pulse rounded-3xl border border-neutral-200 bg-white" />
+              ))}
+            </div>
+          ) : error ? (
+            <div className="rounded-3xl border border-red-100 bg-white px-6 py-10 text-center">
+              <div className="text-[16px] font-bold text-neutral-900">기록을 불러오지 못했어요</div>
+              <div className="mt-2 text-[13px] text-neutral-500">{error}</div>
+              <button onClick={refresh} className="mt-5 h-11 rounded-2xl bg-neutral-950 px-5 text-[14px] font-bold text-white">
+                다시 시도
+              </button>
+            </div>
+          ) : records.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-neutral-300 bg-white px-6 py-12 text-center">
               <div className="text-[16px] font-bold text-neutral-900">아직 기록이 없어요</div>
               <div className="mt-2 text-[13px] text-neutral-500">첫 클라이밍 세션을 남겨보세요.</div>
@@ -79,6 +93,16 @@ export default function MyRecordsPage() {
                   </button>
                 );
               })}
+              {hasMore && (
+                <button
+                  type="button"
+                  onClick={loadMore}
+                  disabled={isLoadingMore}
+                  className="h-12 w-full rounded-2xl border border-neutral-200 bg-white text-[14px] font-bold text-neutral-800 disabled:opacity-50"
+                >
+                  {isLoadingMore ? '불러오는 중...' : '더 보기'}
+                </button>
+              )}
             </div>
           )}
         </section>

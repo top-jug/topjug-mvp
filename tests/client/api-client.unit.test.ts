@@ -312,6 +312,28 @@ test('a protected response from an invalidated session is discarded', async () =
   });
 });
 
+test('a protected error from an invalidated session is discarded', async () => {
+  let releaseResponse: (() => void) | undefined;
+  const responseReady = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
+  const fetchImplementation = async () => {
+    await responseReady;
+    return jsonResponse({ error: { code: 'ACCOUNT_SPECIFIC_CONFLICT', message: 'old account error' } }, { status: 409 });
+  };
+  const client = new ApiClient(fetchImplementation as typeof fetch);
+  client.setAccessToken('old-token');
+  const oldRequest = client.request('/protected');
+  client.setAccessToken('new-token');
+  releaseResponse?.();
+
+  await assert.rejects(oldRequest, (error) => {
+    assert.ok(error instanceof ApiClientError);
+    assert.equal(error.code, 'AUTH_SESSION_CHANGED');
+    return true;
+  });
+});
+
 test('204 responses do not require a JSON body', async () => {
   const client = new ApiClient((async () => new Response(null, { status: 204 })) as typeof fetch);
   await assert.doesNotReject(client.request('/auth/logout', { method: 'POST', auth: 'none' }));

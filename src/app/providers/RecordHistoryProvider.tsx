@@ -1,50 +1,102 @@
-import { createContext, PropsWithChildren, useContext, useMemo, useState } from 'react';
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ClimbingRecord } from '../../entities/record/types';
-import { INITIAL_RECORD_HISTORY } from '../../mocks/record';
-
-const STORAGE_KEY = 'topjug.records';
+import { listRecords, mapApiRecordSummary } from '../api/record-api';
+import { useAuth } from '../../features/auth/AuthProvider';
 
 interface RecordHistoryContextValue {
   records: ClimbingRecord[];
+  isLoading: boolean;
+  isLoadingMore: boolean;
+  error: string | null;
+  hasMore: boolean;
   addRecord: (record: ClimbingRecord) => void;
   getRecord: (recordId: string) => ClimbingRecord | undefined;
+  refresh: () => Promise<void>;
+  loadMore: () => Promise<void>;
 }
 
 const RecordHistoryContext = createContext<RecordHistoryContextValue | null>(null);
 
-function loadRecords() {
-  try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) return INITIAL_RECORD_HISTORY;
-
-    const savedRecords = JSON.parse(stored) as ClimbingRecord[];
-    if (!Array.isArray(savedRecords)) return INITIAL_RECORD_HISTORY;
-
-    const savedIds = new Set(savedRecords.map((record) => record.id));
-    const records = [...savedRecords, ...INITIAL_RECORD_HISTORY.filter((record) => !savedIds.has(record.id))];
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-    return records;
-  } catch {
-    return INITIAL_RECORD_HISTORY;
-  }
-}
-
 export function RecordHistoryProvider({ children }: PropsWithChildren) {
-  const [records, setRecords] = useState<ClimbingRecord[]>(loadRecords);
+  const { status: authStatus, user } = useAuth();
+  const [records, setRecords] = useState<ClimbingRecord[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
+
+  const fetchRecords = useCallback(async (options: { cursor?: string | null; replace: boolean }) => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
+    if (options.replace) {
+      setIsLoading(true);
+    } else {
+      setIsLoadingMore(true);
+    }
+    setError(null);
+
+    try {
+      const payload = await listRecords({ cursor: options.cursor, limit: 20 });
+      if (requestId !== requestIdRef.current) return;
+
+      const nextRecords = payload.data.map(mapApiRecordSummary);
+      setRecords((current) => {
+        if (options.replace) return nextRecords;
+
+        const seenIds = new Set(current.map((record) => record.id));
+        return [...current, ...nextRecords.filter((record) => !seenIds.has(record.id))];
+      });
+      setNextCursor(payload.meta.nextCursor);
+    } catch (fetchError) {
+      if (requestId !== requestIdRef.current) return;
+      setError(fetchError instanceof Error ? fetchError.message : '기록 목록을 불러오지 못했어요.');
+    } finally {
+      if (requestId !== requestIdRef.current) return;
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authStatus === 'authenticated') {
+      void fetchRecords({ replace: true });
+      return;
+    }
+    requestIdRef.current += 1;
+    setRecords([]);
+    setNextCursor(null);
+    setError(null);
+    setIsLoadingMore(false);
+    setIsLoading(authStatus === 'loading');
+  }, [authStatus, fetchRecords, user?.id]);
+
+  const refresh = useCallback(() => fetchRecords({ replace: true }), [fetchRecords]);
+
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || isLoadingMore) return;
+    await fetchRecords({ cursor: nextCursor, replace: false });
+  }, [fetchRecords, isLoadingMore, nextCursor]);
 
   const value = useMemo<RecordHistoryContextValue>(
     () => ({
       records,
+      isLoading,
+      isLoadingMore,
+      error,
+      hasMore: Boolean(nextCursor),
       addRecord: (record) => {
         setRecords((current) => {
-          const nextRecords = [record, ...current];
-          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextRecords));
-          return nextRecords;
+          const nextRecords = current.filter((currentRecord) => currentRecord.id !== record.id);
+          return [record, ...nextRecords];
         });
       },
       getRecord: (recordId) => records.find((record) => record.id === recordId),
+      refresh,
+      loadMore,
     }),
-    [records],
+    [error, isLoading, isLoadingMore, loadMore, nextCursor, records, refresh],
   );
 
   return <RecordHistoryContext.Provider value={value}>{children}</RecordHistoryContext.Provider>;

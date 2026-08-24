@@ -5,7 +5,7 @@ import postgres from 'postgres';
 import { databaseUrl } from './database-url.mjs';
 
 async function main() {
-  const client = postgres(await databaseUrl(), { max: 1 });
+  const client = postgres(await databaseUrl('migration-database-url'), { max: 1 });
   try {
     await migrate(drizzle(client), {
       migrationsFolder: resolve(process.env.MIGRATIONS_FOLDER ?? 'drizzle'),

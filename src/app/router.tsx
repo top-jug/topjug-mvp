@@ -13,6 +13,7 @@ import RecordSharePage from './pages/RecordSharePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import { RequireAuth } from '../features/auth/RequireAuth';
+import PublicRecordSharePage from './pages/PublicRecordSharePage';
 
 function PreviewLayout() {
   return (
@@ -32,6 +33,7 @@ export function AppRouter() {
         <Route path="/gyms/:gymId" element={<GymDetailPage />} />
         <Route path="/schedule" element={<Navigate to="/schedule/settings" replace />} />
         <Route path="/schedule/:calendarView" element={<CalendarPage />} />
+        <Route path="/shares/:token" element={<PublicRecordSharePage />} />
         <Route element={<RequireAuth />}>
           <Route path="/" element={<HomeScreen />} />
           <Route path="/gyms/saved" element={<GymSearchPage initialView="saved" />} />

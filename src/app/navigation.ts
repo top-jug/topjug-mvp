@@ -3,9 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 export type AppScreen = 'home' | 'gymSearch' | 'myGyms' | 'detail' | 'calendar' | 'record' | 'records' | 'profile' | 'membership';
 export type BottomTab = 'home' | 'gymSearch' | 'calendar';
 
-export const DEFAULT_GYM_ID = 'the-climb-yeonnam';
-
-export function getScreenPath(screen: AppScreen, gymId = DEFAULT_GYM_ID) {
+export function getScreenPath(screen: AppScreen, gymId?: string) {
   switch (screen) {
     case 'home':
       return '/';
@@ -14,7 +12,7 @@ export function getScreenPath(screen: AppScreen, gymId = DEFAULT_GYM_ID) {
     case 'myGyms':
       return '/gyms/saved';
     case 'detail':
-      return `/gyms/${gymId}`;
+      return gymId ? `/gyms/${gymId}` : '/gyms';
     case 'calendar':
       return '/schedule/settings';
     case 'record':

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import BottomTabBar from '../../app/components/layout/BottomTabBar';
-import { ActiveGyms, CalendarData, CalendarGym } from '../../entities/calendar/types';
-import { CALENDAR_GYMS, CALENDAR_RECORD_ENTRIES, CALENDAR_SETTING_ENTRIES, CALENDAR_WEEKDAYS } from '../../mocks/calendar';
+import { ActiveGyms, CalendarData, CalendarEntry, CalendarGym } from '../../entities/calendar/types';
+import { CALENDAR_GYMS, CALENDAR_RECORD_ENTRIES, CALENDAR_WEEKDAYS } from '../../mocks/calendar';
 import CalendarDetailSection from './components/CalendarDetailSection';
 import CalendarFilterBar from './components/CalendarFilterBar';
 import CalendarMonthGrid, { CalendarGridCell } from './components/CalendarMonthGrid';
@@ -20,12 +20,47 @@ interface CalendarScreenProps {
 
 type CalendarViewMode = 'record' | 'setting';
 
-const CALENDAR_MODE_DATA: Record<CalendarViewMode, CalendarData> = {
-  record: CALENDAR_RECORD_ENTRIES,
-  setting: CALENDAR_SETTING_ENTRIES,
-};
+interface SettingEventResponse {
+  data: Array<{
+    id: string;
+    title: string | null;
+    status: 'scheduled' | 'completed' | 'cancelled';
+    startsAt: string;
+    endsAt: string | null;
+    sectors: Array<{ id: string; name: string }>;
+    gym: {
+      id: string;
+      name: string;
+      branchName: string | null;
+      address: string;
+      calendarColor: string | null;
+      calendarTextColor: string | null;
+    };
+  }>;
+}
+
+const STATUS_LABELS = {
+  scheduled: '예정',
+  completed: '완료',
+  cancelled: '취소',
+} satisfies Record<NonNullable<CalendarEntry['status']>, string>;
 
 function getModeGyms(calendarData: CalendarData): CalendarGym[] {
+  const apiGyms = new Map<string, CalendarGym>();
+
+  Object.values(calendarData).flat().forEach((entry) => {
+    if (!entry.gymId || apiGyms.has(entry.gym)) return;
+    apiGyms.set(entry.gym, {
+      id: entry.gymId,
+      name: entry.gym,
+      color: entry.color ?? '#185FA5',
+      lightBg: entry.lightBg ?? '#E6F1FB',
+      darkText: entry.darkText ?? '#0C447C',
+    });
+  });
+
+  if (apiGyms.size > 0) return [...apiGyms.values()];
+
   const gymNames = new Set(Object.values(calendarData).flat().map((entry) => entry.gym));
   return CALENDAR_GYMS.filter((gym) => gymNames.has(gym.name));
 }
@@ -75,6 +110,43 @@ function isMockMonth(year: number, month: number) {
   return year === 2026 && month === 4;
 }
 
+function getMonthRange(year: number, month: number) {
+  return {
+    from: new Date(year, month - 1, 1, 0, 0, 0, 0).toISOString(),
+    to: new Date(year, month, 0, 23, 59, 59, 999).toISOString(),
+  };
+}
+
+function buildSettingCalendarData(events: SettingEventResponse['data']) {
+  const nextData: CalendarData = {};
+
+  events.forEach((event) => {
+    const startsAt = new Date(event.startsAt);
+    const day = startsAt.getDate();
+    const gymName = [event.gym.name, event.gym.branchName].filter(Boolean).join(' ');
+    const sectorLabel = event.sectors.map((sector) => sector.name).join(', ');
+    const title = sectorLabel || event.title || '세팅';
+    const color = event.gym.calendarColor ?? '#185FA5';
+
+    nextData[day] = [
+      ...(nextData[day] ?? []),
+      {
+        gym: gymName,
+        gymId: event.gym.id,
+        wall: `${title} · ${STATUS_LABELS[event.status]}`,
+        status: event.status,
+        startsAt: event.startsAt,
+        endsAt: event.endsAt ?? undefined,
+        color,
+        lightBg: `${color}22`,
+        darkText: event.gym.calendarTextColor ?? color,
+      },
+    ];
+  });
+
+  return nextData;
+}
+
 export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate, onOpenGym, onOpenRecord }: CalendarScreenProps) {
   const [selectedDate, setSelectedDate] = useState<number | null>(12);
   const [currentMonth, setCurrentMonth] = useState({ year: 2026, month: 4 });
@@ -85,15 +157,53 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
   const [activeSlide, setActiveSlide] = useState(0);
   const [filterGyms, setFilterGyms] = useState<CalendarGym[]>([]);
   const [activeGyms, setActiveGyms] = useState<ActiveGyms>({});
+  const [settingCalendarData, setSettingCalendarData] = useState<CalendarData>({});
+  const [isSettingLoading, setIsSettingLoading] = useState(false);
+  const [settingError, setSettingError] = useState<string | null>(null);
+  const [settingRequestKey, setSettingRequestKey] = useState(0);
 
-  const currentCalendarData = CALENDAR_MODE_DATA[viewMode];
+  const currentCalendarData = viewMode === 'record' ? CALENDAR_RECORD_ENTRIES : settingCalendarData;
 
   useEffect(() => {
     const nextGyms = getModeGyms(currentCalendarData);
     setFilterGyms(nextGyms);
     setActiveGyms(createActiveGyms(nextGyms));
     setActiveSlide(0);
-  }, [viewMode]);
+  }, [currentCalendarData, viewMode]);
+
+  useEffect(() => {
+    if (viewMode !== 'setting') return;
+
+    const controller = new AbortController();
+    const { from, to } = getMonthRange(currentMonth.year, currentMonth.month);
+    const query = new URLSearchParams({ from, to });
+
+    setIsSettingLoading(true);
+    setSettingError(null);
+
+    fetch(`/api/v1/setting-events?${query.toString()}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+          throw new Error(payload?.error?.message ?? '세팅 일정을 불러오지 못했습니다.');
+        }
+
+        return response.json() as Promise<SettingEventResponse>;
+      })
+      .then((payload) => {
+        setSettingCalendarData(buildSettingCalendarData(payload.data));
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setSettingCalendarData({});
+        setSettingError(error instanceof Error ? error.message : '세팅 일정을 불러오지 못했습니다.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsSettingLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [currentMonth.month, currentMonth.year, settingRequestKey, viewMode]);
 
   const filteredCalendarData = useMemo<CalendarData>(() => {
     return Object.fromEntries(
@@ -105,8 +215,9 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
   }, [currentCalendarData, activeGyms]);
 
   const visibleCalendarData = useMemo<CalendarData>(() => {
+    if (viewMode === 'setting') return filteredCalendarData;
     return isMockMonth(currentMonth.year, currentMonth.month) ? filteredCalendarData : {};
-  }, [currentMonth.month, currentMonth.year, filteredCalendarData]);
+  }, [currentMonth.month, currentMonth.year, filteredCalendarData, viewMode]);
 
   const periodPages = useMemo(() => {
     return [-1, 0, 1].map((delta) => {
@@ -165,7 +276,12 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
   };
 
   const getEntriesForCell = (cell: CalendarGridCell) => {
-    if (!cell.day || !isMockMonth(cell.year, cell.month)) return null;
+    if (!cell.day) return null;
+    if (viewMode === 'setting') {
+      if (cell.year !== currentMonth.year || cell.month !== currentMonth.month) return null;
+      return filteredCalendarData[cell.day] ?? null;
+    }
+    if (!isMockMonth(cell.year, cell.month)) return null;
     return filteredCalendarData[cell.day] ?? null;
   };
 
@@ -198,6 +314,18 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
         onToggleGym={toggleGym}
         onToggleAll={toggleAllGyms}
       />
+
+      {viewMode === 'setting' && (isSettingLoading || settingError) && (
+        <div className={`px-5 py-2 text-center text-[12px] ${settingError ? 'text-red-500' : 'text-neutral-500'}`}>
+          {settingError ? (
+            <button onClick={() => setSettingRequestKey((key) => key + 1)} className="font-medium">
+              {settingError} 다시 시도
+            </button>
+          ) : (
+            '세팅 일정을 불러오는 중입니다.'
+          )}
+        </div>
+      )}
 
       {showSearchModal && (
         <CalendarSearchMenu

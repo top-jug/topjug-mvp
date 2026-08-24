@@ -16,6 +16,12 @@ ARCHIVE="/tmp/topjug-mvp-$GIT_SHA.tar.gz"
 PREVIOUS_RELEASE="$(readlink -f "$APP_ROOT/current" || true)"
 DEPLOYED=false
 
+exec 9>/var/lock/topjug-deploy.lock
+if ! flock --nonblock 9; then
+  echo "Another TopJug deployment is already running" >&2
+  exit 1
+fi
+
 cleanup() {
   rm -f "$ARCHIVE"
   if [[ "$DEPLOYED" != true && -d "$RELEASE_DIR" && "$(readlink -f "$APP_ROOT/current" || true)" != "$RELEASE_DIR" ]]; then
@@ -37,12 +43,6 @@ aws s3 cp "s3://$BUCKET/releases/$GIT_SHA.tar.gz" "$ARCHIVE"
 printf '%s  %s\n' "$EXPECTED_ARCHIVE_SHA256" "$ARCHIVE" | sha256sum -c -
 tar -xzf "$ARCHIVE" -C "$RELEASE_DIR"
 chown -R topjug:topjug "$RELEASE_DIR"
-sudo -u topjug env \
-  APP_PROFILE=production \
-  AWS_REGION=ap-northeast-2 \
-  SSM_PARAMETER_PREFIX=/topjug/prod \
-  MIGRATIONS_FOLDER="$RELEASE_DIR/drizzle" \
-  /usr/bin/node "$RELEASE_DIR/.migration/migrate.cjs"
 install -m 0644 "$RELEASE_DIR/topjug.service" /etc/systemd/system/topjug.service
 install -m 0644 "$RELEASE_DIR/topjug-security-cleanup.service" /etc/systemd/system/topjug-security-cleanup.service
 install -m 0644 "$RELEASE_DIR/topjug-security-cleanup.timer" /etc/systemd/system/topjug-security-cleanup.timer
@@ -55,7 +55,7 @@ ln -sfn "$RELEASE_DIR" "$APP_ROOT/current"
 systemctl restart topjug.service
 
 for attempt in {1..30}; do
-  if curl --fail --silent http://127.0.0.1:3000/api/ready >/dev/null; then
+  if curl --fail --silent --connect-timeout 2 --max-time 5 http://127.0.0.1:3000/api/ready >/dev/null; then
     rm -f "$ARCHIVE"
     systemctl reload caddy
     find "$APP_ROOT/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \

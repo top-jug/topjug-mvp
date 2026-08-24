@@ -1,7 +1,7 @@
 import { createContext, type PropsWithChildren, useContext, useEffect, useRef, useState } from 'react';
 import { ApiClientError } from '../../lib/api/error';
 import { apiClient } from '../../lib/api/client';
-import { login as loginRequest, logout as logoutRequest, register as registerRequest, restoreSession } from './api';
+import { LOGOUT_PENDING_KEY, login as loginRequest, logout as logoutRequest, register as registerRequest, restoreSession } from './api';
 import type { AuthStatus, AuthUser, LoginInput, RegisterInput } from './types';
 
 export type AuthContextValue = {
@@ -58,11 +58,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setError(null);
       setStatus('unauthenticated');
     });
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== LOGOUT_PENDING_KEY || event.newValue !== 'true') return;
+      operation.current += 1;
+      apiClient.clearSession();
+      setUser(null);
+      setError(null);
+      setStatus('unauthenticated');
+    };
+    window.addEventListener('storage', handleStorage);
 
     void initialize();
     return () => {
       active = false;
       unsubscribe();
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 
@@ -72,13 +82,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setError(null);
     try {
       const currentUser = await loginRequest(input);
-      if (currentOperation !== operation.current) return;
+      if (currentOperation !== operation.current) {
+        throw new ApiClientError('인증 요청이 취소되었습니다.', 401, 'AUTH_SESSION_CHANGED');
+      }
       setUser(currentUser);
       setStatus('authenticated');
     } catch (nextError) {
-      if (currentOperation !== operation.current) return;
-      setUser(null);
-      setStatus('unauthenticated');
+      if (currentOperation === operation.current) {
+        setUser(null);
+        setStatus('unauthenticated');
+      }
       throw nextError;
     }
   }
@@ -89,13 +102,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setError(null);
     try {
       const currentUser = await registerRequest(input);
-      if (currentOperation !== operation.current) return;
+      if (currentOperation !== operation.current) {
+        throw new ApiClientError('인증 요청이 취소되었습니다.', 401, 'AUTH_SESSION_CHANGED');
+      }
       setUser(currentUser);
       setStatus('authenticated');
     } catch (nextError) {
-      if (currentOperation !== operation.current) return;
-      setUser(null);
-      setStatus('unauthenticated');
+      if (currentOperation === operation.current) {
+        setUser(null);
+        setStatus('unauthenticated');
+      }
       throw nextError;
     }
   }
@@ -107,8 +123,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setStatus('unauthenticated');
     try {
       await logoutRequest();
-    } catch {
-      // Local auth remains cleared even when the best-effort server logout fails.
+    } catch (nextError) {
+      setError(asApiError(nextError));
+      throw nextError;
     }
   }
 

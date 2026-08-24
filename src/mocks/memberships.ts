@@ -1,5 +1,6 @@
 export interface MembershipItem {
   id: string;
+  gymIds?: string[];
   gymName: string;
   passName: string;
   passType: 'count' | 'period';
@@ -11,6 +12,8 @@ export interface MembershipItem {
   endDate: string;
   note: string;
   isFavorite?: boolean;
+  homeOrder?: number | null;
+  eligibilityStatus?: 'active' | 'unassigned' | 'not_started' | 'expired' | 'exhausted';
 }
 
 export const MEMBERSHIPS: MembershipItem[] = [

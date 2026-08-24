@@ -11,8 +11,13 @@ export default function ProfilePage() {
   if (!user) return null;
 
   async function handleLogout() {
-    await logout();
-    navigate('/login', { replace: true });
+    try {
+      await logout();
+    } catch {
+      // The pending-logout marker retries server invalidation on the next load.
+    } finally {
+      navigate('/login', { replace: true });
+    }
   }
 
   return (

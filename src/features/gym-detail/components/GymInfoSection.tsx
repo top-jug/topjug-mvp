@@ -1,11 +1,11 @@
 interface GymInfoSectionProps {
   address: string;
   nearby: string;
-  weekdayHours: string;
-  weekendHours: string;
+  operatingHours: string[];
+  prices: string[];
 }
 
-export default function GymInfoSection({ address, nearby, weekdayHours, weekendHours }: GymInfoSectionProps) {
+export default function GymInfoSection({ address, nearby, operatingHours, prices }: GymInfoSectionProps) {
   return (
     <>
       <div className="px-5 mb-4">
@@ -16,7 +16,7 @@ export default function GymInfoSection({ address, nearby, weekdayHours, weekendH
           </svg>
           <div>
             <p className="text-[14px] text-neutral-900 font-medium mb-0.5">{address}</p>
-            <p className="text-[13px] text-neutral-400">{nearby}</p>
+            {nearby && <p className="text-[13px] text-neutral-400">{nearby}</p>}
           </div>
         </div>
       </div>
@@ -30,12 +30,23 @@ export default function GymInfoSection({ address, nearby, weekdayHours, weekendH
           <div className="flex-1">
             <p className="text-[14px] text-neutral-900 font-medium mb-1">운영시간</p>
             <div className="space-y-0.5">
-              <p className="text-[14px] text-neutral-600"><span className="font-medium">평일</span> {weekdayHours}</p>
-              <p className="text-[14px] text-blue-500 font-medium">토~일 {weekendHours}</p>
+              {operatingHours.map((hours) => <p key={hours} className="text-[14px] text-neutral-600">{hours}</p>)}
             </div>
           </div>
         </div>
       </div>
+
+      {prices.length > 0 && (
+        <div className="px-5 mb-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-50 text-[12px] font-black text-blue-500">₩</div>
+            <div>
+              <p className="mb-1 text-[14px] font-medium text-neutral-900">이용 가격</p>
+              {prices.map((price) => <p key={price} className="text-[14px] text-neutral-600">{price}</p>)}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

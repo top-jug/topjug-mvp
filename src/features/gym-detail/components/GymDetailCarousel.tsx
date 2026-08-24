@@ -4,14 +4,16 @@ import { ImageWithFallback } from '../../../app/components/figma/ImageWithFallba
 interface GymDetailCarouselProps {
   currentSlide: number;
   photos: string[];
-  mapImage: string;
+  mapImage?: string | null;
   calendarDays: Array<number | ''>;
+  eventDays?: number[];
+  monthLabel?: string;
   onSlideChange: (index: number) => void;
 }
 
 const SLIDE_TITLES = ['암장캘린더', '암장 사진', '지도'];
 
-export default function GymDetailCarousel({ currentSlide, photos, mapImage, calendarDays, onSlideChange }: GymDetailCarouselProps) {
+export default function GymDetailCarousel({ currentSlide, photos, mapImage, calendarDays, eventDays = [], monthLabel = '세팅 일정', onSlideChange }: GymDetailCarouselProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
@@ -35,7 +37,7 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, cale
       >
           <div className="w-full flex-shrink-0 snap-center min-h-[300px] bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-4 relative flex flex-col">
             <div className="text-center mb-4">
-              <h3 className="text-[18px] font-bold text-neutral-900">2026년 4월</h3>
+              <h3 className="text-[18px] font-bold text-neutral-900">{monthLabel}</h3>
             </div>
             <div className="grid grid-cols-7 gap-1 text-center flex-1 items-center">
               {['일', '월', '화', '수', '목', '금', '토'].map((day) => (
@@ -45,13 +47,11 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, cale
                 <div
                   key={`${date}-${i}`}
                   className={`text-[14px] py-2.5 flex items-center justify-center mx-auto w-8 h-8 ${
-                    date === 12
+                    typeof date === 'number' && eventDays.includes(date)
                       ? 'bg-blue-500 text-white rounded-full font-bold'
-                      : date === 7 || date === 9 || date === 11
-                        ? 'bg-blue-100 text-blue-600 rounded-full font-medium'
-                        : date
-                          ? 'text-neutral-700'
-                          : 'text-transparent'
+                      : date
+                        ? 'text-neutral-700'
+                        : 'text-transparent'
                   }`}
                 >
                   {date}
@@ -62,8 +62,8 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, cale
 
           <div className="w-full flex-shrink-0 snap-center rounded-2xl bg-white border border-neutral-200 p-3 min-h-[300px]">
             <div className="grid grid-cols-[1.5fr_1fr] gap-3 h-full min-h-[276px]">
-              <div className="rounded-2xl overflow-hidden">
-                <ImageWithFallback src={photos[0]} alt="Gym Photo Main" className="w-full h-full object-cover" />
+              <div className="rounded-2xl overflow-hidden bg-neutral-100">
+                {photos[0] ? <ImageWithFallback src={photos[0]} alt="암장 대표 사진" className="w-full h-full object-cover" /> : <div className="flex h-full items-center justify-center text-[13px] text-neutral-400">등록된 사진이 없습니다.</div>}
               </div>
               <div className="grid grid-rows-2 gap-3">
                 {photos.slice(1, 3).map((photo, index) => (
@@ -81,7 +81,7 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, cale
           </div>
 
           <div className="w-full flex-shrink-0 snap-center min-h-[300px] bg-gradient-to-br from-blue-50 via-green-50 to-blue-100 rounded-2xl relative overflow-hidden">
-            <img src={mapImage} alt="Map" className="w-full h-full object-cover opacity-40" />
+            {mapImage ? <ImageWithFallback src={mapImage} alt="암장 지도" className="w-full h-full object-cover opacity-40" /> : <div className="absolute inset-0 flex items-start justify-center pt-16 text-[13px] text-neutral-500">등록된 지도 이미지가 없습니다.</div>}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="relative">
                 <div className="w-14 h-14 bg-blue-400 rounded-full opacity-30 animate-ping absolute"></div>
