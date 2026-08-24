@@ -14,6 +14,7 @@ export interface SettingEvent {
     address: string;
     calendarColor: string | null;
     calendarTextColor: string | null;
+    logo?: { url: string | null } | null;
   };
 }
 

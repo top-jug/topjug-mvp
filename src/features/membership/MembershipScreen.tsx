@@ -4,14 +4,18 @@ import BottomSheet from '../../app/components/overlay/BottomSheet';
 import { MembershipDateField, MembershipDateValidationError, parseMembershipCounts, validateMembershipDates } from './membership-contract';
 import { createPendingGuard } from './pending-guard';
 import { firstUnusedHomeOrder, MembershipItem } from '../../mocks/memberships';
+import { countExpiringSoon, EXPIRING_SOON_DAYS } from './membership-summary';
 
 interface MembershipScreenProps {
   memberships: MembershipItem[];
   gymOptions: Array<{ gymName: string; gymId: string; lightBg: string; darkText: string }>;
   isLoading: boolean;
   error: string | null;
+  isGymOptionsLoading: boolean;
+  gymOptionsError: string | null;
   actionError: string | null;
   onRetry: () => void;
+  onRetryGymOptions: () => void;
   onClose: () => void;
   onAddMembership: (membership: MembershipItem) => Promise<void>;
   onUpdateMembership: (membership: MembershipItem) => Promise<void>;
@@ -39,8 +43,11 @@ export default function MembershipScreen({
   gymOptions,
   isLoading,
   error,
+  isGymOptionsLoading,
+  gymOptionsError,
   actionError,
   onRetry,
+  onRetryGymOptions,
   onClose,
   onAddMembership,
   onUpdateMembership,
@@ -48,6 +55,7 @@ export default function MembershipScreen({
 }: MembershipScreenProps) {
   const countPasses = memberships.filter((membership) => membership.passType === 'count').length;
   const periodPasses = memberships.length - countPasses;
+  const expiringSoon = countExpiringSoon(memberships, new Date());
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [editingMembershipId, setEditingMembershipId] = useState<string | null>(null);
   const [archivingMembershipId, setArchivingMembershipId] = useState<string | null>(null);
@@ -254,8 +262,8 @@ export default function MembershipScreen({
               <div className="text-[18px] font-bold text-neutral-900 mt-1">{periodPasses}</div>
             </div>
             <div className="rounded-2xl bg-neutral-50 px-3 py-3 text-center">
-              <div className="text-[12px] text-neutral-500">만료 예정</div>
-              <div className="text-[18px] font-bold text-neutral-900 mt-1">1</div>
+              <div className="text-[12px] text-neutral-500">{EXPIRING_SOON_DAYS}일 내 만료</div>
+              <div className="text-[18px] font-bold text-neutral-900 mt-1">{expiringSoon}</div>
             </div>
           </div>
         </div>
@@ -336,12 +344,19 @@ export default function MembershipScreen({
         <BottomSheet onClose={closeSheet} title={editingMembershipId ? '회원권 편집' : '회원권 추가'} bodyClassName="px-6 py-5 space-y-4">
               <label className="block">
                 <div className="text-[13px] font-semibold text-neutral-700 mb-2">암장</div>
-                <select value={gymName} onChange={(event) => setGymName(event.target.value)} className="w-full h-12 rounded-2xl border border-neutral-200 px-4 bg-white text-[15px] text-neutral-900 outline-none">
+                <select value={gymName} onChange={(event) => setGymName(event.target.value)} disabled={isGymOptionsLoading} className="w-full h-12 rounded-2xl border border-neutral-200 px-4 bg-white text-[15px] text-neutral-900 outline-none disabled:bg-neutral-100">
                   <option value="">선택 안 함</option>
+                  {gymName && !gymOptions.some((option) => option.gymName === gymName) && <option value={gymName}>{gymName}</option>}
                   {gymOptions.map((option) => (
                     <option key={option.gymName} value={option.gymName}>{option.gymName}</option>
                   ))}
                 </select>
+                {gymOptionsError && (
+                  <div className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-red-50 px-3 py-2 text-[12px] text-red-700" role="alert">
+                    <span>{gymOptionsError}</span>
+                    <button type="button" onClick={onRetryGymOptions} className="shrink-0 font-semibold underline">암장 다시 불러오기</button>
+                  </div>
+                )}
               </label>
 
               <label className="block">

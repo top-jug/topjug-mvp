@@ -84,6 +84,9 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
     });
     assert.equal(me.status, 200);
 
+    const unauthorizedRecentGyms = await jsonRequest('/me/recent-gyms');
+    assert.equal(unauthorizedRecentGyms.status, 401);
+
     const authorization = { authorization: `Bearer ${registerBody.data.accessToken}` };
     const incomingRequestId = randomUUID();
     const gymList = await jsonRequest(`/gyms?q=${encodeURIComponent(suffix)}`, {
@@ -223,6 +226,17 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
       }),
     });
     assert.equal(secondCreated.status, 201);
+
+    const recentVisitedGyms = await jsonRequest('/me/recent-gyms', { headers: authorization });
+    assert.equal(recentVisitedGyms.status, 200);
+    const recentVisitedGymsBody = await recentVisitedGyms.json() as {
+      data: Array<{ gym: Record<string, unknown> & { id: string }; lastVisitedAt: string }>;
+    };
+    assert.equal(recentVisitedGymsBody.data.length, 1);
+    assert.equal(recentVisitedGymsBody.data[0]!.gym.id, gym.id);
+    assert.deepEqual(Object.keys(recentVisitedGymsBody.data[0]!).sort(), ['gym', 'lastVisitedAt']);
+    assert.deepEqual(Object.keys(recentVisitedGymsBody.data[0]!.gym).sort(), ['branchName', 'id', 'name']);
+    assert.equal(recentVisitedGymsBody.data[0]!.lastVisitedAt, '2026-08-24T01:00:00.000Z');
 
     const list = await jsonRequest('/records?limit=20', {
       headers: { authorization: `Bearer ${registerBody.data.accessToken}` },

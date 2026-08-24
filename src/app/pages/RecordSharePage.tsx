@@ -1,5 +1,5 @@
 import { ArrowLeft, Clipboard, Download, Share2, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useParams } from 'react-router';
 import { ClimbingRecord } from '../../entities/record/types';
 import { createRecordShareImage } from '../../features/record/record-share-image';
@@ -10,6 +10,20 @@ import {
   ShareDifficultySummary,
 } from '../../features/record/record-share-model';
 import {
+  createRecordShareRouteGuard,
+  deliverRecordShare,
+  getInFlightRecordShareCreation,
+  getRecordShareCreationState,
+  getRecordShareSessionStorage,
+  isShareNotFoundError,
+  mergeRecordShareListSnapshot,
+  readCachedRecordShare,
+  reconcileCachedRecordShare,
+  removeCachedRecordShare,
+  settleRecordShareCreation,
+} from '../../features/record/record-share-orchestrator';
+import {
+  ApiCreatedShare,
   ApiShareSummary,
   createRecordShare as requestCreateRecordShare,
   getRecord as fetchRecord,
@@ -29,6 +43,8 @@ export default function RecordSharePage() {
   const [shares, setShares] = useState<ApiShareSummary[]>([]);
   const [isLoading, setIsLoading] = useState(Boolean(recordId));
   const [isCreatingLink, setIsCreatingLink] = useState(false);
+  const [isShareListLoading, setIsShareListLoading] = useState(Boolean(recordId));
+  const [isConfirmingAdditionalLink, setIsConfirmingAdditionalLink] = useState(false);
   const [revokingShareId, setRevokingShareId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shareListError, setShareListError] = useState<string | null>(null);
@@ -38,42 +54,100 @@ export default function RecordSharePage() {
   const [selectedDifficultyIndexes, setSelectedDifficultyIndexes] = useState<number[]>([]);
   const [comment, setComment] = useState('');
   const [status, setStatus] = useState('');
+  const [managedShare, setManagedShare] = useState<ApiCreatedShare | null>(null);
+  const [preparedImage, setPreparedImage] = useState<{ blob: Blob; file: File } | null>(null);
+  const [isPreparingImage, setIsPreparingImage] = useState(false);
+  const routeGuard = useRef(createRecordShareRouteGuard());
+  const createPending = useRef<number | null>(null);
+  const mutationSequence = useRef({ generation: 0, version: 0 });
 
   useEffect(() => {
     if (!recordId) return;
 
-    let isActive = true;
+    const route = routeGuard.current.begin(recordId);
+    const storage = getRecordShareSessionStorage();
+    const cachedShare = storage ? readCachedRecordShare(storage, recordId) : null;
+    const listMutationVersion = 0;
+    mutationSequence.current = { generation: route.generation, version: listMutationVersion };
     setRecord(undefined);
     setShares([]);
+    setManagedShare(cachedShare);
+    setPreparedImage(null);
+    setIsCreatingLink(false);
+    setIsShareListLoading(true);
+    setIsConfirmingAdditionalLink(false);
+    setRevokingShareId(null);
+    setIsPreparingImage(false);
+    createPending.current = null;
     setIsLoading(true);
     setError(null);
     setShareListError(null);
 
-    fetchRecord(recordId)
+    const inFlightCreation = getInFlightRecordShareCreation(recordId);
+    if (inFlightCreation) {
+      mutationSequence.current.version += 1;
+      createPending.current = route.generation;
+      setIsCreatingLink(true);
+      void inFlightCreation
+        .then((share) => {
+          if (!routeGuard.current.isCurrent(route)) return;
+          setManagedShare(share);
+          setIsConfirmingAdditionalLink(false);
+          setShares((current) => [share, ...current.filter((item) => item.id !== share.id)]);
+          setStatus('진행 중이던 공개 링크 생성을 완료했어요.');
+        })
+        .catch((createError) => {
+          if (routeGuard.current.isCurrent(route)) {
+            setStatus(createError instanceof Error ? createError.message : '공유 링크를 만들지 못했어요.');
+          }
+        })
+        .finally(() => {
+          if (!routeGuard.current.isCurrent(route)) return;
+          createPending.current = null;
+          setIsCreatingLink(false);
+        });
+    }
+
+    fetchRecord(recordId, route.signal)
       .then((recordPayload) => {
-        if (!isActive) return;
+        if (!routeGuard.current.isCurrent(route)) return;
         setRecord(mapApiRecordDetail(recordPayload.data));
       })
       .catch((fetchError) => {
-        if (isActive) setError(fetchError instanceof Error ? fetchError.message : '공유할 기록을 불러오지 못했어요.');
+        if (routeGuard.current.isCurrent(route)) {
+          setError(fetchError instanceof Error ? fetchError.message : '공유할 기록을 불러오지 못했어요.');
+        }
       })
       .finally(() => {
-        if (isActive) setIsLoading(false);
+        if (routeGuard.current.isCurrent(route)) setIsLoading(false);
       });
 
-    listRecordShares(recordId)
+    listRecordShares(recordId, route.signal)
       .then((sharePayload) => {
-        if (isActive) setShares(sharePayload.data);
+        if (!routeGuard.current.isCurrent(route)) return;
+        const currentMutationVersion = mutationSequence.current.generation === route.generation
+          ? mutationSequence.current.version
+          : listMutationVersion;
+        setShares((current) => mergeRecordShareListSnapshot(
+          current,
+          sharePayload.data,
+          listMutationVersion,
+          currentMutationVersion,
+        ));
+        if (cachedShare && !reconcileCachedRecordShare(cachedShare, sharePayload.data)) {
+          if (storage) removeCachedRecordShare(storage, recordId);
+          setManagedShare((current) => current?.id === cachedShare.id ? null : current);
+        }
       })
       .catch((shareError) => {
-        if (!isActive) return;
-        setShares([]);
+        if (!routeGuard.current.isCurrent(route)) return;
         setShareListError(shareError instanceof Error ? shareError.message : '공유 링크 목록을 불러오지 못했어요.');
+      })
+      .finally(() => {
+        if (routeGuard.current.isCurrent(route)) setIsShareListLoading(false);
       });
 
-    return () => {
-      isActive = false;
-    };
+    return () => routeGuard.current.cancel(route);
   }, [recordId]);
 
   useEffect(() => {
@@ -94,6 +168,33 @@ export default function RecordSharePage() {
     () => record ? createRecordShareModel(record, shareOptions) : undefined,
     [record, shareOptions],
   );
+
+  useEffect(() => {
+    if (view !== 'preview' || !record || record.id !== recordId) return;
+    const route = routeGuard.current.current(record.id);
+    if (!route) return;
+
+    let acceptsResult = true;
+    setPreparedImage(null);
+    setIsPreparingImage(true);
+    createRecordShareImage(record, shareOptions)
+      .then((blob) => {
+        if (!acceptsResult || !routeGuard.current.isCurrent(route)) return;
+        setPreparedImage({ blob, file: new File([blob], `topjug-${record.date}.png`, { type: 'image/png' }) });
+      })
+      .catch(() => {
+        if (acceptsResult && routeGuard.current.isCurrent(route)) {
+          setStatus('맞춤 이미지를 준비하지 못했어요. 공개 링크는 계속 사용할 수 있어요.');
+        }
+      })
+      .finally(() => {
+        if (acceptsResult && routeGuard.current.isCurrent(route)) setIsPreparingImage(false);
+      });
+
+    return () => {
+      acceptsResult = false;
+    };
+  }, [record, recordId, shareOptions, view]);
 
   if (!recordId) return <Navigate to="/records" replace />;
 
@@ -130,6 +231,14 @@ export default function RecordSharePage() {
 
   if (!record || !shareModel) return <Navigate to="/records" replace />;
 
+  const supportsNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  const shareCreationState = getRecordShareCreationState(
+    managedShare,
+    shares,
+    isConfirmingAdditionalLink,
+    shareListError === null,
+  );
+
   const toggleDifficulty = (difficultyIndex: number) => {
     setSelectedDifficultyIndexes((current) => {
       if (current.includes(difficultyIndex)) {
@@ -143,84 +252,142 @@ export default function RecordSharePage() {
 
   const openPreview = () => {
     setStatus('');
+    setPreparedImage(null);
+    setIsPreparingImage(true);
     setView('preview');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const getImageFile = async () => {
-    const blob = await createRecordShareImage(record, shareOptions);
-    return { blob, file: new File([blob], `topjug-${record.date}.png`, { type: 'image/png' }) };
-  };
-
-  const handleSave = async () => {
-    try {
-      const { blob, file } = await getImageFile();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = file.name;
-      link.click();
-      URL.revokeObjectURL(url);
-      setStatus('이미지를 저장했어요.');
-    } catch {
-      setStatus('이미지를 저장하지 못했어요.');
-    }
+  const handleSave = () => {
+    if (!preparedImage) return;
+    const url = URL.createObjectURL(preparedImage.blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = preparedImage.file.name;
+    link.click();
+    URL.revokeObjectURL(url);
+    setStatus('이미지를 저장했어요.');
   };
 
   const handleCopy = async () => {
+    if (!preparedImage) return;
+    const route = routeGuard.current.current(record.id);
+    if (!route) return;
+
     try {
-      const { blob } = await getImageFile();
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': preparedImage.blob })]);
+      if (!routeGuard.current.isCurrent(route)) return;
       setStatus('이미지를 복사했어요.');
     } catch {
-      setStatus('이 브라우저에서는 이미지 복사를 지원하지 않아요.');
+      if (routeGuard.current.isCurrent(route)) setStatus('이 브라우저에서는 이미지 복사를 지원하지 않아요.');
     }
   };
 
-  const handleShare = async () => {
+  const handleCreateLink = async () => {
+    const route = routeGuard.current.current(record.id);
+    if (!route || createPending.current === route.generation) return;
+    createPending.current = route.generation;
+    if (mutationSequence.current.generation === route.generation) mutationSequence.current.version += 1;
     setIsCreatingLink(true);
+    setStatus('');
+
     try {
-      const { file } = await getImageFile();
-      const payload = await requestCreateRecordShare(record.id);
-      const nextShareUrl = publicShareUrl(payload.data);
-      setShares((current) => [payload.data, ...current.filter((share) => share.id !== payload.data.id)]);
-
-      const shareData = {
-        files: [file],
-        title: `${record.gym} 클라이밍 기록`,
-        text: `오늘의 클라이밍 기록 #TopJug ${nextShareUrl}`,
-      };
-
-      if (!navigator.share || !navigator.canShare?.(shareData)) {
-        await navigator.clipboard.writeText(nextShareUrl);
-        setStatus('공유 링크를 만들고 클립보드에 복사했어요.');
-        return;
+      const result = await settleRecordShareCreation(
+        record.id,
+        async () => (await requestCreateRecordShare(record.id)).data,
+        () => routeGuard.current.isCurrent(route),
+        () => getRecordShareSessionStorage(),
+      );
+      if (!result.isOriginCurrent) return;
+      setManagedShare(result.share);
+      setIsConfirmingAdditionalLink(false);
+      setShares((current) => [result.share, ...current.filter((share) => share.id !== result.share.id)]);
+      setStatus('공개 링크를 만들었어요. 아래에서 복사하거나 공유하세요.');
+    } catch (createError) {
+      if (routeGuard.current.isCurrent(route)) {
+        setStatus(createError instanceof Error ? createError.message : '공유 링크를 만들지 못했어요.');
       }
-
-      await navigator.share(shareData);
-      setStatus('공유 링크를 만들었어요.');
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      setStatus(error instanceof Error ? error.message : '공유 링크를 만들지 못했어요.');
     } finally {
-      setIsCreatingLink(false);
+      if (routeGuard.current.isCurrent(route)) {
+        createPending.current = null;
+        setIsCreatingLink(false);
+      }
+    }
+  };
+
+  const handleCopyPublicLink = async () => {
+    if (!managedShare) return;
+    const route = routeGuard.current.current(record.id);
+    if (!route) return;
+
+    try {
+      await navigator.clipboard.writeText(publicShareUrl(managedShare));
+      if (routeGuard.current.isCurrent(route)) setStatus('공개 링크를 복사했어요.');
+    } catch {
+      if (routeGuard.current.isCurrent(route)) setStatus('공개 링크를 복사하지 못했어요. 표시된 주소를 직접 복사해주세요.');
+    }
+  };
+
+  const handleNativeShare = async () => {
+    if (!managedShare || typeof navigator.share !== 'function') return;
+    const route = routeGuard.current.current(record.id);
+    if (!route) return;
+    const canShareFiles = Boolean(
+      preparedImage
+      && typeof navigator.canShare === 'function'
+      && navigator.canShare({ files: [preparedImage.file] }),
+    );
+    const shareData: ShareData = {
+      ...(canShareFiles && preparedImage ? { files: [preparedImage.file] } : {}),
+      title: `${record.gym} 클라이밍 기록`,
+      text: '오늘의 클라이밍 기록 #TopJug',
+      url: publicShareUrl(managedShare),
+    };
+    const result = await deliverRecordShare(() => navigator.share!(shareData));
+    if (!routeGuard.current.isCurrent(route)) return;
+
+    if (result.outcome === 'delivered') {
+      setStatus('공유를 완료했어요. 공유 앱에 따라 맞춤 이미지나 링크가 포함되지 않을 수 있어요.');
+    } else if (result.outcome === 'cancelled') {
+      setStatus('공유를 취소했어요. 공개 링크는 활성 상태로 유지됩니다.');
+    } else {
+      setStatus(result.error instanceof Error ? result.error.message : '공유 메뉴를 열지 못했어요.');
     }
   };
 
   const handleRevokeShare = async (shareId: string) => {
+    const route = routeGuard.current.current(record.id);
+    if (!route) return;
+    if (mutationSequence.current.generation === route.generation) mutationSequence.current.version += 1;
     setRevokingShareId(shareId);
     setStatus('');
 
     try {
-      await revokeRecordShare(record.id, shareId);
-      setShares((current) => current.map((share) => (
-        share.id === shareId ? { ...share, status: 'revoked', revokedAt: new Date().toISOString() } : share
-      )));
+      await revokeRecordShare(record.id, shareId, route.signal);
+      if (!routeGuard.current.isCurrent(route)) return;
+      const revokedAt = new Date().toISOString();
+      setShares((current) => markShareInactive(current, shareId, managedShare, revokedAt));
+      if (managedShare?.id === shareId) {
+        const storage = getRecordShareSessionStorage();
+        if (storage) removeCachedRecordShare(storage, record.id);
+        setManagedShare(null);
+      }
       setStatus('공유 링크를 폐기했어요.');
     } catch (revokeError) {
-      setStatus(revokeError instanceof Error ? revokeError.message : '공유 링크를 폐기하지 못했어요.');
+      if (!routeGuard.current.isCurrent(route)) return;
+      if (isShareNotFoundError(revokeError)) {
+        setShares((current) => markShareInactive(current, shareId, managedShare));
+        if (managedShare?.id === shareId) {
+          const storage = getRecordShareSessionStorage();
+          if (storage) removeCachedRecordShare(storage, record.id);
+          setManagedShare(null);
+        }
+        setStatus('이미 비활성화된 공유 링크예요.');
+      } else {
+        setStatus(revokeError instanceof Error ? revokeError.message : '공유 링크를 폐기하지 못했어요.');
+      }
     } finally {
-      setRevokingShareId(null);
+      if (routeGuard.current.isCurrent(route)) setRevokingShareId(null);
     }
   };
 
@@ -262,11 +429,107 @@ export default function RecordSharePage() {
       <main className="mx-auto max-w-md">
         <ShareCard record={record} model={shareModel} />
 
-        <div className="mt-7 grid grid-cols-3 gap-5">
-          <ActionButton label="저장" icon={<Download size={22} />} onClick={handleSave} />
-          <ActionButton label="복사" icon={<Clipboard size={21} />} onClick={handleCopy} />
-          <ActionButton label={isCreatingLink ? '생성 중' : '공유'} icon={<Share2 size={21} />} onClick={handleShare} disabled={isCreatingLink} />
-        </div>
+        <section className="mt-7 rounded-3xl border border-neutral-200 bg-white p-5">
+          <h2 className="text-[16px] font-bold">맞춤 이미지</h2>
+          <p className="mt-1 text-[12px] leading-5 text-neutral-500">선택한 난이도와 한줄평이 반영된 현재 이미지를 기기에 저장하거나 복사합니다.</p>
+          <div className="mt-4 grid grid-cols-2 gap-5">
+            <ActionButton label={isPreparingImage ? '준비 중' : '이미지 저장'} icon={<Download size={22} />} onClick={handleSave} disabled={!preparedImage} />
+            <ActionButton label={isPreparingImage ? '준비 중' : '이미지 복사'} icon={<Clipboard size={21} />} onClick={handleCopy} disabled={!preparedImage} />
+          </div>
+        </section>
+
+        <section className="mt-4 rounded-3xl border border-blue-200 bg-blue-50 p-5">
+          <h2 className="text-[16px] font-bold text-blue-950">공개 링크</h2>
+          <p className="mt-2 text-[13px] font-semibold leading-5 text-blue-950">공개 링크에는 맞춤 이미지가 게시되지 않고 기본 기록만 표시됩니다.</p>
+          <p className="mt-1 text-[12px] leading-5 text-blue-800">이미지 업로드 기능이 없어 위 미리보기의 맞춤 설정과 한줄평은 URL에 포함되지 않습니다. 먼저 링크를 만든 뒤 별도 버튼으로 링크를 복사하거나 기기 공유 메뉴를 여세요.</p>
+          {isShareListLoading ? (
+            <button
+              type="button"
+              disabled
+              className="mt-4 flex h-12 w-full items-center justify-center rounded-2xl bg-blue-200 text-[14px] font-bold text-blue-700"
+            >
+              기존 공유 링크 확인 중
+            </button>
+          ) : shareCreationState === 'managed' && managedShare ? (
+            <div className="mt-4 rounded-2xl border border-blue-200 bg-white p-4">
+              <div className="flex items-center justify-between gap-3 text-[12px] font-bold">
+                <span className="text-blue-950">2. 링크 전달 또는 관리</span>
+                <span className="text-green-700">활성</span>
+              </div>
+              <div className="mt-1 break-all text-[11px] leading-5 text-neutral-600">{publicShareUrl(managedShare)}</div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button type="button" onClick={handleCopyPublicLink} className="min-h-11 rounded-xl bg-blue-600 px-3 text-[12px] font-bold text-white">링크 복사</button>
+                <button
+                  type="button"
+                  onClick={handleNativeShare}
+                  disabled={!supportsNativeShare || isPreparingImage}
+                  className="min-h-11 rounded-xl bg-neutral-950 px-3 text-[12px] font-bold text-white disabled:bg-neutral-300"
+                >
+                  {isPreparingImage ? '이미지 준비 중' : '기기 공유 열기'}
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] leading-4 text-neutral-500">공유 앱에 따라 로컬 맞춤 이미지나 링크가 전달되지 않을 수 있습니다.</p>
+              <button
+                type="button"
+                onClick={() => handleRevokeShare(managedShare.id)}
+                disabled={revokingShareId === managedShare.id}
+                className="mt-2 min-h-11 w-full rounded-xl border border-red-200 bg-red-50 px-3 text-[12px] font-bold text-red-700 disabled:opacity-50"
+              >
+                {revokingShareId === managedShare.id ? '링크 폐기 중' : '공개 링크 폐기'}
+              </button>
+            </div>
+          ) : shareCreationState === 'create' ? (
+            <button
+              type="button"
+              onClick={handleCreateLink}
+              disabled={isCreatingLink}
+              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 text-[14px] font-bold text-white disabled:opacity-50"
+            >
+              <Share2 size={19} />
+              {isCreatingLink ? '공개 링크 생성 중' : '1. 공개 링크 만들기'}
+            </button>
+          ) : (
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <div className="text-[13px] font-bold text-amber-900">
+                {shareListError
+                  ? '기존 공유 링크 상태를 확인하지 못했어요.'
+                  : '이미 활성 링크가 있지만 이 탭에는 주소 정보가 없어요.'}
+              </div>
+              <p className="mt-1 text-[12px] leading-5 text-amber-800">
+                {shareListError
+                  ? '새 링크를 만들면 기존 링크와 중복될 수 있습니다. 계속하려면 위험을 확인해주세요.'
+                  : '기존 링크는 아래 목록에서 폐기할 수 있습니다. 새 링크를 추가하면 활성 링크가 하나 더 생깁니다.'}
+              </p>
+              {shareCreationState === 'confirm-additional' ? (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsConfirmingAdditionalLink(false)}
+                    className="min-h-11 rounded-xl bg-white px-3 text-[12px] font-bold text-neutral-700"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCreateLink}
+                    disabled={isCreatingLink}
+                    className="min-h-11 rounded-xl bg-amber-600 px-3 text-[12px] font-bold text-white disabled:opacity-50"
+                  >
+                    {isCreatingLink ? '생성 중' : '새 링크 생성 확인'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsConfirmingAdditionalLink(true)}
+                  className="mt-3 min-h-11 w-full rounded-xl border border-amber-300 bg-white px-3 text-[12px] font-bold text-amber-800"
+                >
+                  새 링크 추가
+                </button>
+              )}
+            </div>
+          )}
+        </section>
         <div className="mt-4 min-h-5 text-center text-[12px] text-neutral-500" role="status">{status}</div>
         {shareListError && <div className="rounded-2xl bg-amber-50 px-4 py-3 text-[13px] font-medium text-amber-800">{shareListError}</div>}
         <ShareList shares={shares} revokingShareId={revokingShareId} onRevoke={handleRevokeShare} />
@@ -541,7 +804,7 @@ function ShareList({
                   type="button"
                   onClick={() => onRevoke(share.id)}
                   disabled={!isActive || revokingShareId === share.id}
-                  className="h-9 flex-shrink-0 rounded-xl bg-white px-3 text-[12px] font-bold text-red-600 disabled:text-neutral-300"
+                  className="h-11 flex-shrink-0 rounded-xl bg-white px-3 text-[12px] font-bold text-red-600 disabled:text-neutral-300"
                 >
                   {revokingShareId === share.id ? '폐기 중' : '폐기'}
                 </button>
@@ -558,6 +821,26 @@ function shareStatusLabel(status: ApiShareSummary['status']) {
   if (status === 'active') return '활성';
   if (status === 'expired') return '만료';
   return '폐기됨';
+}
+
+function markShareInactive(
+  shares: ApiShareSummary[],
+  shareId: string,
+  fallback: ApiCreatedShare | null,
+  revokedAt: string | null = null,
+): ApiShareSummary[] {
+  if (shares.some((share) => share.id === shareId)) {
+    return shares.map((share) => share.id === shareId ? { ...share, status: 'revoked' as const, revokedAt } : share);
+  }
+  if (!fallback || fallback.id !== shareId) return shares;
+  return [{
+    id: fallback.id,
+    status: 'revoked',
+    mediaAssetId: fallback.mediaAssetId,
+    expiresAt: fallback.expiresAt,
+    revokedAt,
+    createdAt: fallback.createdAt,
+  }, ...shares];
 }
 
 function ActionButton({ label, icon, onClick, disabled = false }: { label: string; icon: React.ReactNode; onClick: () => void; disabled?: boolean }) {

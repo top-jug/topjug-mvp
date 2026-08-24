@@ -78,12 +78,14 @@ export function membershipColorsForIndex(index: number) {
   return colors[index % colors.length];
 }
 
-export function apiMembershipToItem(membership: ApiMembership, gymOptions: MembershipGymOption[]): MembershipItem {
+export function apiMembershipToItem(membership: ApiMembership, gymOptions: MembershipGymOption[], now = new Date()): MembershipItem {
   const gymNames = membership.gyms.map(formatMembershipGymName);
   const primaryGymName = gymNames[0] ?? '';
   const colors = gymOptions.find((option) => option.gymId === membership.gymIds[0]) ?? membershipColorsForIndex(0);
   const validUntil = new Date(membership.validUntil);
-  const daysLeft = Math.max(0, Math.ceil((validUntil.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const expiryDay = Date.UTC(validUntil.getFullYear(), validUntil.getMonth(), validUntil.getDate());
+  const daysLeft = Math.max(0, (expiryDay - today) / (1000 * 60 * 60 * 24));
 
   return {
     id: membership.id,
