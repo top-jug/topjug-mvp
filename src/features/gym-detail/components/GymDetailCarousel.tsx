@@ -8,12 +8,15 @@ interface GymDetailCarouselProps {
   calendarDays: Array<number | ''>;
   eventDays?: number[];
   monthLabel?: string;
+  canShowPreviousEventMonth?: boolean;
+  canShowNextEventMonth?: boolean;
+  onChangeEventMonth?: (delta: -1 | 1) => void;
   onSlideChange: (index: number) => void;
 }
 
 const SLIDE_TITLES = ['암장캘린더', '암장 사진', '지도'];
 
-export default function GymDetailCarousel({ currentSlide, photos, mapImage, calendarDays, eventDays = [], monthLabel = '세팅 일정', onSlideChange }: GymDetailCarouselProps) {
+export default function GymDetailCarousel({ currentSlide, photos, mapImage, calendarDays, eventDays = [], monthLabel = '세팅 일정', canShowPreviousEventMonth = false, canShowNextEventMonth = false, onChangeEventMonth, onSlideChange }: GymDetailCarouselProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
@@ -36,8 +39,26 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, cale
         className="flex w-full snap-x snap-mandatory overflow-x-auto rounded-2xl select-none touch-pan-x cursor-grab active:cursor-grabbing [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
           <div className="w-full flex-shrink-0 snap-center min-h-[300px] bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-4 relative flex flex-col">
-            <div className="text-center mb-4">
+            <div className="mb-4 flex min-h-9 items-center justify-center gap-3 text-center">
+              {(canShowPreviousEventMonth || canShowNextEventMonth) && <button
+                type="button"
+                onClick={() => onChangeEventMonth?.(-1)}
+                disabled={!canShowPreviousEventMonth}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[20px] font-medium text-neutral-700 shadow-sm disabled:opacity-25"
+                aria-label="이전 세팅 일정 월"
+              >
+                ‹
+              </button>}
               <h3 className="text-[18px] font-bold text-neutral-900">{monthLabel}</h3>
+              {(canShowPreviousEventMonth || canShowNextEventMonth) && <button
+                type="button"
+                onClick={() => onChangeEventMonth?.(1)}
+                disabled={!canShowNextEventMonth}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[20px] font-medium text-neutral-700 shadow-sm disabled:opacity-25"
+                aria-label="다음 세팅 일정 월"
+              >
+                ›
+              </button>}
             </div>
             <div className="grid grid-cols-7 gap-1 text-center flex-1 items-center">
               {['일', '월', '화', '수', '목', '금', '토'].map((day) => (
