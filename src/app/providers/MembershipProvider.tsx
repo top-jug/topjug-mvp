@@ -18,14 +18,20 @@ import {
   membershipColorsForIndex,
   parseMembershipCounts,
 } from '../../features/membership/membership-contract';
+import { deriveMembershipPresentation, localCalendarDaysRemaining, millisecondsUntilNextLocalDate } from '../../features/membership/membership-summary';
+import { loadMembershipResource } from '../../features/membership/membership-loading';
 
 interface MembershipContextValue {
   memberships: MembershipItem[];
   gymOptions: Array<{ gymName: string; gymId: string; lightBg: string; darkText: string }>;
   isLoading: boolean;
   error: string | null;
+  isGymOptionsLoading: boolean;
+  gymOptionsError: string | null;
   actionError: string | null;
   refreshMemberships: () => Promise<void>;
+  refreshGymOptions: () => Promise<void>;
+  refreshMembershipPresentation: () => void;
   addMembership: (membership: MembershipItem) => Promise<void>;
   updateMembership: (membership: MembershipItem) => Promise<void>;
   deleteMembership: (membershipId: string) => Promise<void>;
@@ -49,7 +55,7 @@ function messageForError(error: unknown) {
   return '회원권 요청을 처리하지 못했습니다.';
 }
 
-function buildRecordPasses(memberships: MembershipItem[]) {
+function buildRecordPasses(memberships: MembershipItem[], now: Date) {
   const countPasses: CountPass[] = [];
   const periodPasses: PeriodPass[] = [];
 
@@ -70,7 +76,9 @@ function buildRecordPasses(memberships: MembershipItem[]) {
     }
 
     const expiry = parseKoreanDate(membership.endDate);
-    const daysLeft = Math.max(0, Math.ceil((expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+    const daysLeft = membership.validUntil
+      ? Math.max(0, localCalendarDaysRemaining(membership.validUntil, now))
+      : Math.max(0, Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
     periodPasses.push({
       id: membership.id,
       name: membership.passName,
@@ -91,68 +99,118 @@ export function MembershipProvider({ children }: PropsWithChildren) {
   const [gymOptions, setGymOptions] = useState<MembershipContextValue['gymOptions']>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isGymOptionsLoading, setIsGymOptionsLoading] = useState(true);
+  const [gymOptionsError, setGymOptionsError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [presentationNow, setPresentationNow] = useState(() => new Date());
   const accountGeneration = useRef(0);
   const refreshVersion = useRef(0);
+  const gymRefreshVersion = useRef(0);
+  const membershipRefreshInFlight = useRef<{ account: number; promise: Promise<void> } | null>(null);
+  const gymRefreshInFlight = useRef<{ account: number; promise: Promise<void> } | null>(null);
+  const gymOptionsRef = useRef(gymOptions);
 
   const refreshMemberships = useCallback(async () => {
     const account = accountGeneration.current;
+    if (membershipRefreshInFlight.current?.account === account) return membershipRefreshInFlight.current.promise;
     const version = refreshVersion.current + 1;
     refreshVersion.current = version;
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const [gymsResponse, membershipsResponse] = await Promise.all([
-        listGyms(),
-        listMemberships(),
-      ]);
+    const promise = (async () => {
+      setIsLoading(true);
+      setError(null);
+      const result = await loadMembershipResource(listMemberships);
       if (account !== accountGeneration.current || version !== refreshVersion.current) return;
-      const nextGymOptions = gymsResponse.data.map((gym: ApiGymSummary, index) => ({
-        gymId: gym.id,
-        gymName: formatMembershipGymName(gym),
-        ...membershipColorsForIndex(index),
-      }));
-
-      setGymOptions(nextGymOptions);
-      setMemberships(membershipsResponse.data.map((membership) => apiMembershipToItem(membership, nextGymOptions)));
-    } catch (fetchError) {
-      if (account !== accountGeneration.current || version !== refreshVersion.current) return;
-      setMemberships([]);
-      setError(messageForError(fetchError));
-    } finally {
-      if (account !== accountGeneration.current || version !== refreshVersion.current) return;
+      if (result.ok) {
+        const now = new Date();
+        setPresentationNow(now);
+        setMemberships(result.data.data.map((membership) => apiMembershipToItem(membership, gymOptionsRef.current, now)));
+      } else {
+        setMemberships([]);
+        setError(messageForError(result.error));
+      }
       setIsLoading(false);
-    }
+    })();
+    membershipRefreshInFlight.current = { account, promise };
+    await promise;
+    if (membershipRefreshInFlight.current?.promise === promise) membershipRefreshInFlight.current = null;
   }, []);
+
+  const refreshGymOptions = useCallback(async () => {
+    const account = accountGeneration.current;
+    if (gymRefreshInFlight.current?.account === account) return gymRefreshInFlight.current.promise;
+    const version = gymRefreshVersion.current + 1;
+    gymRefreshVersion.current = version;
+    const promise = (async () => {
+      setIsGymOptionsLoading(true);
+      setGymOptionsError(null);
+      const result = await loadMembershipResource(listGyms);
+      if (account !== accountGeneration.current || version !== gymRefreshVersion.current) return;
+      if (result.ok) {
+        const nextGymOptions = result.data.data.map((gym: ApiGymSummary, index) => ({
+          gymId: gym.id,
+          gymName: formatMembershipGymName(gym),
+          ...membershipColorsForIndex(index),
+        }));
+        gymOptionsRef.current = nextGymOptions;
+        setGymOptions(nextGymOptions);
+      } else {
+        setGymOptionsError(messageForError(result.error));
+      }
+      setIsGymOptionsLoading(false);
+    })();
+    gymRefreshInFlight.current = { account, promise };
+    await promise;
+    if (gymRefreshInFlight.current?.promise === promise) gymRefreshInFlight.current = null;
+  }, []);
+
+  const refreshMembershipPresentation = useCallback(() => setPresentationNow(new Date()), []);
 
   useEffect(() => {
     accountGeneration.current += 1;
     refreshVersion.current += 1;
+    gymRefreshVersion.current += 1;
+    membershipRefreshInFlight.current = null;
+    gymRefreshInFlight.current = null;
     if (authStatus === 'authenticated') {
       void refreshMemberships();
+      void refreshGymOptions();
       return;
     }
     setMemberships([]);
     setGymOptions([]);
+    gymOptionsRef.current = [];
     setError(null);
+    setGymOptionsError(null);
     setActionError(null);
     setIsLoading(authStatus === 'loading');
-  }, [authStatus, refreshMemberships, user?.id]);
+    setIsGymOptionsLoading(authStatus === 'loading');
+  }, [authStatus, refreshGymOptions, refreshMemberships, user?.id]);
+
+  useEffect(() => {
+    const now = new Date();
+    const timeout = window.setTimeout(() => setPresentationNow(new Date()), millisecondsUntilNextLocalDate(now) + 50);
+    return () => window.clearTimeout(timeout);
+  }, [presentationNow]);
 
   const value = useMemo(() => {
-    const { countPasses, periodPasses } = buildRecordPasses(memberships);
+    const presentedMemberships = memberships.map((membership) => deriveMembershipPresentation(membership, presentationNow));
+    const { countPasses, periodPasses } = buildRecordPasses(presentedMemberships, presentationNow);
 
     return {
-      memberships,
+      memberships: presentedMemberships,
       gymOptions,
       isLoading,
       error,
+      isGymOptionsLoading,
+      gymOptionsError,
       actionError,
       refreshMemberships,
+      refreshGymOptions,
+      refreshMembershipPresentation,
       addMembership: async (membership: MembershipItem) => {
         const account = accountGeneration.current;
         refreshVersion.current += 1;
+        membershipRefreshInFlight.current = null;
         setIsLoading(false);
         setActionError(null);
         try {
@@ -170,6 +228,7 @@ export function MembershipProvider({ children }: PropsWithChildren) {
       updateMembership: async (membership: MembershipItem) => {
         const account = accountGeneration.current;
         refreshVersion.current += 1;
+        membershipRefreshInFlight.current = null;
         setIsLoading(false);
         setActionError(null);
         try {
@@ -195,6 +254,7 @@ export function MembershipProvider({ children }: PropsWithChildren) {
       deleteMembership: async (membershipId: string) => {
         const account = accountGeneration.current;
         refreshVersion.current += 1;
+        membershipRefreshInFlight.current = null;
         setIsLoading(false);
         setActionError(null);
         try {
@@ -212,7 +272,7 @@ export function MembershipProvider({ children }: PropsWithChildren) {
       countPasses,
       periodPasses,
     };
-  }, [actionError, error, gymOptions, isLoading, memberships, refreshMemberships]);
+  }, [actionError, error, gymOptions, gymOptionsError, isGymOptionsLoading, isLoading, memberships, presentationNow, refreshGymOptions, refreshMembershipPresentation, refreshMemberships]);
 
   return <MembershipContext.Provider value={value}>{children}</MembershipContext.Provider>;
 }
