@@ -5,16 +5,33 @@ interface ConfirmModalProps {
   description: string;
   confirmLabel: string;
   confirmTone?: 'primary' | 'danger';
+  isPending?: boolean;
+  pendingLabel?: string;
+  error?: string;
   confirmDisabled?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }
 
 export default function ConfirmModal(props: ConfirmModalProps) {
-  const { title, description, confirmLabel, confirmTone = 'primary', confirmDisabled = false, onConfirm, onClose } = props;
+  const {
+    title,
+    description,
+    confirmLabel,
+    confirmTone = 'primary',
+    isPending = false,
+    pendingLabel = confirmLabel,
+    error,
+    confirmDisabled = false,
+    onConfirm,
+    onClose,
+  } = props;
+  const handleClose = () => {
+    if (!isPending) onClose();
+  };
 
   return (
-    <CenteredModalShell onClose={onClose} panelClassName="bg-white rounded-3xl p-6 w-[340px]">
+    <CenteredModalShell onClose={handleClose} panelClassName="bg-white rounded-3xl p-6 w-[340px]">
       <div className="flex items-center gap-2 mb-4">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={confirmTone === 'danger' ? 'rgb(239 68 68)' : 'rgb(59 130 246)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -27,14 +44,15 @@ export default function ConfirmModal(props: ConfirmModalProps) {
 
       <div className="space-y-3 mb-6">
         <p className="text-sm text-neutral-600 whitespace-pre-line">{description}</p>
+        {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-600" role="alert">{error}</p>}
       </div>
 
       <div className="flex gap-2">
-        <button onClick={onClose} className="flex-1 py-2.5 bg-neutral-100 text-neutral-700 rounded-xl font-medium">
+        <button onClick={handleClose} disabled={isPending} className="flex-1 py-2.5 bg-neutral-100 text-neutral-700 rounded-xl font-medium disabled:text-neutral-400">
           취소
         </button>
-        <button onClick={onConfirm} disabled={confirmDisabled} className={`flex-1 py-2.5 rounded-xl font-medium text-white disabled:bg-neutral-300 ${confirmTone === 'danger' ? 'bg-red-500' : 'bg-blue-500'}`}>
-          {confirmLabel}
+        <button disabled={isPending || confirmDisabled} onClick={onConfirm} className={`flex-1 py-2.5 rounded-xl font-medium text-white disabled:bg-neutral-300 ${confirmTone === 'danger' ? 'bg-red-500' : 'bg-blue-500'}`}>
+          {isPending ? pendingLabel : confirmLabel}
         </button>
       </div>
     </CenteredModalShell>

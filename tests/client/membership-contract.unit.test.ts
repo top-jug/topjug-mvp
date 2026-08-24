@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { apiMembershipToItem, buildMembershipInput, parseMembershipCounts } from '../../src/features/membership/membership-contract';
+import { apiMembershipToItem, buildMembershipInput, parseMembershipCounts, validateMembershipDates } from '../../src/features/membership/membership-contract';
 
 const apiMembership = {
   id: 'membership-1',
@@ -40,6 +40,44 @@ test('only changed membership dates are converted from date-only input', () => {
   const input = buildMembershipInput({ ...item, endDate: '2099.01.01' }, gymOptions, [item]);
   assert.equal(input.validFrom, apiMembership.validFrom);
   assert.notEqual(input.validUntil, apiMembership.validUntil);
+});
+
+test('membership dates accept leap days and reject nonexistent calendar dates', () => {
+  assert.doesNotThrow(() => validateMembershipDates('2024.02.29', '2024.03.01'));
+  assert.throws(() => validateMembershipDates('2025.02.29', '2025.03.01'), /시작일에 실제 존재하는 날짜/);
+  assert.throws(() => validateMembershipDates('2026.04.01', '2026.04.31'), /만료일에 실제 존재하는 날짜/);
+});
+
+test('membership dates reject malformed values and start-after-end ordering', () => {
+  assert.throws(() => validateMembershipDates('2026.2.01', '2026.03.01'), /시작일은 YYYY\.MM\.DD 형식/);
+  assert.throws(() => validateMembershipDates('2026-02-01', '2026.03.01'), /시작일은 YYYY\.MM\.DD 형식/);
+  assert.throws(() => validateMembershipDates('2026.03.02', '2026.03.01'), /만료일은 시작일과 같거나 이후/);
+});
+
+test('membership ordering uses the final preserved and converted instants', () => {
+  const item = apiMembershipToItem(apiMembership, gymOptions);
+  assert.throws(
+    () => buildMembershipInput({ ...item, endDate: item.startDate }, gymOptions, [item]),
+    /만료일은 시작일과 같거나 이후/,
+  );
+});
+
+test('unchanged offset-aware membership instants survive an edit exactly', () => {
+  const offsetMembership = {
+    ...apiMembership,
+    validFrom: '2026-08-01T00:15:00+09:00',
+    validUntil: '2026-09-01T23:45:00-04:00',
+  };
+  const item = apiMembershipToItem(offsetMembership, gymOptions);
+  const input = buildMembershipInput({ ...item, note: '수정된 메모' }, gymOptions, [item]);
+  assert.equal(input.validFrom, offsetMembership.validFrom);
+  assert.equal(input.validUntil, offsetMembership.validUntil);
+});
+
+test('blank membership notes remain optional in the API input', () => {
+  const item = apiMembershipToItem(apiMembership, gymOptions);
+  const input = buildMembershipInput({ ...item, note: '' }, gymOptions, [item]);
+  assert.equal(input.note, null);
 });
 
 test('membership counts accept zero and reject invalid or inverted values', () => {
