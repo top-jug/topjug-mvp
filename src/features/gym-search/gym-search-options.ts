@@ -11,6 +11,8 @@ const ADDRESS_REGION_BY_PREFIX: Record<string, string> = {
   서울특별시: '서울',
   경기: '경기',
   경기도: '경기',
+  고양시: '경기',
+  성남시: '경기',
   인천: '인천',
   인천광역시: '인천',
   부산: '부산',
@@ -43,4 +45,15 @@ export function gymMatchesRegion(
 
 export function gymCardActionLabel(gym: Pick<ApiGymSummary, 'name' | 'branchName'>) {
   return `${displayGymName(gym)} 상세 보기`;
+}
+
+export function gymCardPrimaryAction(
+  gym: Pick<ApiGymSummary, 'name' | 'branchName'>,
+  onActivate: () => void,
+) {
+  return {
+    type: 'button' as const,
+    onClick: onActivate,
+    'aria-label': gymCardActionLabel(gym),
+  };
 }

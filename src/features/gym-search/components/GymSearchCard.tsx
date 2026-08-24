@@ -1,7 +1,7 @@
 import { ImageWithFallback } from '../../../app/components/figma/ImageWithFallback';
 import { ApiGymSummary, displayGymName } from '../../../app/api/gym-api';
 import { OPERATION_STATUS_PRESENTATION } from '../../gym-detail/gym-presentation';
-import { gymCardActionLabel } from '../gym-search-options';
+import { gymCardPrimaryAction } from '../gym-search-options';
 
 interface GymSearchCardProps {
   gym: ApiGymSummary;
@@ -28,10 +28,8 @@ export default function GymSearchCard({ gym, onClick, isSaved, onToggleSaved, is
   return (
     <div className="flex gap-3 bg-white border border-neutral-200 rounded-2xl p-4 hover:border-blue-500 transition-colors min-h-[116px]">
       <button
-        type="button"
-        onClick={onClick}
+        {...gymCardPrimaryAction(gym, onClick)}
         className="flex min-w-0 flex-1 gap-3 text-left rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-        aria-label={gymCardActionLabel(gym)}
       >
         <span className="block w-20 h-20 bg-neutral-200 rounded-xl overflow-hidden flex-shrink-0">
           {gym.cover?.url ? (
