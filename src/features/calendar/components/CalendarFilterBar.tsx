@@ -1,13 +1,22 @@
 import { ActiveGyms, CalendarGym } from '../../../entities/calendar/types';
+import type { ActiveStatuses, CalendarStatus } from '../calendar-filters';
 
 interface CalendarFilterBarProps {
   gyms: CalendarGym[];
   activeGyms: ActiveGyms;
   onToggleGym: (gymId: string) => void;
   onToggleAll: () => void;
+  activeStatuses?: ActiveStatuses;
+  onToggleStatus?: (status: CalendarStatus) => void;
 }
 
-export default function CalendarFilterBar({ gyms, activeGyms, onToggleGym, onToggleAll }: CalendarFilterBarProps) {
+const STATUS_OPTIONS: Array<{ status: CalendarStatus; label: string }> = [
+  { status: 'scheduled', label: '예정' },
+  { status: 'completed', label: '완료' },
+  { status: 'cancelled', label: '취소' },
+];
+
+export default function CalendarFilterBar({ gyms, activeGyms, onToggleGym, onToggleAll, activeStatuses, onToggleStatus }: CalendarFilterBarProps) {
   const allSelected = gyms.length > 0 && gyms.every((gym) => activeGyms[gym.id]);
 
   return (
@@ -42,6 +51,21 @@ export default function CalendarFilterBar({ gyms, activeGyms, onToggleGym, onTog
           );
         })}
       </div>
+      {activeStatuses && onToggleStatus && (
+        <div className="mt-2 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="일정 상태 필터">
+          {STATUS_OPTIONS.map(({ status, label }) => (
+            <button
+              type="button"
+              key={status}
+              onClick={() => onToggleStatus(status)}
+              aria-pressed={activeStatuses[status]}
+              className={`flex-shrink-0 rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors ${activeStatuses[status] ? 'bg-neutral-800 text-white' : 'border border-neutral-200 bg-white text-neutral-600'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

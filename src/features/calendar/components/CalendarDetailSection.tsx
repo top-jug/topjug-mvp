@@ -1,7 +1,6 @@
 import { UIEvent, useRef } from 'react';
 import { ImageWithFallback } from '../../../app/components/figma/ImageWithFallback';
 import { CalendarData, CalendarGym } from '../../../entities/calendar/types';
-import sectorMap from '../../../imports/image-4.png';
 
 interface CalendarDetailSectionProps {
   mode: 'record' | 'setting';
@@ -63,24 +62,25 @@ export default function CalendarDetailSection({ mode, selectedDate, activeSlide,
                       className="w-full border border-neutral-200 rounded-xl p-3 text-left cursor-pointer hover:border-neutral-300 transition-colors"
                     >
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center text-[24px] font-bold" style={{ backgroundColor: gymInfo.lightBg, color: gymInfo.darkText }}>
-                          {entry.gym.slice(0, 1)}
-                        </div>
+                        {entry.logoUrl ? (
+                          <ImageWithFallback src={entry.logoUrl} alt={`${entry.gym} 로고`} className="w-12 h-12 flex-shrink-0 rounded-xl border border-neutral-200 bg-neutral-50 object-contain" />
+                        ) : (
+                          <div className="w-12 h-12 flex-shrink-0 rounded-xl flex items-center justify-center text-[24px] font-bold" style={{ backgroundColor: gymInfo.lightBg, color: gymInfo.darkText }}>
+                            {entry.gym.slice(0, 1)}
+                          </div>
+                        )}
                         <div className="flex min-w-0 flex-1 items-center gap-2">
                           <div className="truncate text-[16px] font-semibold text-neutral-900">{entry.gym}</div>
                           <div className="flex-shrink-0 text-[15px] font-medium text-neutral-600">{entry.wall}</div>
                         </div>
                       </div>
-                      <div className="h-32 bg-neutral-800 rounded-lg mb-2 overflow-hidden">
-                        <ImageWithFallback src={sectorMap.src} alt="Sector Map" className="w-full h-full object-contain" />
-                      </div>
-                      <div className="flex items-center gap-1 text-[13px] text-neutral-500">
+                      {entry.address && <div className="flex items-center gap-1 text-[13px] text-neutral-500">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                           <circle cx="12" cy="10" r="3" />
                         </svg>
-                        <span>서울특별시 강남구</span>
-                      </div>
+                        <span>{entry.address}</span>
+                      </div>}
                     </button>
                   ) : (
                     <button

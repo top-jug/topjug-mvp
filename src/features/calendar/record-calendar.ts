@@ -2,9 +2,14 @@ import { listRecords, type ApiRecordSummary } from '../../app/api/record-api';
 import { displayGymName } from '../../app/api/gym-api';
 import type { CalendarData, CalendarEntry } from '../../entities/calendar/types';
 import { getCalendarMonthRange } from './calendar-month';
+import {
+  getCalendarViewState,
+  resolveCalendarSnapshot,
+  type CalendarSnapshot,
+  type CalendarViewState,
+} from './calendar-state';
 
 const RECORD_PAGE_SIZE = 100;
-const EMPTY_CALENDAR_DATA: CalendarData = {};
 
 type RecordPage = Awaited<ReturnType<typeof listRecords>>;
 type ListRecordPage = (params: {
@@ -15,15 +20,9 @@ type ListRecordPage = (params: {
   signal?: AbortSignal;
 }) => Promise<RecordPage>;
 
-export type RecordCalendarState = 'loading' | 'empty' | 'error' | 'ready';
+export type RecordCalendarState = CalendarViewState;
 
-export interface RecordCalendarSnapshot {
-  year: number;
-  month: number;
-  data: CalendarData;
-  error: string | null;
-  isLoading: boolean;
-}
+export type RecordCalendarSnapshot = CalendarSnapshot;
 
 export function buildRecordCalendarData(records: ApiRecordSummary[], year: number, month: number) {
   const calendarData: CalendarData = {};
@@ -85,10 +84,13 @@ export async function loadRecordCalendarMonth(
   return buildRecordCalendarData(records, year, month);
 }
 
-export function getRecordCalendarState(isLoading: boolean, error: string | null, calendarData: CalendarData): RecordCalendarState {
-  if (isLoading) return 'loading';
-  if (error) return 'error';
-  return Object.values(calendarData).some((entries) => entries.length > 0) ? 'ready' : 'empty';
+export function getRecordCalendarState(
+  isLoading: boolean,
+  error: string | null,
+  calendarData: CalendarData,
+  filteredData = calendarData,
+): RecordCalendarState {
+  return getCalendarViewState(isLoading, error, calendarData, filteredData);
 }
 
 export function resolveRecordCalendarSnapshot(
@@ -96,15 +98,12 @@ export function resolveRecordCalendarSnapshot(
   year: number,
   month: number,
 ) {
-  if (!snapshot || snapshot.year !== year || snapshot.month !== month) {
-    return { data: EMPTY_CALENDAR_DATA, error: null, state: 'loading' as const };
-  }
-
-  const state = getRecordCalendarState(snapshot.isLoading, snapshot.error, snapshot.data);
+  const resolved = resolveCalendarSnapshot(snapshot, year, month);
+  const state = getRecordCalendarState(resolved.isLoading, resolved.error, resolved.data);
 
   return {
-    data: state === 'loading' || state === 'error' ? EMPTY_CALENDAR_DATA : snapshot.data,
-    error: snapshot.error,
+    data: resolved.data,
+    error: resolved.error,
     state,
   };
 }

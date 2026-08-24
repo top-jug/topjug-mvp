@@ -105,9 +105,10 @@ test('month loading follows every cursor instead of treating the first page as c
 
 test('record calendar exposes loading, empty, error, and ready states', () => {
   assert.equal(getRecordCalendarState(true, null, {}), 'loading');
-  assert.equal(getRecordCalendarState(false, null, {}), 'empty');
+  assert.equal(getRecordCalendarState(false, null, {}), 'source-empty');
   assert.equal(getRecordCalendarState(false, 'failed', {}), 'error');
   assert.equal(getRecordCalendarState(false, null, { 1: [{ gym: '암장', wall: '완등 1' }] }), 'ready');
+  assert.equal(getRecordCalendarState(false, null, { 1: [{ gym: '암장', wall: '완등 1' }] }, { 1: [] }), 'filtered-empty');
 });
 
 test('record calendar hides a snapshot that belongs to a different displayed month', () => {
@@ -127,7 +128,7 @@ test('record calendar hides a snapshot that belongs to a different displayed mon
   assert.equal(resolveRecordCalendarSnapshot(snapshot, 2026, 8).state, 'ready');
 });
 
-test('record calendar hides carried data while the matching month is loading or failed', () => {
+test('record calendar retains carried data while the matching month is refreshing or failed', () => {
   const snapshot = {
     year: 2026,
     month: 8,
@@ -137,12 +138,12 @@ test('record calendar hides carried data while the matching month is loading or 
   };
 
   assert.deepEqual(resolveRecordCalendarSnapshot(snapshot, 2026, 8), {
-    data: {},
+    data: snapshot.data,
     error: null,
-    state: 'loading',
+    state: 'ready',
   });
   assert.deepEqual(resolveRecordCalendarSnapshot({ ...snapshot, error: 'failed', isLoading: false }, 2026, 8), {
-    data: {},
+    data: snapshot.data,
     error: 'failed',
     state: 'error',
   });

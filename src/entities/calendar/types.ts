@@ -11,6 +11,7 @@ export interface CalendarEntry {
   gymId?: string;
   wall: string;
   recordId?: string;
+  settingEventId?: string;
   status?: 'scheduled' | 'completed' | 'cancelled';
   startsAt?: string;
   endsAt?: string;
@@ -21,6 +22,8 @@ export interface CalendarEntry {
   attempts?: number;
   rating?: number | null;
   sessionType?: 'free' | 'training' | 'project';
+  address?: string;
+  logoUrl?: string | null;
 }
 
 export type CalendarData = Record<number, CalendarEntry[]>;

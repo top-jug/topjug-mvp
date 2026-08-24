@@ -11,7 +11,7 @@ export interface SettingEvent {
     id: string;
     name: string;
     branchName: string | null;
-    address: string;
+    address: string | null;
     calendarColor: string | null;
     calendarTextColor: string | null;
     logo?: { url: string | null } | null;
@@ -41,6 +41,7 @@ export function buildSettingCalendarData(events: SettingEvent[], year: number, m
     const title = sectorLabel || event.title || '세팅';
     const color = event.gym.calendarColor ?? '#185FA5';
     const entry: CalendarEntry = {
+      settingEventId: event.id,
       gym: gymName,
       gymId: event.gym.id,
       wall: `${title} · ${STATUS_LABELS[event.status]}`,
@@ -50,6 +51,8 @@ export function buildSettingCalendarData(events: SettingEvent[], year: number, m
       color,
       lightBg: `${color}22`,
       darkText: event.gym.calendarTextColor ?? color,
+      ...(event.gym.address?.trim() ? { address: event.gym.address.trim() } : {}),
+      ...(event.gym.logo?.url ? { logoUrl: event.gym.logo.url } : {}),
     };
 
     for (let date = new Date(firstDate.getFullYear(), firstDate.getMonth(), firstDate.getDate()); date <= lastDate; date = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1)) {
