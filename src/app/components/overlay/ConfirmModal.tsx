@@ -5,12 +5,13 @@ interface ConfirmModalProps {
   description: string;
   confirmLabel: string;
   confirmTone?: 'primary' | 'danger';
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }
 
 export default function ConfirmModal(props: ConfirmModalProps) {
-  const { title, description, confirmLabel, confirmTone = 'primary', onConfirm, onClose } = props;
+  const { title, description, confirmLabel, confirmTone = 'primary', confirmDisabled = false, onConfirm, onClose } = props;
 
   return (
     <CenteredModalShell onClose={onClose} panelClassName="bg-white rounded-3xl p-6 w-[340px]">
@@ -32,7 +33,7 @@ export default function ConfirmModal(props: ConfirmModalProps) {
         <button onClick={onClose} className="flex-1 py-2.5 bg-neutral-100 text-neutral-700 rounded-xl font-medium">
           취소
         </button>
-        <button onClick={onConfirm} className={`flex-1 py-2.5 rounded-xl font-medium text-white ${confirmTone === 'danger' ? 'bg-red-500' : 'bg-blue-500'}`}>
+        <button onClick={onConfirm} disabled={confirmDisabled} className={`flex-1 py-2.5 rounded-xl font-medium text-white disabled:bg-neutral-300 ${confirmTone === 'danger' ? 'bg-red-500' : 'bg-blue-500'}`}>
           {confirmLabel}
         </button>
       </div>

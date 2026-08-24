@@ -7,9 +7,10 @@ interface RecordRouteListProps {
   sectorId: RecordSectorId;
   routeCounts: RouteCounts;
   onCountChange: (sectorId: RecordSectorId, gradeId: string, type: RecordCountType, delta: number) => void;
+  disabled?: boolean;
 }
 
-export default function RecordRouteList({ difficulties, sectorId, routeCounts, onCountChange }: RecordRouteListProps) {
+export default function RecordRouteList({ difficulties, sectorId, routeCounts, onCountChange, disabled = false }: RecordRouteListProps) {
   return (
     <div className="space-y-3">
       {difficulties.map((route) => {
@@ -34,6 +35,7 @@ export default function RecordRouteList({ difficulties, sectorId, routeCounts, o
                       value={counts.success}
                       colorClassName="bg-green-500 active:bg-green-600"
                       onChange={(delta) => onCountChange(sectorId, route.id, 'success', delta)}
+                      disabled={disabled}
                     />
                   </div>
                 </div>
@@ -44,6 +46,7 @@ export default function RecordRouteList({ difficulties, sectorId, routeCounts, o
                       value={counts.attempt}
                       colorClassName="bg-blue-500 active:bg-blue-600"
                       onChange={(delta) => onCountChange(sectorId, route.id, 'attempt', delta)}
+                      disabled={disabled}
                     />
                   </div>
                 </div>

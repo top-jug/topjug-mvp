@@ -4,6 +4,45 @@ import type { DifficultyOption, RouteCounts } from '../../entities/record/types'
 
 const KEY_SEPARATOR = '::';
 
+export function getRecordActionAvailability(isHydrated: boolean, isLoading: boolean) {
+  const canMutate = isHydrated && !isLoading;
+  return { canMutate, canCancel: canMutate, canSafeExit: true };
+}
+
+export function canUseRecordActions(isHydrated: boolean, isLoading: boolean) {
+  return getRecordActionAvailability(isHydrated, isLoading).canMutate;
+}
+
+export function shouldAutosaveRecordCounts(counts: RouteCounts, hydratedCounts: RouteCounts | null, isHydrated: boolean) {
+  return isHydrated && counts !== hydratedCounts;
+}
+
+export interface RecordHydrationRequest {
+  id: number;
+  signal: AbortSignal;
+}
+
+export function createRecordHydrationGuard() {
+  let currentId = 0;
+  let controller: AbortController | null = null;
+
+  return {
+    begin(): RecordHydrationRequest {
+      controller?.abort();
+      controller = new AbortController();
+      return { id: ++currentId, signal: controller.signal };
+    },
+    isCurrent(request: RecordHydrationRequest) {
+      return request.id === currentId && request.signal === controller?.signal && !request.signal.aborted;
+    },
+    cancel() {
+      currentId += 1;
+      controller?.abort();
+      controller = null;
+    },
+  };
+}
+
 export interface RecordSectorOption {
   id: string;
   name: string;

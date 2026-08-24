@@ -185,8 +185,8 @@ export function getRecord(recordId: string) {
   return apiRequest<{ data: ApiRecordDetail }>(`/api/v1/records/${recordId}`);
 }
 
-export function getActiveRecordSession() {
-  return apiRequest<{ data: ApiActiveRecordSession | null }>('/api/v1/records/sessions');
+export function getActiveRecordSession(signal?: AbortSignal) {
+  return apiRequest<{ data: ApiActiveRecordSession | null }>('/api/v1/records/sessions', { signal });
 }
 
 export function startRecordSession(input: StartRecordSessionInput) {
@@ -196,10 +196,11 @@ export function startRecordSession(input: StartRecordSessionInput) {
   });
 }
 
-export function replaceRecordSessionCounts(recordId: string, counts: ApiRecordCountInput[]) {
+export function replaceRecordSessionCounts(recordId: string, counts: ApiRecordCountInput[], signal?: AbortSignal) {
   return apiRequest<{ data: ApiRecordDetail }>(`/api/v1/records/${recordId}/counts`, {
     method: 'PUT',
     body: { counts },
+    signal,
   });
 }
 
