@@ -12,6 +12,14 @@ export interface CalendarSnapshot {
   isLoading: boolean;
 }
 
+export interface CalendarSlideStateKeyInput {
+  mode: 'record' | 'setting';
+  year: number;
+  month: number;
+  selectedDate: number | null;
+  entryKeys: string[];
+}
+
 export function hasCalendarEntries(data: CalendarData) {
   return Object.values(data).some((entries) => entries.length > 0);
 }
@@ -34,6 +42,18 @@ export function resolveCalendarSnapshot(snapshot: CalendarSnapshot | null, year:
   }
 
   return { data: snapshot.data, error: snapshot.error, isLoading: snapshot.isLoading };
+}
+
+export function getCalendarSlideStateKey(input: CalendarSlideStateKeyInput) {
+  return {
+    context: JSON.stringify([input.mode, input.year, input.month, input.selectedDate]),
+    entries: JSON.stringify(input.entryKeys),
+  };
+}
+
+export function reconcileCalendarSlide(activeSlide: number, entryCount: number, shouldReset: boolean) {
+  if (shouldReset || entryCount === 0) return 0;
+  return Math.min(Math.max(activeSlide, 0), entryCount - 1);
 }
 
 export class CalendarRequestGate {

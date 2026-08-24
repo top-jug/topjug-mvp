@@ -200,16 +200,6 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
 
   const periodLabel = `${currentMonth.year}년 ${currentMonth.month}월`;
 
-  const selectedEntries = selectedDate ? visibleCalendarData[selectedDate] ?? [] : [];
-
-  useEffect(() => {
-    if (selectedEntries.length === 0 || activeSlide >= selectedEntries.length) {
-      setActiveSlide(0);
-    }
-  }, [activeSlide, selectedEntries.length]);
-
-  useEffect(() => setActiveSlide(0), [viewMode]);
-
   const toggleGym = (gymId: string) => {
     setGymSelectionPreferences((previous) => ({ ...previous, [gymId]: !activeGyms[gymId] }));
   };

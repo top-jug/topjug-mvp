@@ -52,14 +52,14 @@ export default function CalendarFilterBar({ gyms, activeGyms, onToggleGym, onTog
         })}
       </div>
       {activeStatuses && onToggleStatus && (
-        <div className="mt-2 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="일정 상태 필터">
+        <div className="mt-2 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="일정 상태 필터">
           {STATUS_OPTIONS.map(({ status, label }) => (
             <button
               type="button"
               key={status}
               onClick={() => onToggleStatus(status)}
               aria-pressed={activeStatuses[status]}
-              className={`flex-shrink-0 rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors ${activeStatuses[status] ? 'bg-neutral-800 text-white' : 'border border-neutral-200 bg-white text-neutral-600'}`}
+              className={`min-h-11 flex-shrink-0 rounded-full px-4 py-2 text-[13px] font-medium transition-colors ${activeStatuses[status] ? 'bg-neutral-800 text-white' : 'border border-neutral-200 bg-white text-neutral-600'}`}
             >
               {label}
             </button>

@@ -10,6 +10,8 @@ import {
 import {
   CalendarRequestGate,
   getCalendarViewState,
+  getCalendarSlideStateKey,
+  reconcileCalendarSlide,
   resolveCalendarSnapshot,
 } from '../../src/features/calendar/calendar-state';
 
@@ -155,4 +157,23 @@ test('matching refreshes retain data while another month and stale request are r
   assert.equal(gate.isCurrent(septemberRequest), true);
   gate.invalidate();
   assert.equal(gate.isCurrent(septemberRequest), false);
+});
+
+test('calendar slide reconciliation resets context changes and clamps shrinking entry lists', () => {
+  assert.equal(reconcileCalendarSlide(2, 3, true), 0);
+  assert.equal(reconcileCalendarSlide(3, 2, false), 1);
+  assert.equal(reconcileCalendarSlide(-1, 2, false), 0);
+  assert.equal(reconcileCalendarSlide(1, 0, false), 0);
+});
+
+test('calendar slide state keys include mode, month, selected date, and filtered entry identities', () => {
+  const base = { mode: 'setting' as const, year: 2026, month: 8, selectedDate: 2, entryKeys: ['event-a', 'event-b'] };
+  const key = getCalendarSlideStateKey(base);
+
+  assert.notEqual(getCalendarSlideStateKey({ ...base, mode: 'record' }).context, key.context);
+  assert.notEqual(getCalendarSlideStateKey({ ...base, year: 2027 }).context, key.context);
+  assert.notEqual(getCalendarSlideStateKey({ ...base, month: 9 }).context, key.context);
+  assert.notEqual(getCalendarSlideStateKey({ ...base, selectedDate: 3 }).context, key.context);
+  assert.notEqual(getCalendarSlideStateKey({ ...base, entryKeys: ['event-b'] }).entries, key.entries);
+  assert.deepEqual(getCalendarSlideStateKey({ ...base }), key);
 });
