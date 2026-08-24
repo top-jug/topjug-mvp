@@ -1,5 +1,5 @@
 import { ArrowLeft, Clipboard, Download, Share2, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useParams } from 'react-router';
 import { ClimbingRecord } from '../../entities/record/types';
 import { createRecordShareImage } from '../../features/record/record-share-image';
@@ -16,6 +16,7 @@ import {
 } from '../../features/record/record-share-model';
 import {
   createRecordShareRouteGuard,
+  createRecordShareRevokeGuard,
   deliverRecordShare,
   getInFlightRecordShareCreation,
   getRecordShareCreationState,
@@ -42,6 +43,15 @@ import { useNavigateBack } from '../navigation';
 const MAX_SELECTED_DIFFICULTIES = 5;
 const MAX_COMMENT_LENGTH = 40;
 
+type RevokeState = {
+  kind: 'revoking' | 'reconciling' | 'unknown';
+  shareId: string;
+  message: string;
+} | null;
+
+type RevokeGuard = ReturnType<typeof createRecordShareRevokeGuard>;
+type RevokeOperation = NonNullable<ReturnType<RevokeGuard['current']>>;
+
 export default function RecordSharePage() {
   const { recordId } = useParams();
   const [record, setRecord] = useState<ClimbingRecord | undefined>();
@@ -51,6 +61,7 @@ export default function RecordSharePage() {
   const [isShareListLoading, setIsShareListLoading] = useState(Boolean(recordId));
   const [isConfirmingAdditionalLink, setIsConfirmingAdditionalLink] = useState(false);
   const [revokingShareId, setRevokingShareId] = useState<string | null>(null);
+  const [revokeState, setRevokeState] = useState<RevokeState>(null);
   const [failure, setFailure] = useState<RecordFetchFailure | null>(null);
   const [shareListError, setShareListError] = useState<string | null>(null);
   const [recordRetryVersion, setRecordRetryVersion] = useState(0);
@@ -68,7 +79,13 @@ export default function RecordSharePage() {
   const createPending = useRef<number | null>(null);
   const mutationSequence = useRef({ generation: 0, version: 0 });
   const requestVersions = useRef(createRequestVersionGuard());
-  const revokePending = useRef<string | null>(null);
+  const revokeGuard = useRef(createRecordShareRevokeGuard());
+  const managedActionPending = useRef(false);
+  const managedShareRef = useRef<ApiCreatedShare | null>(null);
+  const applyManagedShare = useCallback((share: ApiCreatedShare | null) => {
+    managedShareRef.current = share;
+    setManagedShare(share);
+  }, []);
 
   useEffect(() => {
     if (!recordId) return;
@@ -81,15 +98,17 @@ export default function RecordSharePage() {
     requestVersions.current.invalidate();
     setRecord(undefined);
     setShares([]);
-    setManagedShare(cachedShare);
+    applyManagedShare(cachedShare);
     setPreparedImage(null);
     setIsCreatingLink(false);
     setIsShareListLoading(true);
     setIsConfirmingAdditionalLink(false);
     setRevokingShareId(null);
+    setRevokeState(null);
     setIsPreparingImage(false);
     createPending.current = null;
-    revokePending.current = null;
+    managedActionPending.current = false;
+    revokeGuard.current.reset();
     setIsLoading(true);
     setFailure(null);
     setShareListError(null);
@@ -102,7 +121,7 @@ export default function RecordSharePage() {
       void inFlightCreation
         .then((share) => {
           if (!routeGuard.current.isCurrent(route)) return;
-          setManagedShare(share);
+          applyManagedShare(share);
           setIsConfirmingAdditionalLink(false);
           setShares((current) => [share, ...current.filter((item) => item.id !== share.id)]);
           setStatus('진행 중이던 공개 링크 생성을 완료했어요.');
@@ -120,7 +139,7 @@ export default function RecordSharePage() {
     }
 
     return () => routeGuard.current.cancel(route);
-  }, [recordId]);
+  }, [applyManagedShare, recordId]);
 
   useEffect(() => {
     if (!recordId) return;
@@ -164,11 +183,12 @@ export default function RecordSharePage() {
           : requestMutationVersion;
         if (requestMutationVersion === currentMutationVersion) {
           setShares(sharePayload.data);
-          setManagedShare((current) => {
-            if (!current || reconcileCachedRecordShare(current, sharePayload.data)) return current;
+          const currentManagedShare = managedShareRef.current;
+          const nextManagedShare = reconcileCachedRecordShare(currentManagedShare, sharePayload.data);
+          if (currentManagedShare && !nextManagedShare) {
             if (storage) removeCachedRecordShare(storage, recordId);
-            return null;
-          });
+          }
+          applyManagedShare(nextManagedShare);
         } else {
           setShares((current) => mergeRecordShareListSnapshot(
             current,
@@ -185,7 +205,7 @@ export default function RecordSharePage() {
       .finally(() => {
         if (routeGuard.current.isCurrent(route) && requestVersions.current.isCurrent(request)) setIsShareListLoading(false);
       });
-  }, [recordId, shareListRetryVersion]);
+  }, [applyManagedShare, recordId, shareListRetryVersion]);
 
   useEffect(() => {
     setView('edit');
@@ -286,6 +306,7 @@ export default function RecordSharePage() {
     isConfirmingAdditionalLink,
     !isShareListLoading && shareListError === null,
   );
+  const isRevokeBlocked = revokeState !== null;
 
   const toggleDifficulty = (difficultyIndex: number) => {
     setSelectedDifficultyIndexes((current) => {
@@ -333,7 +354,7 @@ export default function RecordSharePage() {
 
   const handleCreateLink = async () => {
     const route = routeGuard.current.current(record.id);
-    if (!route || createPending.current === route.generation) return;
+    if (!route || createPending.current === route.generation || revokeGuard.current.isBlocked()) return;
     createPending.current = route.generation;
     if (mutationSequence.current.generation === route.generation) mutationSequence.current.version += 1;
     setIsCreatingLink(true);
@@ -347,7 +368,7 @@ export default function RecordSharePage() {
         () => getRecordShareSessionStorage(),
       );
       if (!result.isOriginCurrent) return;
-      setManagedShare(result.share);
+      applyManagedShare(result.share);
       setIsConfirmingAdditionalLink(false);
       setShares((current) => [result.share, ...current.filter((share) => share.id !== result.share.id)]);
       setStatus('공개 링크를 만들었어요. 아래에서 복사하거나 공유하세요.');
@@ -364,22 +385,26 @@ export default function RecordSharePage() {
   };
 
   const handleCopyPublicLink = async () => {
-    if (!managedShare) return;
+    if (!managedShare || revokeGuard.current.isBlocked() || managedActionPending.current) return;
     const route = routeGuard.current.current(record.id);
     if (!route) return;
+    managedActionPending.current = true;
 
     try {
       await navigator.clipboard.writeText(publicShareUrl(managedShare));
       if (routeGuard.current.isCurrent(route)) setStatus('공개 링크를 복사했어요.');
     } catch {
       if (routeGuard.current.isCurrent(route)) setStatus('공개 링크를 복사하지 못했어요. 표시된 주소를 직접 복사해주세요.');
+    } finally {
+      managedActionPending.current = false;
     }
   };
 
   const handleNativeShare = async () => {
-    if (!managedShare || typeof navigator.share !== 'function') return;
+    if (!managedShare || typeof navigator.share !== 'function' || revokeGuard.current.isBlocked() || managedActionPending.current) return;
     const route = routeGuard.current.current(record.id);
     if (!route) return;
+    managedActionPending.current = true;
     const canShareFiles = Boolean(
       preparedImage
       && typeof navigator.canShare === 'function'
@@ -391,80 +416,129 @@ export default function RecordSharePage() {
       text: '오늘의 클라이밍 기록 #TopJug',
       url: publicShareUrl(managedShare),
     };
-    const result = await deliverRecordShare(() => navigator.share!(shareData));
-    if (!routeGuard.current.isCurrent(route)) return;
+    try {
+      const result = await deliverRecordShare(() => navigator.share!(shareData));
+      if (!routeGuard.current.isCurrent(route)) return;
 
-    if (result.outcome === 'delivered') {
-      setStatus('공유를 완료했어요. 공유 앱에 따라 맞춤 이미지나 링크가 포함되지 않을 수 있어요.');
-    } else if (result.outcome === 'cancelled') {
-      setStatus('공유를 취소했어요. 공개 링크는 활성 상태로 유지됩니다.');
-    } else {
-      setStatus(result.error instanceof Error ? result.error.message : '공유 메뉴를 열지 못했어요.');
+      if (result.outcome === 'delivered') {
+        setStatus('공유를 완료했어요. 공유 앱에 따라 맞춤 이미지나 링크가 포함되지 않을 수 있어요.');
+      } else if (result.outcome === 'cancelled') {
+        setStatus('공유를 취소했어요. 공개 링크는 활성 상태로 유지됩니다.');
+      } else {
+        setStatus(result.error instanceof Error ? result.error.message : '공유 메뉴를 열지 못했어요.');
+      }
+    } finally {
+      managedActionPending.current = false;
+    }
+  };
+
+  const reconcileAmbiguousRevoke = async (operation: RevokeOperation, revokeMessage: string) => {
+    const route = routeGuard.current.current(operation.recordId);
+    if (!route || !revokeGuard.current.isCurrent(operation)) return;
+    if (mutationSequence.current.generation === route.generation) mutationSequence.current.version += 1;
+    const request = requestVersions.current.begin('shares');
+    const requestMutationVersion = mutationSequence.current.version;
+    revokeGuard.current.markReconciling(operation);
+    setRevokeState({ kind: 'reconciling', shareId: operation.shareId, message: revokeMessage });
+    setRevokingShareId(operation.shareId);
+    setIsShareListLoading(true);
+    setShareListError(null);
+
+    try {
+      const payload = await listRecordShares(operation.recordId, route.signal);
+      if (!routeGuard.current.isCurrent(route) || !requestVersions.current.isCurrent(request)) return;
+      if (mutationSequence.current.generation !== route.generation
+        || mutationSequence.current.version !== requestMutationVersion
+        || !revokeGuard.current.canApply(operation, managedShareRef.current?.id ?? null)) {
+        if (revokeGuard.current.finish(operation)) {
+          setRevokeState(null);
+          setRevokingShareId(null);
+          setStatus('더 최근의 공유 링크 상태를 유지했어요.');
+        }
+        return;
+      }
+      const currentManagedShare = managedShareRef.current;
+      const reconciliation = reconcileRecordShareAfterRevoke(currentManagedShare, payload.data, operation.shareId);
+      setShares(reconciliation.shares);
+      applyManagedShare(reconciliation.managedShare);
+      if (currentManagedShare && !reconciliation.managedShare) {
+        const storage = getRecordShareSessionStorage();
+        if (storage) removeCachedRecordShare(storage, operation.recordId);
+      }
+      revokeGuard.current.finish(operation);
+      setRevokeState(null);
+      setRevokingShareId(null);
+      setStatus(reconciliation.targetState === 'active'
+        ? `${revokeMessage} 링크는 아직 활성 상태예요.`
+        : '공유 링크가 이미 비활성화되었어요.');
+    } catch (listError) {
+      if (!routeGuard.current.isCurrent(route)
+        || !requestVersions.current.isCurrent(request)
+        || !revokeGuard.current.isCurrent(operation)) return;
+      const message = listError instanceof Error ? listError.message : '공유 링크 상태를 확인하지 못했어요.';
+      revokeGuard.current.markUnknown(operation);
+      setShareListError(message);
+      setRevokeState({ kind: 'unknown', shareId: operation.shareId, message: revokeMessage });
+      setRevokingShareId(null);
+      setStatus(`${revokeMessage} 현재 링크 상태를 확인할 수 없어요.`);
+    } finally {
+      if (routeGuard.current.isCurrent(route) && requestVersions.current.isCurrent(request)) {
+        setIsShareListLoading(false);
+      }
     }
   };
 
   const handleRevokeShare = async (shareId: string) => {
     const route = routeGuard.current.current(record.id);
-    if (!route || revokePending.current) return;
-    revokePending.current = shareId;
+    if (!route || createPending.current !== null || managedActionPending.current) return;
+    const operation = revokeGuard.current.begin(record.id, shareId, managedShareRef.current?.id ?? null);
+    if (!operation) return;
     if (mutationSequence.current.generation === route.generation) mutationSequence.current.version += 1;
     requestVersions.current.invalidate('shares');
     setIsShareListLoading(false);
     setShareListError(null);
     setRevokingShareId(shareId);
+    setRevokeState({ kind: 'revoking', shareId, message: '' });
     setStatus('');
 
     try {
       await revokeRecordShare(record.id, shareId, route.signal);
       if (!routeGuard.current.isCurrent(route)) return;
+      if (!revokeGuard.current.canApply(operation, managedShareRef.current?.id ?? null)) {
+        if (revokeGuard.current.finish(operation)) {
+          setRevokeState(null);
+          setRevokingShareId(null);
+          setStatus('더 최근의 공유 링크 상태를 유지했어요.');
+        }
+        return;
+      }
       if (mutationSequence.current.generation === route.generation) mutationSequence.current.version += 1;
       requestVersions.current.invalidate('shares');
       const revokedAt = new Date().toISOString();
-      setShares((current) => markShareInactive(current, shareId, managedShare, revokedAt));
-      if (managedShare?.id === shareId) {
+      setShares((current) => markShareInactive(current, shareId, managedShareRef.current, revokedAt));
+      if (managedShareRef.current?.id === shareId) {
         const storage = getRecordShareSessionStorage();
         if (storage) removeCachedRecordShare(storage, record.id);
-        setManagedShare(null);
+        applyManagedShare(null);
       }
+      revokeGuard.current.finish(operation);
+      setRevokeState(null);
+      setRevokingShareId(null);
       setStatus('공유 링크를 폐기했어요.');
     } catch (revokeError) {
-      if (!routeGuard.current.isCurrent(route)) return;
+      if (!routeGuard.current.isCurrent(route) || !revokeGuard.current.isCurrent(operation)) return;
       const revokeMessage = revokeError instanceof Error ? revokeError.message : '공유 링크를 폐기하지 못했어요.';
-      if (mutationSequence.current.generation === route.generation) mutationSequence.current.version += 1;
-      const request = requestVersions.current.begin('shares');
-      const requestMutationVersion = mutationSequence.current.version;
-      setIsShareListLoading(true);
-      setShareListError(null);
-
-      try {
-        const payload = await listRecordShares(record.id, route.signal);
-        if (!routeGuard.current.isCurrent(route) || !requestVersions.current.isCurrent(request)) return;
-        if (mutationSequence.current.generation !== route.generation
-          || mutationSequence.current.version !== requestMutationVersion) return;
-        const reconciliation = reconcileRecordShareAfterRevoke(managedShare, payload.data, shareId);
-        setShares(reconciliation.shares);
-        setManagedShare(reconciliation.managedShare);
-        if (managedShare && !reconciliation.managedShare) {
-          const storage = getRecordShareSessionStorage();
-          if (storage) removeCachedRecordShare(storage, record.id);
-        }
-        setStatus(reconciliation.targetState === 'active'
-          ? `${revokeMessage} 링크는 아직 활성 상태예요.`
-          : '공유 링크가 이미 비활성화되었어요.');
-      } catch (listError) {
-        if (!routeGuard.current.isCurrent(route) || !requestVersions.current.isCurrent(request)) return;
-        setShareListError(listError instanceof Error ? listError.message : '공유 링크 상태를 확인하지 못했어요.');
-        setStatus(`${revokeMessage} 현재 링크 상태를 다시 확인해주세요.`);
-      } finally {
-        if (routeGuard.current.isCurrent(route) && requestVersions.current.isCurrent(request)) {
-          setIsShareListLoading(false);
-        }
-      }
-    } finally {
-      if (revokePending.current === shareId) revokePending.current = null;
-      if (routeGuard.current.isCurrent(route)) setRevokingShareId(null);
+      await reconcileAmbiguousRevoke(operation, revokeMessage);
     }
   };
+
+  const handleRetryRevokeReconciliation = () => {
+    const operation = revokeGuard.current.current();
+    if (!operation || revokeState?.kind !== 'unknown') return;
+    void reconcileAmbiguousRevoke(operation, revokeState.message);
+  };
+
+  const managedShareRevokeState = managedShare && revokeState?.shareId === managedShare.id ? revokeState : null;
 
   if (view === 'edit') {
     return (
@@ -521,29 +595,44 @@ export default function RecordSharePage() {
             <div className="mt-4 rounded-2xl border border-blue-200 bg-white p-4">
               <div className="flex items-center justify-between gap-3 text-[12px] font-bold">
                 <span className="text-blue-950">2. 링크 전달 또는 관리</span>
-                <span className="text-green-700">활성</span>
+                <span className={managedShareRevokeState ? 'text-amber-700' : 'text-green-700'}>
+                  {managedShareRevokeState?.kind === 'unknown'
+                    ? '상태 알 수 없음'
+                    : managedShareRevokeState
+                      ? '상태 확인 중'
+                      : '활성'}
+                </span>
               </div>
               <div className="mt-1 break-all text-[11px] leading-5 text-neutral-600">{publicShareUrl(managedShare)}</div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button type="button" onClick={handleCopyPublicLink} className="min-h-11 rounded-xl bg-blue-600 px-3 text-[12px] font-bold text-white">링크 복사</button>
-                <button
-                  type="button"
-                  onClick={handleNativeShare}
-                  disabled={!supportsNativeShare || isPreparingImage}
-                  className="min-h-11 rounded-xl bg-neutral-950 px-3 text-[12px] font-bold text-white disabled:bg-neutral-300"
-                >
-                  {isPreparingImage ? '이미지 준비 중' : '기기 공유 열기'}
-                </button>
-              </div>
-              <p className="mt-2 text-[11px] leading-4 text-neutral-500">공유 앱에 따라 로컬 맞춤 이미지나 링크가 전달되지 않을 수 있습니다.</p>
-              <button
-                type="button"
-                onClick={() => handleRevokeShare(managedShare.id)}
-                disabled={revokingShareId === managedShare.id}
-                className="mt-2 min-h-11 w-full rounded-xl border border-red-200 bg-red-50 px-3 text-[12px] font-bold text-red-700 disabled:opacity-50"
-              >
-                {revokingShareId === managedShare.id ? '링크 폐기 중' : '공개 링크 폐기'}
-              </button>
+              {managedShareRevokeState?.kind === 'unknown' ? (
+                <div className="mt-3 rounded-xl bg-amber-50 px-3 py-3 text-[12px] leading-5 text-amber-800">
+                  <p>폐기 요청 결과를 확인할 수 없어 이 링크의 전달 기능을 잠갔어요.</p>
+                  <button type="button" onClick={handleRetryRevokeReconciliation} className="mt-2 min-h-11 w-full rounded-xl bg-white px-3 font-bold">상태 다시 확인</button>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button type="button" onClick={handleCopyPublicLink} disabled={isRevokeBlocked} className="min-h-11 rounded-xl bg-blue-600 px-3 text-[12px] font-bold text-white disabled:bg-neutral-300">링크 복사</button>
+                    <button
+                      type="button"
+                      onClick={handleNativeShare}
+                      disabled={!supportsNativeShare || isPreparingImage || isRevokeBlocked}
+                      className="min-h-11 rounded-xl bg-neutral-950 px-3 text-[12px] font-bold text-white disabled:bg-neutral-300"
+                    >
+                      {isPreparingImage ? '이미지 준비 중' : '기기 공유 열기'}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[11px] leading-4 text-neutral-500">공유 앱에 따라 로컬 맞춤 이미지나 링크가 전달되지 않을 수 있습니다.</p>
+                  <button
+                    type="button"
+                    onClick={() => handleRevokeShare(managedShare.id)}
+                    disabled={isRevokeBlocked || isCreatingLink}
+                    className="mt-2 min-h-11 w-full rounded-xl border border-red-200 bg-red-50 px-3 text-[12px] font-bold text-red-700 disabled:opacity-50"
+                  >
+                    {managedShareRevokeState ? '링크 상태 확인 중' : '공개 링크 폐기'}
+                  </button>
+                </>
+              )}
             </div>
           ) : isShareListLoading ? (
             <button
@@ -557,7 +646,7 @@ export default function RecordSharePage() {
             <button
               type="button"
               onClick={handleCreateLink}
-              disabled={isCreatingLink}
+              disabled={isCreatingLink || isRevokeBlocked}
               className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 text-[14px] font-bold text-white disabled:opacity-50"
             >
               <Share2 size={19} />
@@ -587,7 +676,7 @@ export default function RecordSharePage() {
                   <button
                     type="button"
                     onClick={handleCreateLink}
-                    disabled={isCreatingLink}
+                    disabled={isCreatingLink || isRevokeBlocked}
                     className="min-h-11 rounded-xl bg-amber-600 px-3 text-[12px] font-bold text-white disabled:opacity-50"
                   >
                     {isCreatingLink ? '생성 중' : '새 링크 생성 확인'}
@@ -597,6 +686,7 @@ export default function RecordSharePage() {
                 <button
                   type="button"
                   onClick={() => setIsConfirmingAdditionalLink(true)}
+                  disabled={isRevokeBlocked}
                   className="mt-3 min-h-11 w-full rounded-xl border border-amber-300 bg-white px-3 text-[12px] font-bold text-amber-800"
                 >
                   새 링크 추가
@@ -611,7 +701,10 @@ export default function RecordSharePage() {
           isLoading={isShareListLoading}
           error={shareListError}
           revokingShareId={revokingShareId}
-          onRetry={() => setShareListRetryVersion((version) => version + 1)}
+          isMutationBlocked={isRevokeBlocked || isCreatingLink}
+          onRetry={revokeState?.kind === 'unknown'
+            ? handleRetryRevokeReconciliation
+            : () => setShareListRetryVersion((version) => version + 1)}
           onRevoke={handleRevokeShare}
         />
       </main>
@@ -845,6 +938,7 @@ function ShareList({
   isLoading,
   error,
   revokingShareId,
+  isMutationBlocked,
   onRetry,
   onRevoke,
 }: {
@@ -852,6 +946,7 @@ function ShareList({
   isLoading: boolean;
   error: string | null;
   revokingShareId: string | null;
+  isMutationBlocked: boolean;
   onRetry: () => void;
   onRevoke: (shareId: string) => void;
 }) {
@@ -900,7 +995,7 @@ function ShareList({
                 <button
                   type="button"
                   onClick={() => onRevoke(share.id)}
-                  disabled={!isActive || revokingShareId === share.id}
+                  disabled={!isActive || isMutationBlocked || revokingShareId === share.id}
                   className="h-11 flex-shrink-0 rounded-xl bg-white px-3 text-[12px] font-bold text-red-600 disabled:text-neutral-300"
                 >
                   {revokingShareId === share.id ? '폐기 중' : '폐기'}

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createRecordShareRouteGuard,
+  createRecordShareRevokeGuard,
   deliverRecordShare,
   getInFlightRecordShareCreation,
   getRecordShareCreationState,
@@ -234,6 +235,34 @@ test('ambiguous revoke reconciliation keeps one coherent authoritative state', (
 
   const missing = reconcileRecordShareAfterRevoke(share, [], share.id);
   assert.deepEqual(missing, { shares: [], managedShare: null, targetState: 'inactive' });
+});
+
+test('revoke operation blocks creation and rejects a later managed-share interleaving', () => {
+  const guard = createRecordShareRevokeGuard();
+  const operation = guard.begin('record-1', share.id, share.id);
+  assert.ok(operation);
+  assert.equal(guard.isBlocked(), true);
+  assert.equal(guard.begin('record-1', 'share-2', share.id), null);
+  assert.equal(guard.canApply(operation, 'newly-created-share'), false);
+  assert.equal(guard.finish(operation), true);
+  assert.equal(guard.isBlocked(), false);
+});
+
+test('double revoke failure keeps the operation blocked until reconciliation succeeds', () => {
+  const guard = createRecordShareRevokeGuard();
+  const operation = guard.begin('record-1', share.id, share.id);
+  assert.ok(operation);
+
+  assert.equal(operation.status, 'revoking');
+  assert.equal(guard.markReconciling(operation), true);
+  assert.equal(operation.status, 'reconciling');
+  assert.equal(guard.markUnknown(operation), true);
+  assert.equal(operation.status, 'unknown');
+  assert.equal(guard.isBlocked(), true);
+  assert.equal(guard.canApply(operation, share.id), true);
+
+  assert.equal(guard.finish(operation), true);
+  assert.equal(guard.isBlocked(), false);
 });
 
 test('native cancellation is reported without revoking the managed share', async () => {

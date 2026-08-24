@@ -106,6 +106,55 @@ export function reconcileRecordShareAfterRevoke(
   };
 }
 
+export function createRecordShareRevokeGuard() {
+  let sequence = 0;
+  let active: {
+    sequence: number;
+    recordId: string;
+    shareId: string;
+    managedShareId: string | null;
+    status: 'revoking' | 'reconciling' | 'unknown';
+  } | null = null;
+
+  return {
+    begin(recordId: string, shareId: string, managedShareId: string | null) {
+      if (active) return null;
+      active = { sequence: ++sequence, recordId, shareId, managedShareId, status: 'revoking' };
+      return active;
+    },
+    current() {
+      return active;
+    },
+    isCurrent(operation: { sequence: number }) {
+      return active?.sequence === operation.sequence;
+    },
+    canApply(operation: { sequence: number; managedShareId: string | null }, currentManagedShareId: string | null) {
+      return active?.sequence === operation.sequence && operation.managedShareId === currentManagedShareId;
+    },
+    markReconciling(operation: { sequence: number }) {
+      if (active?.sequence !== operation.sequence) return false;
+      active.status = 'reconciling';
+      return true;
+    },
+    markUnknown(operation: { sequence: number }) {
+      if (active?.sequence !== operation.sequence) return false;
+      active.status = 'unknown';
+      return true;
+    },
+    finish(operation: { sequence: number }) {
+      if (active?.sequence !== operation.sequence) return false;
+      active = null;
+      return true;
+    },
+    reset() {
+      active = null;
+    },
+    isBlocked() {
+      return active !== null;
+    },
+  };
+}
+
 export function getRecordShareCreationState(
   managedShare: ApiCreatedShare | null,
   shares: ApiShareSummary[],
