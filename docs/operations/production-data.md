@@ -81,13 +81,17 @@ RDS manages its master password in Secrets Manager. Store the schema-owner URL a
 
 The application instance role can read the runtime URL and application secrets only. The GitHub OIDC deployment role can read both database URLs; CI opens a short-lived SSM port-forwarding session through EC2, converges and verifies the runtime role, and runs migrations before sending the release command. After this workflow has deployed successfully, delete the legacy `/topjug/prod/database-url` parameter. Never grant the instance role access to `migration-database-url`.
 
+Do not attach AWS managed `AmazonSSMManagedInstanceCore` to the application role. That policy grants `ssm:GetParameter` and `ssm:GetParameters` on `*`, bypassing the scoped runtime policy. `ApplicationSsmAgentCorePolicy` provides the required agent and message-channel actions without Parameter Store access.
+
 Never print either URL, place it in shell history, or commit it to a file. JWT secrets and the rate-limit pepper must each contain at least 32 random bytes. Parameter creation and rotation must be performed with a temporary administrator role, not a long-lived root access key.
 
 ## Deployment And Migration
 
 Production deployment opens a short-lived SSM tunnel through EC2, applies `drizzle/` migrations from the GitHub runner, sends the release command to EC2, starts the service, then checks local `/api/ready`.
 
-For the credential-isolation rollout, first attach the `GithubMigrationPolicy` statements from the template to the GitHub OIDC role with temporary administrator credentials. This one-time bootstrap lets the tunnel-based workflow deploy while the existing stack still has its broad instance policy. Deploy the workflow and application while the legacy parameter remains available, update `topjug-mvp-production-data` to bring that policy under CloudFormation and narrow the instance policy after the new release is healthy, restart the service once to verify runtime-only access, then delete `/topjug/prod/database-url`. Do not narrow the live instance policy before a release containing the tunnel-based workflow can deploy.
+For the credential-isolation rollout, first attach the `GithubMigrationPolicy` statements to the GitHub OIDC role under a distinct temporary name such as `topjug-mvp-bootstrap-production-migrations`. This one-time bootstrap lets the tunnel-based workflow deploy while the existing stack still has its broad instance policy. After that release is healthy, apply `topjug-mvp-production-data`, verify CloudFormation created `topjug-mvp-run-production-migrations`, then delete the temporary policy. Detach `AmazonSSMManagedInstanceCore`, confirm the instance remains online in SSM, restart the service, verify runtime access and migration access denial, then delete `/topjug/prod/database-url`.
+
+The production credential-isolation rollout completed on 2026-08-24: the service restarted with `topjug_app`, migration and legacy parameter reads were denied from EC2, and the legacy parameter was deleted.
 
 Before a destructive migration:
 

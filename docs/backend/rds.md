@@ -39,6 +39,7 @@ Next.js loads production secrets from AWS Systems Manager Parameter Store during
 - Both database URL values use `postgresql://USER:PASSWORD@HOST:5432/topjug?sslmode=require`.
 - `runtime-database-url` uses the restricted `topjug_app` role. `migration-database-url` uses the schema owner and is not loaded into the web process.
 - Grant the application instance role `ssm:GetParameters` and `ssm:GetParameter` only for the runtime URL and application secrets. It must not read the migration URL.
+- Use the template's custom SSM agent policy. Do not attach `AmazonSSMManagedInstanceCore`, which includes wildcard Parameter Store reads.
 - Start with `DATABASE_POOL_SIZE=5` because both the EC2 application and `db.t4g.micro` are small.
 - The GitHub OIDC deployment role fetches both database URLs, verifies the restricted role and applies migrations through a short-lived SSM tunnel, then EC2 checks readiness using the runtime role.
 - Do not expose the RDS endpoint publicly for local development. Use the PostgreSQL 16 container in `compose.yaml`.
