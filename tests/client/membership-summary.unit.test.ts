@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { MembershipItem } from '../../src/mocks/memberships';
-import { loadMembershipResource } from '../../src/features/membership/membership-loading';
+import { emptyMembershipAccountState, loadMembershipResource, membershipStateForAccount } from '../../src/features/membership/membership-loading';
 import {
   ACTIVATION_REFRESH_COALESCE_MS,
   countExpiringSoon,
@@ -9,6 +9,7 @@ import {
   EXPIRING_SOON_DAYS,
   localCalendarDaysRemaining,
   millisecondsUntilNextLocalDate,
+  millisecondsUntilNextMembershipPresentation,
   shouldRefreshForActivation,
 } from '../../src/features/membership/membership-summary';
 
@@ -57,6 +58,47 @@ test('remaining days and eligibility recompute across a local date rollover', ()
   assert.equal(millisecondsUntilNextLocalDate(beforeMidnight), 1_000);
 });
 
+test('eligibility changes at exact intraday validity boundaries', () => {
+  const validFrom = new Date(2026, 7, 24, 10, 30);
+  const validUntil = new Date(2026, 7, 24, 18, 45);
+  const item = membership({ validFrom: validFrom.toISOString(), validUntil: validUntil.toISOString() });
+
+  assert.equal(deriveMembershipPresentation(item, new Date(validFrom.getTime() - 1)).eligibilityStatus, 'not_started');
+  assert.equal(deriveMembershipPresentation(item, validFrom).eligibilityStatus, 'active');
+  assert.equal(deriveMembershipPresentation(item, validUntil).eligibilityStatus, 'active');
+  assert.equal(deriveMembershipPresentation(item, new Date(validUntil.getTime() + 1)).eligibilityStatus, 'expired');
+});
+
+test('presentation timer selects the nearest start, inclusive end, or local midnight', () => {
+  const now = new Date(2026, 7, 24, 10, 0);
+  const startsSoon = membership({
+    id: 'starts-soon',
+    validFrom: new Date(2026, 7, 24, 10, 15).toISOString(),
+    validUntil: new Date(2026, 7, 25, 18).toISOString(),
+  });
+  const endsFirst = membership({
+    id: 'ends-first',
+    validUntil: new Date(2026, 7, 24, 10, 5).toISOString(),
+  });
+
+  assert.equal(millisecondsUntilNextMembershipPresentation([], now), millisecondsUntilNextLocalDate(now));
+  assert.equal(millisecondsUntilNextMembershipPresentation([startsSoon], now), 15 * 60 * 1_000);
+  assert.equal(millisecondsUntilNextMembershipPresentation([startsSoon, endsFirst], now), 5 * 60 * 1_000);
+});
+
+test('presentation timer reschedules after a boundary and membership replacement', () => {
+  const startsAt = new Date(2026, 7, 24, 10, 15);
+  const endsAt = new Date(2026, 7, 24, 10, 45);
+  const scheduled = membership({ validFrom: startsAt.toISOString(), validUntil: endsAt.toISOString() });
+
+  assert.equal(millisecondsUntilNextMembershipPresentation([scheduled], new Date(2026, 7, 24, 10, 0)), 15 * 60 * 1_000);
+  assert.equal(millisecondsUntilNextMembershipPresentation([scheduled], startsAt), 30 * 60 * 1_000);
+  assert.equal(millisecondsUntilNextMembershipPresentation([scheduled], endsAt), 1);
+
+  const replacement = membership({ validUntil: new Date(2026, 7, 24, 10, 20).toISOString() });
+  assert.equal(millisecondsUntilNextMembershipPresentation([replacement], startsAt), 5 * 60 * 1_000);
+});
+
 test('membership and gym-option results preserve independent partial state and retry independently', async () => {
   let membershipCalls = 0;
   let gymCalls = 0;
@@ -92,4 +134,29 @@ test('membership and gym-option results preserve independent partial state and r
 test('focus and visibility activations inside the coalescing window do not trigger refresh storms', () => {
   assert.equal(shouldRefreshForActivation(10_000, 10_000 + ACTIVATION_REFRESH_COALESCE_MS - 1), false);
   assert.equal(shouldRefreshForActivation(10_000, 10_000 + ACTIVATION_REFRESH_COALESCE_MS), true);
+});
+
+test('account reset clears memberships and scoped errors before new account resources load', () => {
+  const oldAccountState = {
+    accountId: 'account-1',
+    memberships: ['old-membership'],
+    gymOptions: ['old-gym'],
+    isLoading: false,
+    error: 'old membership error',
+    isGymOptionsLoading: false,
+    gymOptionsError: 'old gym error',
+    actionError: 'old action error',
+  };
+  assert.equal(membershipStateForAccount(oldAccountState, 'account-1'), oldAccountState);
+  assert.deepEqual(membershipStateForAccount(oldAccountState, 'account-2'), {
+    accountId: 'account-2',
+    memberships: [],
+    gymOptions: [],
+    isLoading: true,
+    error: null,
+    isGymOptionsLoading: true,
+    gymOptionsError: null,
+    actionError: null,
+  });
+  assert.deepEqual(emptyMembershipAccountState(null, false).memberships, []);
 });

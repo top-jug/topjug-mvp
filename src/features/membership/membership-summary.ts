@@ -51,6 +51,29 @@ export function millisecondsUntilNextLocalDate(now: Date) {
   return nextDate.getTime() - now.getTime();
 }
 
+export function millisecondsUntilNextMembershipPresentation(memberships: MembershipItem[], now: Date) {
+  const nowTime = now.getTime();
+  let nextTime = nowTime + millisecondsUntilNextLocalDate(now);
+
+  memberships.forEach((membership) => {
+    if (membership.validFrom) {
+      const validFromTime = new Date(membership.validFrom).getTime();
+      if (Number.isFinite(validFromTime) && validFromTime > nowTime) nextTime = Math.min(nextTime, validFromTime);
+    }
+    if (membership.validUntil) {
+      const validUntilTime = new Date(membership.validUntil).getTime();
+      if (Number.isFinite(validUntilTime) && validUntilTime > nowTime) {
+        nextTime = Math.min(nextTime, validUntilTime);
+      } else if (validUntilTime === nowTime) {
+        // validUntil is inclusive; an exact-boundary wake needs one follow-up tick.
+        nextTime = Math.min(nextTime, validUntilTime + 1);
+      }
+    }
+  });
+
+  return nextTime - nowTime;
+}
+
 export function shouldRefreshForActivation(lastRefreshAt: number, now: number) {
   return now - lastRefreshAt >= ACTIVATION_REFRESH_COALESCE_MS;
 }

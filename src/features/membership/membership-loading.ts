@@ -9,3 +9,39 @@ export async function loadMembershipResource<T>(request: () => Promise<T>): Prom
     return { ok: false, error };
   }
 }
+
+export interface MembershipAccountState<TMembership, TGymOption> {
+  accountId: string | null;
+  memberships: TMembership[];
+  gymOptions: TGymOption[];
+  isLoading: boolean;
+  error: string | null;
+  isGymOptionsLoading: boolean;
+  gymOptionsError: string | null;
+  actionError: string | null;
+}
+
+export function emptyMembershipAccountState<TMembership = never, TGymOption = never>(
+  accountId: string | null,
+  isLoading: boolean,
+): MembershipAccountState<TMembership, TGymOption> {
+  return {
+    accountId,
+    memberships: [],
+    gymOptions: [],
+    isLoading,
+    error: null,
+    isGymOptionsLoading: isLoading,
+    gymOptionsError: null,
+    actionError: null,
+  };
+}
+
+export function membershipStateForAccount<TMembership, TGymOption>(
+  state: MembershipAccountState<TMembership, TGymOption>,
+  accountId: string | null,
+) {
+  return state.accountId === accountId
+    ? state
+    : emptyMembershipAccountState<TMembership, TGymOption>(accountId, true);
+}
