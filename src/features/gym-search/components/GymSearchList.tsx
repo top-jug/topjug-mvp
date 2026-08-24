@@ -23,7 +23,7 @@ interface GymSearchListProps {
 
 export default function GymSearchList({ gyms, onSelectGym, title, isSavedGym, onToggleSavedGym, isSavingGym, countOverride, countLabel, isLoading = false, error = null, emptyMessage = '조건에 맞는 암장이 없어요.', onRetry, hasMore = false, onLoadMore, getActionError, onDismissActionError }: GymSearchListProps) {
   return (
-    <div className="pb-24 min-h-screen">
+    <div className="mobile-screen mobile-bottom-nav-space">
       <div className="px-5 py-3">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-[15px] font-bold">{countLabel ?? `${countOverride ?? gyms.length}개의 ${title}`}</h2>

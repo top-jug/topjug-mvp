@@ -11,8 +11,8 @@ interface HomeSectionShellProps {
 export function HomeSectionShell({ title, children, onAction, actionLabel, bordered = true }: HomeSectionShellProps) {
   return (
     <section className={bordered ? 'border border-neutral-200 rounded-2xl p-3 bg-white' : ''}>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold text-[15px]">{title}</h3>
+      <div className="flex min-w-0 items-center justify-between mb-3">
+        <h3 className="min-w-0 font-bold text-[15px]">{title}</h3>
         {onAction && (
           <button onClick={onAction} className="min-h-10 px-1 flex items-center gap-1 text-[13px] text-neutral-500 font-medium">
             {actionLabel ? (

@@ -13,12 +13,12 @@ export default function HomeScreen() {
     <>
       <HomeTopBar onProfileClick={() => navigateToScreen('profile')} />
 
-      <div className="px-5 overflow-y-auto hide-scrollbar pb-24 min-h-screen">
+      <div className="mobile-screen mobile-bottom-nav-space px-5 overflow-y-auto hide-scrollbar">
         <div className="mb-7">
           <HomeCalendarGrid onOpen={() => navigateToScreen('calendar')} />
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-5">
+        <div className="home-summary-grid grid grid-cols-2 gap-3 mb-5">
           <HomeRecentGyms onOpen={() => navigateToScreen('records')} />
           <HomeMembership onOpen={() => navigateToScreen('membership')} />
         </div>

@@ -7,3 +7,82 @@ body,
 #root {
   overscroll-behavior: none;
 }
+
+:root {
+  --mobile-safe-top: env(safe-area-inset-top, 0px);
+  --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mobile-bottom-nav-height: 6rem;
+}
+
+.mobile-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.mobile-viewport-height {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.mobile-safe-top {
+  padding-top: calc(1.25rem + var(--mobile-safe-top));
+}
+
+.mobile-bottom-nav-space {
+  padding-bottom: calc(var(--mobile-bottom-nav-height) + var(--mobile-safe-bottom));
+}
+
+.mobile-bottom-nav {
+  height: calc(var(--mobile-bottom-nav-height) + var(--mobile-safe-bottom));
+  padding-bottom: calc(0.5rem + var(--mobile-safe-bottom));
+}
+
+.share-card-preview-frame {
+  aspect-ratio: 4 / 5;
+  width: min(100%, 353px);
+}
+
+.share-card-preview {
+  height: 441.25px;
+  width: 353px;
+  transform-origin: top left;
+}
+
+@media (max-width: 340px) {
+  .home-summary-grid {
+    gap: 0.5rem;
+  }
+
+  .home-summary-grid > section {
+    padding: 0.625rem;
+  }
+
+  .home-summary-grid > section > div:first-child {
+    gap: 0.125rem;
+  }
+
+  .home-summary-grid h3 {
+    white-space: nowrap;
+    font-size: 0.75rem;
+    letter-spacing: -0.025em;
+  }
+
+  .home-summary-grid section > div:first-child button {
+    min-width: 0;
+    padding-inline: 0;
+    gap: 0;
+    white-space: nowrap;
+    font-size: 0.6875rem;
+  }
+
+  .home-summary-grid section > div:first-child button svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+@media (max-width: 392px) {
+  .share-card-preview {
+    transform: scale(calc((100vw - 40px) / 353px));
+  }
+}

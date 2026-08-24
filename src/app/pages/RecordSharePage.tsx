@@ -258,8 +258,8 @@ export default function RecordSharePage() {
 
   if ((isLoading && !record) || (record && record.id !== recordId)) {
     return (
-      <div className="min-h-screen bg-[#F7F8FA] pb-10 text-neutral-950">
-        <header className="sticky top-0 z-10 grid grid-cols-[44px_1fr_44px] items-center border-b border-neutral-100 bg-white px-4 py-3">
+      <div className="mobile-screen bg-[#F7F8FA] pb-10 text-neutral-950">
+        <header className="mobile-safe-top sticky top-0 z-10 grid grid-cols-[44px_1fr_44px] items-center border-b border-neutral-100 bg-white px-4 pb-3">
           <button type="button" onClick={navigateBack} className="flex h-11 w-11 items-center justify-center" aria-label="기록 상세로 돌아가기">
             <ArrowLeft size={22} />
           </button>
@@ -561,8 +561,8 @@ export default function RecordSharePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] px-5 pb-10 text-neutral-950">
-      <header className="mx-auto grid max-w-md grid-cols-[1fr_auto_1fr] items-center py-4">
+    <div className="mobile-screen bg-[#F7F8FA] px-5 pb-10 text-neutral-950">
+      <header className="mobile-safe-top mx-auto grid max-w-md grid-cols-[1fr_auto_1fr] items-center pb-4">
         <button
           type="button"
           onClick={() => {
@@ -581,7 +581,9 @@ export default function RecordSharePage() {
       </header>
 
       <main className="mx-auto max-w-md">
-        <ShareCard record={record} model={shareModel} />
+        <div className="share-card-preview-frame mx-auto overflow-hidden rounded-[28px] shadow-lg shadow-neutral-900/10">
+          <ShareCard record={record} model={shareModel} />
+        </div>
 
         <section className="mt-7 rounded-3xl border border-neutral-200 bg-white p-5">
           <h2 className="text-[16px] font-bold">맞춤 이미지</h2>
@@ -741,8 +743,8 @@ function ShareEditor(props: ShareEditorProps) {
   } = props;
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] pb-10 text-neutral-950">
-      <header className="sticky top-0 z-10 grid grid-cols-[44px_1fr_44px] items-center border-b border-neutral-100 bg-white px-4 py-3">
+    <div className="mobile-screen bg-[#F7F8FA] pb-10 text-neutral-950">
+      <header className="mobile-safe-top sticky top-0 z-10 grid grid-cols-[44px_1fr_44px] items-center border-b border-neutral-100 bg-white px-4 pb-3">
         <button type="button" onClick={onBack} className="flex h-11 w-11 items-center justify-center" aria-label="기록 상세로 돌아가기">
           <ArrowLeft size={22} />
         </button>
@@ -859,7 +861,7 @@ function ShareCard({ record, model }: { record: ClimbingRecord; model: RecordSha
       : 'grid-cols-[16px_1fr_64px_64px]';
 
   return (
-    <section className="relative flex aspect-[4/5] flex-col overflow-hidden rounded-[28px] border border-neutral-200 bg-[#F5F7FA] px-4 py-3 text-neutral-950 shadow-lg shadow-neutral-900/10">
+    <section className="share-card-preview relative flex flex-col overflow-hidden rounded-[28px] border border-neutral-200 bg-[#F5F7FA] px-4 py-3 text-neutral-950">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-[12px] font-black text-white">T</span>

@@ -334,8 +334,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
         />
       )}
 
-      {/* Content - Fixed height without scroll */}
-      <div className="pb-24 min-h-screen">
+      <div className="mobile-screen mobile-bottom-nav-space">
         <CalendarMonthGrid
           weekdays={CALENDAR_WEEKDAYS}
           pages={periodPages}

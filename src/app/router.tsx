@@ -17,7 +17,7 @@ import PublicRecordSharePage from './pages/PublicRecordSharePage';
 
 function PreviewLayout() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="mobile-screen bg-white">
       <Outlet />
     </div>
   );

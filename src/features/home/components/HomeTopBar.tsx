@@ -4,7 +4,7 @@ interface HomeTopBarProps {
 
 export function HomeTopBar({ onProfileClick }: HomeTopBarProps) {
   return (
-    <div className="px-5 pt-5 pb-3 bg-white flex items-center justify-between">
+    <div className="mobile-safe-top px-5 pb-3 bg-white flex items-center justify-between">
       <h1 className="text-[28px] font-bold tracking-[-0.03em]">홈</h1>
       <div className="flex items-center gap-2">
         <button

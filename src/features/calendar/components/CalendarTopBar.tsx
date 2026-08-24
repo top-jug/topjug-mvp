@@ -30,9 +30,9 @@ export default function CalendarTopBar({ mode, periodLabel, onChangeMode, onOpen
           <button
             onClick={onOpenPeriod}
             aria-label="기간 선택"
-            className="flex items-center gap-1 h-11 px-3 rounded-full bg-white border border-neutral-200 text-neutral-700"
+            className="flex h-11 shrink-0 items-center gap-0.5 rounded-full border border-neutral-200 bg-white px-2 text-neutral-700 min-[360px]:gap-1 min-[360px]:px-3"
           >
-            <span className="text-[15px] font-medium">{periodLabel}</span>
+            <span className="whitespace-nowrap text-[13px] font-medium min-[360px]:text-[15px]">{periodLabel}</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="6 9 12 15 18 9" />
             </svg>
@@ -40,7 +40,7 @@ export default function CalendarTopBar({ mode, periodLabel, onChangeMode, onOpen
           <button
             onClick={onOpenSearch}
             aria-label="암장 검색"
-            className="w-11 h-11 rounded-full bg-white border border-neutral-200 text-neutral-700 flex items-center justify-center"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 min-[360px]:h-11 min-[360px]:w-11"
           >
             <Search size={18} strokeWidth={2.2} aria-hidden="true" />
           </button>
