@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   createRecordShareRouteGuard,
   createRecordShareRevokeGuard,
+  createRecordShareDeliveryGuard,
   deliverRecordShare,
   getInFlightRecordShareCreation,
   getRecordShareCreationState,
@@ -239,10 +240,10 @@ test('ambiguous revoke reconciliation keeps one coherent authoritative state', (
 
 test('revoke operation blocks creation and rejects a later managed-share interleaving', () => {
   const guard = createRecordShareRevokeGuard();
-  const operation = guard.begin('record-1', share.id, share.id);
+  const operation = guard.begin(1, 'record-1', share.id, share.id);
   assert.ok(operation);
   assert.equal(guard.isBlocked(), true);
-  assert.equal(guard.begin('record-1', 'share-2', share.id), null);
+  assert.equal(guard.begin(1, 'record-1', 'share-2', share.id), null);
   assert.equal(guard.canApply(operation, 'newly-created-share'), false);
   assert.equal(guard.finish(operation), true);
   assert.equal(guard.isBlocked(), false);
@@ -250,7 +251,7 @@ test('revoke operation blocks creation and rejects a later managed-share interle
 
 test('double revoke failure keeps the operation blocked until reconciliation succeeds', () => {
   const guard = createRecordShareRevokeGuard();
-  const operation = guard.begin('record-1', share.id, share.id);
+  const operation = guard.begin(1, 'record-1', share.id, share.id);
   assert.ok(operation);
 
   assert.equal(operation.status, 'revoking');
@@ -263,6 +264,21 @@ test('double revoke failure keeps the operation blocked until reconciliation suc
 
   assert.equal(guard.finish(operation), true);
   assert.equal(guard.isBlocked(), false);
+});
+
+test('A to B delivery keeps B pending when stale A finally settles', () => {
+  const guard = createRecordShareDeliveryGuard();
+  const operationA = guard.begin(1, 'copy');
+  assert.ok(operationA);
+
+  guard.reset();
+  const operationB = guard.begin(2, 'native-share');
+  assert.ok(operationB);
+  assert.equal(guard.finish(operationA), false);
+  assert.equal(guard.isCurrent(operationB), true);
+  assert.equal(guard.isPending(), true);
+  assert.equal(guard.finish(operationB), true);
+  assert.equal(guard.isPending(), false);
 });
 
 test('native cancellation is reported without revoking the managed share', async () => {

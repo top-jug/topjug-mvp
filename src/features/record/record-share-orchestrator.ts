@@ -110,6 +110,7 @@ export function createRecordShareRevokeGuard() {
   let sequence = 0;
   let active: {
     sequence: number;
+    routeGeneration: number;
     recordId: string;
     shareId: string;
     managedShareId: string | null;
@@ -117,9 +118,9 @@ export function createRecordShareRevokeGuard() {
   } | null = null;
 
   return {
-    begin(recordId: string, shareId: string, managedShareId: string | null) {
+    begin(routeGeneration: number, recordId: string, shareId: string, managedShareId: string | null) {
       if (active) return null;
-      active = { sequence: ++sequence, recordId, shareId, managedShareId, status: 'revoking' };
+      active = { sequence: ++sequence, routeGeneration, recordId, shareId, managedShareId, status: 'revoking' };
       return active;
     },
     current() {
@@ -150,6 +151,33 @@ export function createRecordShareRevokeGuard() {
       active = null;
     },
     isBlocked() {
+      return active !== null;
+    },
+  };
+}
+
+export function createRecordShareDeliveryGuard() {
+  let sequence = 0;
+  let active: { sequence: number; routeGeneration: number; kind: 'copy' | 'native-share' } | null = null;
+
+  return {
+    begin(routeGeneration: number, kind: 'copy' | 'native-share') {
+      if (active) return null;
+      active = { sequence: ++sequence, routeGeneration, kind };
+      return active;
+    },
+    isCurrent(operation: { sequence: number; routeGeneration: number }) {
+      return active?.sequence === operation.sequence && active.routeGeneration === operation.routeGeneration;
+    },
+    finish(operation: { sequence: number; routeGeneration: number }) {
+      if (active?.sequence !== operation.sequence || active.routeGeneration !== operation.routeGeneration) return false;
+      active = null;
+      return true;
+    },
+    reset() {
+      active = null;
+    },
+    isPending() {
       return active !== null;
     },
   };
