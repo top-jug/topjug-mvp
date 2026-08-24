@@ -1,6 +1,7 @@
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ClimbingRecord } from '../../entities/record/types';
 import { listRecords, mapApiRecordSummary } from '../api/record-api';
+import { useAuth } from '../../features/auth/AuthProvider';
 
 interface RecordHistoryContextValue {
   records: ClimbingRecord[];
@@ -17,6 +18,7 @@ interface RecordHistoryContextValue {
 const RecordHistoryContext = createContext<RecordHistoryContextValue | null>(null);
 
 export function RecordHistoryProvider({ children }: PropsWithChildren) {
+  const { status: authStatus, user } = useAuth();
   const [records, setRecords] = useState<ClimbingRecord[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,8 +60,17 @@ export function RecordHistoryProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
-    void fetchRecords({ replace: true });
-  }, [fetchRecords]);
+    if (authStatus === 'authenticated') {
+      void fetchRecords({ replace: true });
+      return;
+    }
+    requestIdRef.current += 1;
+    setRecords([]);
+    setNextCursor(null);
+    setError(null);
+    setIsLoadingMore(false);
+    setIsLoading(authStatus === 'loading');
+  }, [authStatus, fetchRecords, user?.id]);
 
   const refresh = useCallback(() => fetchRecords({ replace: true }), [fetchRecords]);
 

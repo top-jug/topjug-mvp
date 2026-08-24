@@ -1,4 +1,4 @@
-import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { CountPass, PeriodPass } from '../../entities/record/types';
 import { MembershipItem } from '../../mocks/memberships';
 import { ApiClientError } from '../api/api-client';
@@ -12,6 +12,7 @@ import {
   listMemberships,
   replaceMembership,
 } from '../api/membership-api';
+import { useAuth } from '../../features/auth/AuthProvider';
 
 interface MembershipContextValue {
   memberships: MembershipItem[];
@@ -157,13 +158,19 @@ function buildInput(membership: MembershipItem, gymOptions: MembershipContextVal
 }
 
 export function MembershipProvider({ children }: PropsWithChildren) {
+  const { status: authStatus, user } = useAuth();
   const [memberships, setMemberships] = useState<MembershipItem[]>([]);
   const [gymOptions, setGymOptions] = useState<MembershipContextValue['gymOptions']>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const accountGeneration = useRef(0);
+  const refreshVersion = useRef(0);
 
   const refreshMemberships = useCallback(async () => {
+    const account = accountGeneration.current;
+    const version = refreshVersion.current + 1;
+    refreshVersion.current = version;
     setIsLoading(true);
     setError(null);
 
@@ -172,6 +179,7 @@ export function MembershipProvider({ children }: PropsWithChildren) {
         listGyms(),
         listMemberships(),
       ]);
+      if (account !== accountGeneration.current || version !== refreshVersion.current) return;
       const nextGymOptions = gymsResponse.data.map((gym: ApiGymSummary, index) => ({
         gymId: gym.id,
         gymName: formatGymName(gym),
@@ -181,16 +189,28 @@ export function MembershipProvider({ children }: PropsWithChildren) {
       setGymOptions(nextGymOptions);
       setMemberships(membershipsResponse.data.map((membership) => apiMembershipToItem(membership, nextGymOptions)));
     } catch (fetchError) {
+      if (account !== accountGeneration.current || version !== refreshVersion.current) return;
       setMemberships([]);
       setError(messageForError(fetchError));
     } finally {
+      if (account !== accountGeneration.current || version !== refreshVersion.current) return;
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void refreshMemberships();
-  }, [refreshMemberships]);
+    accountGeneration.current += 1;
+    refreshVersion.current += 1;
+    if (authStatus === 'authenticated') {
+      void refreshMemberships();
+      return;
+    }
+    setMemberships([]);
+    setGymOptions([]);
+    setError(null);
+    setActionError(null);
+    setIsLoading(authStatus === 'loading');
+  }, [authStatus, refreshMemberships, user?.id]);
 
   const value = useMemo(() => {
     const { countPasses, periodPasses } = buildRecordPasses(memberships);
@@ -203,34 +223,52 @@ export function MembershipProvider({ children }: PropsWithChildren) {
       actionError,
       refreshMemberships,
       addMembership: async (membership: MembershipItem) => {
+        const account = accountGeneration.current;
+        refreshVersion.current += 1;
+        setIsLoading(false);
         setActionError(null);
         try {
           const response = await createMembership(buildInput(membership, gymOptions, memberships));
+          if (account !== accountGeneration.current) return;
+          refreshVersion.current += 1;
           setMemberships((prev) => [apiMembershipToItem(response.data, gymOptions), ...prev]);
         } catch (requestError) {
+          if (account !== accountGeneration.current) throw requestError;
           const message = messageForError(requestError);
           setActionError(message);
           throw new Error(message);
         }
       },
       updateMembership: async (membership: MembershipItem) => {
+        const account = accountGeneration.current;
+        refreshVersion.current += 1;
+        setIsLoading(false);
         setActionError(null);
         try {
           const response = await replaceMembership(membership.id, buildInput(membership, gymOptions, memberships));
+          if (account !== accountGeneration.current) return;
+          refreshVersion.current += 1;
           const nextMembership = apiMembershipToItem(response.data, gymOptions);
           setMemberships((prev) => prev.map((item) => (item.id === membership.id ? nextMembership : item)));
         } catch (requestError) {
+          if (account !== accountGeneration.current) throw requestError;
           const message = messageForError(requestError);
           setActionError(message);
           throw new Error(message);
         }
       },
       deleteMembership: async (membershipId: string) => {
+        const account = accountGeneration.current;
+        refreshVersion.current += 1;
+        setIsLoading(false);
         setActionError(null);
         try {
           await archiveMembership(membershipId);
+          if (account !== accountGeneration.current) return;
+          refreshVersion.current += 1;
           setMemberships((prev) => prev.filter((item) => item.id !== membershipId));
         } catch (requestError) {
+          if (account !== accountGeneration.current) throw requestError;
           const message = messageForError(requestError);
           setActionError(message);
           throw new Error(message);

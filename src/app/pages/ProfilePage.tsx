@@ -1,13 +1,24 @@
 import { useAppScreenNavigate, useNavigateBack } from '../navigation';
-import { useMemberships } from '../providers/MembershipProvider';
-import { useSavedGyms } from '../providers/SavedGymsProvider';
+import { useNavigate } from 'react-router';
+import { useAuth } from '../../features/auth/AuthProvider';
 
 export default function ProfilePage() {
   const navigateToScreen = useAppScreenNavigate();
   const navigateBack = useNavigateBack('/');
-  const { memberships } = useMemberships();
-  const { savedGymIds } = useSavedGyms();
-  const userName = '송승환';
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  if (!user) return null;
+
+  async function handleLogout() {
+    try {
+      await logout();
+    } catch {
+      // The pending-logout marker retries server invalidation on the next load.
+    } finally {
+      navigate('/login', { replace: true });
+    }
+  }
 
   return (
     <>
@@ -23,24 +34,24 @@ export default function ProfilePage() {
 
         <div className="bg-white border border-neutral-200 rounded-2xl p-5">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-blue-500 text-white flex items-center justify-center text-[18px] font-bold">{userName}</div>
+            <div className="w-16 h-16 rounded-2xl bg-blue-500 text-white flex items-center justify-center text-[22px] font-bold">{user.displayName.slice(0, 1)}</div>
             <div className="flex-1 min-w-0">
-              <div className="text-[18px] font-bold text-neutral-900">{userName}</div>
+              <div className="text-[18px] font-bold text-neutral-900">{user.displayName}</div>
               <div className="text-[14px] text-neutral-500 mt-1">내 암장과 회원권, 기록 설정을 관리할 수 있어요.</div>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2 mt-5">
             <div className="rounded-2xl bg-neutral-50 px-3 py-3 text-center">
               <div className="text-[12px] text-neutral-500">내 암장</div>
-              <div className="text-[18px] font-bold text-neutral-900 mt-1">{savedGymIds.length}</div>
+              <div className="text-[18px] font-bold text-neutral-900 mt-1">{user.stats.savedGyms}</div>
             </div>
             <div className="rounded-2xl bg-neutral-50 px-3 py-3 text-center">
               <div className="text-[12px] text-neutral-500">회원권</div>
-              <div className="text-[18px] font-bold text-neutral-900 mt-1">{memberships.length}</div>
+              <div className="text-[18px] font-bold text-neutral-900 mt-1">{user.stats.memberships}</div>
             </div>
             <div className="rounded-2xl bg-neutral-50 px-3 py-3 text-center">
               <div className="text-[12px] text-neutral-500">이번 달 기록</div>
-              <div className="text-[18px] font-bold text-neutral-900 mt-1">7</div>
+              <div className="text-[18px] font-bold text-neutral-900 mt-1">{user.stats.recordsThisMonth}</div>
             </div>
           </div>
         </div>
@@ -75,12 +86,15 @@ export default function ProfilePage() {
           <div className="space-y-2">
             <div className="rounded-2xl bg-neutral-50 px-4 py-3">
               <div className="text-[13px] text-neutral-500">이메일</div>
-              <div className="text-[14px] font-medium text-neutral-900 mt-1">seunghwan@topjug.app</div>
+              <div className="text-[14px] font-medium text-neutral-900 mt-1">{user.email}</div>
             </div>
             <div className="rounded-2xl bg-neutral-50 px-4 py-3">
               <div className="text-[13px] text-neutral-500">기본 활동 지역</div>
-              <div className="text-[14px] font-medium text-neutral-900 mt-1">서울 강남 / 서초</div>
+              <div className="text-[14px] font-medium text-neutral-900 mt-1">{user.homeRegion?.name ?? '설정되지 않음'}</div>
             </div>
+            <button type="button" onClick={() => void handleLogout()} className="mt-2 h-12 w-full rounded-2xl border border-neutral-200 bg-white text-[14px] font-semibold text-neutral-700">
+              로그아웃
+            </button>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, mock, test } from 'node:test';
 import type { ApiGymDetail } from '../../src/app/api/gym-api';
+import { apiClient } from '../../src/lib/api/client';
 import {
   cancelRecordSession,
   completeRecordSession,
@@ -19,7 +20,10 @@ import {
   sectorOptionsFromGym,
 } from '../../src/features/record/record-session-model';
 
-afterEach(() => mock.restoreAll());
+afterEach(() => {
+  mock.restoreAll();
+  apiClient.clearSession();
+});
 
 test('record session API calls the lifecycle endpoints with the expected methods', async () => {
   const calls: Array<{ url: string; method: string; body: unknown }> = [];
@@ -31,6 +35,7 @@ test('record session API calls the lifecycle endpoints with the expected methods
     });
     return new Response(JSON.stringify({ data: {} }), { status: 200, headers: { 'content-type': 'application/json' } });
   });
+  apiClient.setAccessToken('test-access-token');
 
   const count = { gymGradeId: 'grade-1', gymSectorId: 'sector-1', attempts: 3, sends: 2 };
   await getActiveRecordSession();

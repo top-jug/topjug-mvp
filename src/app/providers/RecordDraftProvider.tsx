@@ -1,5 +1,6 @@
-import { createContext, PropsWithChildren, useContext, useMemo, useState } from 'react';
+import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
 import type { ApiActiveRecordSession, ApiRecordBase } from '../api/record-api';
+import { useAuth } from '../../features/auth/AuthProvider';
 
 export type RecordPassType = '일일이용권' | '횟수권' | '기간권' | '회원권' | '기타';
 
@@ -64,7 +65,12 @@ interface RecordDraftContextValue {
 const RecordDraftContext = createContext<RecordDraftContextValue | null>(null);
 
 export function RecordDraftProvider({ children }: PropsWithChildren) {
+  const { status: authStatus } = useAuth();
   const [draft, setDraftState] = useState<RecordDraft | null>(null);
+
+  useEffect(() => {
+    if (authStatus !== 'authenticated') setDraftState(null);
+  }, [authStatus]);
 
   const value = useMemo(
     () => ({

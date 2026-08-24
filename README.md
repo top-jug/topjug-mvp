@@ -25,6 +25,7 @@ app/                    Next.js routes and API adapters
 src/app/                Existing CSR application and providers
 src/features/           Product features
 src/entities/           Client-side domain types
+src/lib/api/            Shared frontend HTTP and auth transport
 src/server/http/        Shared API boundary and error handling
 ops/ec2/                EC2 runtime and deployment configuration
 ```

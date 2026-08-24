@@ -1,17 +1,6 @@
-let accessToken: string | null = null;
-let refreshPromise: Promise<string | null> | null = null;
+import { apiRequest as sharedApiRequest } from '../../lib/api/client';
 
-export class ApiClientError extends Error {
-  status: number;
-  code: string;
-
-  constructor(status: number, code: string, message: string) {
-    super(message);
-    this.name = 'ApiClientError';
-    this.status = status;
-    this.code = code;
-  }
-}
+export { ApiClientError } from '../../lib/api/error';
 
 interface ApiRequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
@@ -19,81 +8,22 @@ interface ApiRequestOptions extends Omit<RequestInit, 'body'> {
   retryOnUnauthorized?: boolean;
 }
 
-function headersFor(options: ApiRequestOptions) {
-  const headers = new Headers(options.headers);
+const API_PREFIX = '/api/v1';
 
-  if (options.body !== undefined && !headers.has('content-type')) {
-    headers.set('content-type', 'application/json');
+function relativeApiPath(path: string) {
+  if (!path.startsWith(`${API_PREFIX}/`)) {
+    throw new Error(`API path must start with ${API_PREFIX}/`);
   }
-
-  if (options.auth !== false && accessToken) {
-    headers.set('authorization', `Bearer ${accessToken}`);
-  }
-
-  return headers;
+  return path.slice(API_PREFIX.length);
 }
 
-async function parseError(response: Response) {
-  try {
-    const payload = await response.json() as { error?: { code?: string; message?: string } };
-    return new ApiClientError(
-      response.status,
-      payload.error?.code ?? `HTTP_${response.status}`,
-      payload.error?.message ?? 'API 요청을 처리하지 못했습니다.',
-    );
-  } catch {
-    return new ApiClientError(response.status, `HTTP_${response.status}`, 'API 요청을 처리하지 못했습니다.');
-  }
-}
-
-async function refreshAccessToken() {
-  if (!refreshPromise) {
-    refreshPromise = fetch('/api/v1/auth/refresh', {
-      method: 'POST',
-      credentials: 'include',
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          accessToken = null;
-          return null;
-        }
-
-        const payload = await response.json() as { data: { accessToken: string } };
-        accessToken = payload.data.accessToken;
-        return accessToken;
-      })
-      .finally(() => {
-        refreshPromise = null;
-      });
-  }
-
-  return refreshPromise;
-}
-
-export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const response = await fetch(path, {
-    ...options,
-    credentials: options.credentials ?? 'include',
-    headers: headersFor(options),
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+export function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const { auth, body, retryOnUnauthorized: _retryOnUnauthorized, ...requestOptions } = options;
+  return sharedApiRequest<T>(relativeApiPath(path), {
+    ...requestOptions,
+    auth: auth === false ? 'none' : 'required',
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
-
-  if (response.status === 401 && options.auth !== false && options.retryOnUnauthorized !== false) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      return apiRequest<T>(path, { ...options, retryOnUnauthorized: false });
-    }
-  }
-
-  if (!response.ok) {
-    throw await parseError(response);
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json() as Promise<T>;
 }
 
 export function queryString(params: Record<string, string | number | null | undefined>) {
