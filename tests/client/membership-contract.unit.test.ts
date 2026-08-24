@@ -50,7 +50,16 @@ test('membership dates accept leap days and reject nonexistent calendar dates', 
 
 test('membership dates reject malformed values and start-after-end ordering', () => {
   assert.throws(() => validateMembershipDates('2026.2.01', '2026.03.01'), /시작일은 YYYY\.MM\.DD 형식/);
+  assert.throws(() => validateMembershipDates('2026-02-01', '2026.03.01'), /시작일은 YYYY\.MM\.DD 형식/);
   assert.throws(() => validateMembershipDates('2026.03.02', '2026.03.01'), /만료일은 시작일과 같거나 이후/);
+});
+
+test('membership ordering uses the final preserved and converted instants', () => {
+  const item = apiMembershipToItem(apiMembership, gymOptions);
+  assert.throws(
+    () => buildMembershipInput({ ...item, endDate: item.startDate }, gymOptions, [item]),
+    /만료일은 시작일과 같거나 이후/,
+  );
 });
 
 test('unchanged offset-aware membership instants survive an edit exactly', () => {

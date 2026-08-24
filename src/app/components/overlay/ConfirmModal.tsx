@@ -7,12 +7,13 @@ interface ConfirmModalProps {
   confirmTone?: 'primary' | 'danger';
   isPending?: boolean;
   pendingLabel?: string;
+  error?: string;
   onConfirm: () => void;
   onClose: () => void;
 }
 
 export default function ConfirmModal(props: ConfirmModalProps) {
-  const { title, description, confirmLabel, confirmTone = 'primary', isPending = false, pendingLabel = confirmLabel, onConfirm, onClose } = props;
+  const { title, description, confirmLabel, confirmTone = 'primary', isPending = false, pendingLabel = confirmLabel, error, onConfirm, onClose } = props;
   const handleClose = () => {
     if (!isPending) onClose();
   };
@@ -31,6 +32,7 @@ export default function ConfirmModal(props: ConfirmModalProps) {
 
       <div className="space-y-3 mb-6">
         <p className="text-sm text-neutral-600 whitespace-pre-line">{description}</p>
+        {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-600" role="alert">{error}</p>}
       </div>
 
       <div className="flex gap-2">

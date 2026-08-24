@@ -14,12 +14,12 @@ export class MembershipDateValidationError extends Error {
 
 function parseDisplayDate(value: string, field: MembershipDateField) {
   const label = field === 'startDate' ? '시작일' : '만료일';
-  const match = /^(\d{4})([.-])(\d{2})\2(\d{2})$/.exec(value);
+  const match = /^(\d{4})\.(\d{2})\.(\d{2})$/.exec(value);
   if (!match) {
     throw new MembershipDateValidationError(`${label}은 YYYY.MM.DD 형식으로 입력해주세요.`, field);
   }
 
-  const [, yearText, , monthText, dayText] = match;
+  const [, yearText, monthText, dayText] = match;
   const year = Number(yearText);
   const month = Number(monthText);
   const day = Number(dayText);
@@ -29,15 +29,16 @@ function parseDisplayDate(value: string, field: MembershipDateField) {
     throw new MembershipDateValidationError(`${label}에 실제 존재하는 날짜를 입력해주세요.`, field);
   }
 
-  return { year, month, day, calendarValue: year * 10_000 + month * 100 + day };
+  return { year, month, day };
 }
 
-export function validateMembershipDates(startDate: string, endDate: string) {
+export function validateMembershipDates(
+  startDate: string,
+  endDate: string,
+  existing?: { validFrom?: string; validUntil?: string },
+) {
   const start = parseDisplayDate(startDate, 'startDate');
   const end = parseDisplayDate(endDate, 'endDate');
-  if (start.calendarValue > end.calendarValue) {
-    throw new MembershipDateValidationError('만료일은 시작일과 같거나 이후여야 합니다.', 'endDate');
-  }
 
   const toInstant = ({ year, month, day }: typeof start) => {
     const date = new Date(0);
@@ -45,7 +46,16 @@ export function validateMembershipDates(startDate: string, endDate: string) {
     date.setFullYear(year, month - 1, day);
     return date.toISOString();
   };
-  return { validFrom: toInstant(start), validUntil: toInstant(end) };
+  const validFrom = existing?.validFrom && formatMembershipDisplayDate(existing.validFrom) === startDate
+    ? existing.validFrom
+    : toInstant(start);
+  const validUntil = existing?.validUntil && formatMembershipDisplayDate(existing.validUntil) === endDate
+    ? existing.validUntil
+    : toInstant(end);
+  if (new Date(validFrom).getTime() > new Date(validUntil).getTime()) {
+    throw new MembershipDateValidationError('만료일은 시작일과 같거나 이후여야 합니다.', 'endDate');
+  }
+  return { validFrom, validUntil };
 }
 
 export function formatMembershipDisplayDate(value: string) {
@@ -123,7 +133,7 @@ export function buildMembershipInput(membership: MembershipItem, gymOptions: Mem
   const homeOrder = membership.isFavorite
     ? membership.homeOrder ?? firstUnusedHomeOrder(favoriteMemberships)
     : null;
-  const dates = validateMembershipDates(membership.startDate, membership.endDate);
+  const dates = validateMembershipDates(membership.startDate, membership.endDate, membership);
 
   return {
     name: membership.passName,
@@ -131,12 +141,8 @@ export function buildMembershipInput(membership: MembershipItem, gymOptions: Mem
     gymIds,
     totalUses: counts?.totalUses ?? null,
     remainingUses: counts?.remainingUses ?? null,
-    validFrom: membership.validFrom && formatMembershipDisplayDate(membership.validFrom) === membership.startDate
-      ? membership.validFrom
-      : dates.validFrom,
-    validUntil: membership.validUntil && formatMembershipDisplayDate(membership.validUntil) === membership.endDate
-      ? membership.validUntil
-      : dates.validUntil,
+    validFrom: dates.validFrom,
+    validUntil: dates.validUntil,
     note: membership.note?.trim() ? membership.note : null,
     homeFavorite: Boolean(membership.isFavorite),
     homeOrder,
