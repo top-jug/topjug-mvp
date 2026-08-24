@@ -11,6 +11,7 @@ import {
   mergeRecordShareListSnapshot,
   readCachedRecordShare,
   reconcileCachedRecordShare,
+  reconcileRecordShareAfterRevoke,
   removeCachedRecordShare,
   settleRecordShareCreation,
   writeCachedRecordShare,
@@ -215,6 +216,24 @@ test('a stale list snapshot preserves same-route create and revoke mutations', (
     { id: 'older-share', status: 'active' },
   ]);
   assert.equal(mergeRecordShareListSnapshot([], staleIncoming, 2, 2), staleIncoming);
+});
+
+test('ambiguous revoke reconciliation keeps one coherent authoritative state', () => {
+  const activeSummary = { ...share };
+  const revokedSummary = { ...share, status: 'revoked' as const, revokedAt: '2026-08-24T01:00:00.000Z' };
+
+  const active = reconcileRecordShareAfterRevoke(share, [activeSummary], share.id);
+  assert.equal(active.targetState, 'active');
+  assert.equal(active.managedShare, share);
+  assert.equal(active.shares[0].status, 'active');
+
+  const revoked = reconcileRecordShareAfterRevoke(share, [revokedSummary], share.id);
+  assert.equal(revoked.targetState, 'inactive');
+  assert.equal(revoked.managedShare, null);
+  assert.equal(revoked.shares[0].status, 'revoked');
+
+  const missing = reconcileRecordShareAfterRevoke(share, [], share.id);
+  assert.deepEqual(missing, { shares: [], managedShare: null, targetState: 'inactive' });
 });
 
 test('native cancellation is reported without revoking the managed share', async () => {

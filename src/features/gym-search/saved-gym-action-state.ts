@@ -8,6 +8,20 @@ export interface SavedGymActionError {
 
 export type SavedGymActionErrors = Record<string, SavedGymActionError>;
 
+export function createSavedGymAccountResetState(isLoading: boolean) {
+  return {
+    savedGyms: [],
+    error: null,
+    actionErrors: {},
+    pendingGymIds: [],
+    isLoading,
+  };
+}
+
+export function shouldClearSavedGymErrorsOnViewChange(current: string, next: string) {
+  return current !== next;
+}
+
 export function setSavedGymActionError(
   errors: SavedGymActionErrors,
   error: SavedGymActionError,
@@ -39,6 +53,33 @@ export function createSavedGymActionErrorGuard() {
     invalidate(gymId?: string) {
       if (gymId) versions.set(gymId, (versions.get(gymId) ?? 0) + 1);
       else generation += 1;
+    },
+  };
+}
+
+export function createSavedGymOperationGuard() {
+  let generation = 0;
+  let sequence = 0;
+  const pending = new Map<string, number>();
+
+  return {
+    tryBegin(gymId: string) {
+      if (pending.has(gymId)) return null;
+      const operation = { gymId, generation, sequence: ++sequence };
+      pending.set(gymId, operation.sequence);
+      return operation;
+    },
+    isCurrent(operation: { gymId: string; generation: number; sequence: number }) {
+      return operation.generation === generation && pending.get(operation.gymId) === operation.sequence;
+    },
+    finish(operation: { gymId: string; generation: number; sequence: number }) {
+      if (operation.generation !== generation || pending.get(operation.gymId) !== operation.sequence) return false;
+      pending.delete(operation.gymId);
+      return true;
+    },
+    reset() {
+      generation += 1;
+      pending.clear();
     },
   };
 }

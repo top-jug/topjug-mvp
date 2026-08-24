@@ -20,10 +20,10 @@ import {
   getInFlightRecordShareCreation,
   getRecordShareCreationState,
   getRecordShareSessionStorage,
-  isShareNotFoundError,
   mergeRecordShareListSnapshot,
   readCachedRecordShare,
   reconcileCachedRecordShare,
+  reconcileRecordShareAfterRevoke,
   removeCachedRecordShare,
   settleRecordShareCreation,
 } from '../../features/record/record-share-orchestrator';
@@ -68,6 +68,7 @@ export default function RecordSharePage() {
   const createPending = useRef<number | null>(null);
   const mutationSequence = useRef({ generation: 0, version: 0 });
   const requestVersions = useRef(createRequestVersionGuard());
+  const revokePending = useRef<string | null>(null);
 
   useEffect(() => {
     if (!recordId) return;
@@ -88,6 +89,7 @@ export default function RecordSharePage() {
     setRevokingShareId(null);
     setIsPreparingImage(false);
     createPending.current = null;
+    revokePending.current = null;
     setIsLoading(true);
     setFailure(null);
     setShareListError(null);
@@ -160,18 +162,20 @@ export default function RecordSharePage() {
         const currentMutationVersion = mutationSequence.current.generation === route.generation
           ? mutationSequence.current.version
           : requestMutationVersion;
-        setShares((current) => mergeRecordShareListSnapshot(
-          current,
-          sharePayload.data,
-          requestMutationVersion,
-          currentMutationVersion,
-        ));
         if (requestMutationVersion === currentMutationVersion) {
+          setShares(sharePayload.data);
           setManagedShare((current) => {
             if (!current || reconcileCachedRecordShare(current, sharePayload.data)) return current;
             if (storage) removeCachedRecordShare(storage, recordId);
             return null;
           });
+        } else {
+          setShares((current) => mergeRecordShareListSnapshot(
+            current,
+            sharePayload.data,
+            requestMutationVersion,
+            currentMutationVersion,
+          ));
         }
       })
       .catch((shareError) => {
@@ -401,14 +405,20 @@ export default function RecordSharePage() {
 
   const handleRevokeShare = async (shareId: string) => {
     const route = routeGuard.current.current(record.id);
-    if (!route) return;
+    if (!route || revokePending.current) return;
+    revokePending.current = shareId;
     if (mutationSequence.current.generation === route.generation) mutationSequence.current.version += 1;
+    requestVersions.current.invalidate('shares');
+    setIsShareListLoading(false);
+    setShareListError(null);
     setRevokingShareId(shareId);
     setStatus('');
 
     try {
       await revokeRecordShare(record.id, shareId, route.signal);
       if (!routeGuard.current.isCurrent(route)) return;
+      if (mutationSequence.current.generation === route.generation) mutationSequence.current.version += 1;
+      requestVersions.current.invalidate('shares');
       const revokedAt = new Date().toISOString();
       setShares((current) => markShareInactive(current, shareId, managedShare, revokedAt));
       if (managedShare?.id === shareId) {
@@ -419,18 +429,39 @@ export default function RecordSharePage() {
       setStatus('공유 링크를 폐기했어요.');
     } catch (revokeError) {
       if (!routeGuard.current.isCurrent(route)) return;
-      if (isShareNotFoundError(revokeError)) {
-        setShares((current) => markShareInactive(current, shareId, managedShare));
-        if (managedShare?.id === shareId) {
+      const revokeMessage = revokeError instanceof Error ? revokeError.message : '공유 링크를 폐기하지 못했어요.';
+      if (mutationSequence.current.generation === route.generation) mutationSequence.current.version += 1;
+      const request = requestVersions.current.begin('shares');
+      const requestMutationVersion = mutationSequence.current.version;
+      setIsShareListLoading(true);
+      setShareListError(null);
+
+      try {
+        const payload = await listRecordShares(record.id, route.signal);
+        if (!routeGuard.current.isCurrent(route) || !requestVersions.current.isCurrent(request)) return;
+        if (mutationSequence.current.generation !== route.generation
+          || mutationSequence.current.version !== requestMutationVersion) return;
+        const reconciliation = reconcileRecordShareAfterRevoke(managedShare, payload.data, shareId);
+        setShares(reconciliation.shares);
+        setManagedShare(reconciliation.managedShare);
+        if (managedShare && !reconciliation.managedShare) {
           const storage = getRecordShareSessionStorage();
           if (storage) removeCachedRecordShare(storage, record.id);
-          setManagedShare(null);
         }
-        setStatus('이미 비활성화된 공유 링크예요.');
-      } else {
-        setStatus(revokeError instanceof Error ? revokeError.message : '공유 링크를 폐기하지 못했어요.');
+        setStatus(reconciliation.targetState === 'active'
+          ? `${revokeMessage} 링크는 아직 활성 상태예요.`
+          : '공유 링크가 이미 비활성화되었어요.');
+      } catch (listError) {
+        if (!routeGuard.current.isCurrent(route) || !requestVersions.current.isCurrent(request)) return;
+        setShareListError(listError instanceof Error ? listError.message : '공유 링크 상태를 확인하지 못했어요.');
+        setStatus(`${revokeMessage} 현재 링크 상태를 다시 확인해주세요.`);
+      } finally {
+        if (routeGuard.current.isCurrent(route) && requestVersions.current.isCurrent(request)) {
+          setIsShareListLoading(false);
+        }
       }
     } finally {
+      if (revokePending.current === shareId) revokePending.current = null;
       if (routeGuard.current.isCurrent(route)) setRevokingShareId(null);
     }
   };

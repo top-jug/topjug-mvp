@@ -9,6 +9,7 @@ import GymSearchInput from './components/GymSearchInput';
 import GymSearchList from './components/GymSearchList';
 import GymSearchTabs from './components/GymSearchTabs';
 import RegionFilterModal from './components/modals/RegionFilterModal';
+import { shouldClearSavedGymErrorsOnViewChange } from './saved-gym-action-state';
 
 const PAGE_SIZE = 10;
 const FACILITY_CODES: Record<string, string> = {
@@ -105,6 +106,7 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
   };
 
   const handleChangeView = (view: 'search' | 'saved') => {
+    if (shouldClearSavedGymErrorsOnViewChange(activeView, view)) dismissActionError();
     setActiveView(view);
     if (view === 'saved') void refreshSavedGyms();
   };

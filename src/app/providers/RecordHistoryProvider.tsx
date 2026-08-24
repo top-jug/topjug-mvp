@@ -2,7 +2,7 @@ import { createContext, PropsWithChildren, useCallback, useContext, useEffect, u
 import { ClimbingRecord } from '../../entities/record/types';
 import { listRecords, mapApiRecordSummary } from '../api/record-api';
 import { useAuth } from '../../features/auth/AuthProvider';
-import { createRecordListFailure } from '../../features/record/record-async-state';
+import { createRecordHistoryAccountResetState, createRecordListFailure } from '../../features/record/record-async-state';
 
 interface RecordHistoryContextValue {
   records: ClimbingRecord[];
@@ -74,6 +74,15 @@ export function RecordHistoryProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
+    requestIdRef.current += 1;
+    requestControllerRef.current?.abort();
+    const reset = createRecordHistoryAccountResetState(authStatus === 'loading' || authStatus === 'authenticated');
+    setRecords(reset.records);
+    setNextCursor(reset.nextCursor);
+    setError(reset.error);
+    setPaginationError(reset.paginationError);
+    setIsLoadingMore(reset.isLoadingMore);
+    setIsLoading(reset.isLoading);
     if (authStatus === 'authenticated') {
       void fetchRecords({ replace: true });
       return () => {
@@ -81,14 +90,6 @@ export function RecordHistoryProvider({ children }: PropsWithChildren) {
         requestControllerRef.current?.abort();
       };
     }
-    requestIdRef.current += 1;
-    requestControllerRef.current?.abort();
-    setRecords([]);
-    setNextCursor(null);
-    setError(null);
-    setPaginationError(null);
-    setIsLoadingMore(false);
-    setIsLoading(authStatus === 'loading');
     return undefined;
   }, [authStatus, fetchRecords, user?.id]);
 

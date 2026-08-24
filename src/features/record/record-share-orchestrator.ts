@@ -93,6 +93,19 @@ export function reconcileCachedRecordShare(cached: ApiCreatedShare | null, share
   return shares.some((share) => share.id === cached.id && share.status === 'active') ? cached : null;
 }
 
+export function reconcileRecordShareAfterRevoke(
+  managedShare: ApiCreatedShare | null,
+  authoritativeShares: ApiShareSummary[],
+  revokedShareId: string,
+) {
+  const target = authoritativeShares.find((share) => share.id === revokedShareId);
+  return {
+    shares: authoritativeShares,
+    managedShare: reconcileCachedRecordShare(managedShare, authoritativeShares),
+    targetState: target?.status === 'active' ? 'active' as const : 'inactive' as const,
+  };
+}
+
 export function getRecordShareCreationState(
   managedShare: ApiCreatedShare | null,
   shares: ApiShareSummary[],

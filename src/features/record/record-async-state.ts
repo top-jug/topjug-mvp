@@ -9,6 +9,17 @@ export type RecordListFailure =
   | { scope: 'initial'; message: string }
   | { scope: 'pagination'; cursor: string; message: string };
 
+export function createRecordHistoryAccountResetState(isLoading: boolean) {
+  return {
+    records: [],
+    nextCursor: null,
+    error: null,
+    paginationError: null,
+    isLoadingMore: false,
+    isLoading,
+  };
+}
+
 export function createRecordListFailure(cursor: string | null | undefined, message: string): RecordListFailure {
   return cursor
     ? { scope: 'pagination', cursor, message }

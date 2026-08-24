@@ -4,7 +4,9 @@ import { ApiGymSummary, listSavedGyms, saveGym, unsaveGym } from '../api/gym-api
 import { useAuth } from '../../features/auth/AuthProvider';
 import {
   clearSavedGymActionError,
+  createSavedGymAccountResetState,
   createSavedGymActionErrorGuard,
+  createSavedGymOperationGuard,
   SavedGymActionError,
   SavedGymActionErrors,
   setSavedGymActionError,
@@ -41,6 +43,7 @@ export function SavedGymsProvider({ children }: PropsWithChildren) {
   const accountGeneration = useRef(0);
   const refreshVersion = useRef(0);
   const actionErrorGuard = useRef(createSavedGymActionErrorGuard());
+  const operationGuard = useRef(createSavedGymOperationGuard());
 
   const refreshSavedGyms = useCallback(async () => {
     const account = accountGeneration.current;
@@ -67,15 +70,17 @@ export function SavedGymsProvider({ children }: PropsWithChildren) {
     accountGeneration.current += 1;
     refreshVersion.current += 1;
     actionErrorGuard.current.invalidate();
+    operationGuard.current.reset();
+    const reset = createSavedGymAccountResetState(authStatus === 'loading' || authStatus === 'authenticated');
+    setSavedGyms(reset.savedGyms);
+    setError(reset.error);
+    setActionErrors(reset.actionErrors);
+    setPendingGymIds(reset.pendingGymIds);
+    setIsLoading(reset.isLoading);
     if (authStatus === 'authenticated') {
       void refreshSavedGyms();
       return;
     }
-    setSavedGyms([]);
-    setError(null);
-    setActionErrors({});
-    setPendingGymIds([]);
-    setIsLoading(authStatus === 'loading');
   }, [authStatus, refreshSavedGyms, user?.id]);
 
   const getActionError = useCallback((gymId: string) => actionErrors[gymId] ?? null, [actionErrors]);
@@ -98,7 +103,8 @@ export function SavedGymsProvider({ children }: PropsWithChildren) {
       isSavedGym: (gymId: string) => savedGymIds.includes(gymId),
       refreshSavedGyms,
       toggleSavedGym: async (gym: ApiGymSummary) => {
-        if (pendingGymIds.includes(gym.id)) return;
+        const operation = operationGuard.current.tryBegin(gym.id);
+        if (!operation) return;
 
         const wasSaved = savedGymIds.includes(gym.id);
         const account = accountGeneration.current;
@@ -114,14 +120,14 @@ export function SavedGymsProvider({ children }: PropsWithChildren) {
         try {
           if (wasSaved) await unsaveGym(gym.id);
           else await saveGym(gym.id);
-          if (account !== accountGeneration.current) return;
+          if (account !== accountGeneration.current || !operationGuard.current.isCurrent(operation)) return;
           refreshVersion.current += 1;
           setSavedGyms((current) => wasSaved
             ? current.filter((item) => item.id !== gym.id)
             : [gym, ...current.filter((item) => item.id !== gym.id)]);
           setActionErrors((current) => clearSavedGymActionError(current, gym.id));
         } catch (requestError) {
-          if (account !== accountGeneration.current) return;
+          if (account !== accountGeneration.current || !operationGuard.current.isCurrent(operation)) return;
           setSavedGyms((current) => wasSaved
             ? [gym, ...current.filter((item) => item.id !== gym.id)]
             : current.filter((item) => item.id !== gym.id));
@@ -135,7 +141,7 @@ export function SavedGymsProvider({ children }: PropsWithChildren) {
           }
           throw new Error(message);
         } finally {
-          if (account === accountGeneration.current) {
+          if (account === accountGeneration.current && operationGuard.current.finish(operation)) {
             setPendingGymIds((current) => current.filter((id) => id !== gym.id));
           }
         }

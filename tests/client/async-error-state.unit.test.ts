@@ -3,13 +3,17 @@ import test from 'node:test';
 import { ApiClientError } from '../../src/app/api/api-client';
 import {
   classifyRecordFetchFailure,
+  createRecordHistoryAccountResetState,
   createRecordListFailure,
   createRequestVersionGuard,
 } from '../../src/features/record/record-async-state';
 import {
   clearSavedGymActionError,
+  createSavedGymAccountResetState,
   createSavedGymActionErrorGuard,
+  createSavedGymOperationGuard,
   setSavedGymActionError,
+  shouldClearSavedGymErrorsOnViewChange,
 } from '../../src/features/gym-search/saved-gym-action-state';
 
 test('pagination failures retain the exact failed cursor for retry', () => {
@@ -71,4 +75,41 @@ test('dismiss and navigation invalidate late saved-gym action errors only at the
   guard.invalidate();
   assert.equal(guard.isCurrent(gymB), false);
   assert.equal(guard.isCurrent(guard.begin('gym-b')), true);
+});
+
+test('rapid saved-gym actions admit one operation per gym before rerender', () => {
+  const guard = createSavedGymOperationGuard();
+  const firstA = guard.tryBegin('gym-a');
+
+  assert.ok(firstA);
+  assert.equal(guard.tryBegin('gym-a'), null);
+  assert.ok(guard.tryBegin('gym-b'));
+  assert.equal(guard.finish(firstA), true);
+  assert.ok(guard.tryBegin('gym-a'));
+});
+
+test('account reset prevents an old operation from rolling back or cleaning up a new one', () => {
+  const guard = createSavedGymOperationGuard();
+  const oldOperation = guard.tryBegin('gym-a');
+  assert.ok(oldOperation);
+
+  guard.reset();
+  const newOperation = guard.tryBegin('gym-a');
+  assert.ok(newOperation);
+  assert.equal(guard.isCurrent(oldOperation), false);
+  assert.equal(guard.finish(oldOperation), false);
+  assert.equal(guard.isCurrent(newOperation), true);
+
+  assert.deepEqual(createSavedGymAccountResetState(true), {
+    savedGyms: [], error: null, actionErrors: {}, pendingGymIds: [], isLoading: true,
+  });
+  assert.deepEqual(createRecordHistoryAccountResetState(true), {
+    records: [], nextCursor: null, error: null, paginationError: null, isLoadingMore: false, isLoading: true,
+  });
+});
+
+test('switching between search and saved views clears action errors', () => {
+  assert.equal(shouldClearSavedGymErrorsOnViewChange('search', 'saved'), true);
+  assert.equal(shouldClearSavedGymErrorsOnViewChange('saved', 'search'), true);
+  assert.equal(shouldClearSavedGymErrorsOnViewChange('saved', 'saved'), false);
 });
