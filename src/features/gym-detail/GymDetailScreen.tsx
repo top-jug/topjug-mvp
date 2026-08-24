@@ -40,7 +40,9 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
   const [error, setError] = useState<string | null>(null);
   const [requestVersion, setRequestVersion] = useState(0);
   const [calendarMonth, setCalendarMonth] = useState<GymSettingMonth | null>(null);
-  const { isSavedGym, toggleSavedGym, pendingGymIds, actionError } = useSavedGyms();
+  const { isSavedGym, toggleSavedGym, pendingGymIds, getActionError, dismissActionError } = useSavedGyms();
+
+  useEffect(() => () => dismissActionError(gymId), [dismissActionError, gymId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -102,6 +104,7 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
   }
 
   const isSaving = pendingGymIds.includes(gym.id);
+  const actionError = getActionError(gym.id);
 
   return (
     <>
@@ -113,7 +116,12 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
         onToggleFavorite={() => { if (!isSaving) void toggleSavedGym(gym).catch(() => undefined); }}
       />
 
-      {actionError && <div className="mx-5 mb-2 rounded-2xl bg-red-50 px-4 py-3 text-[13px] font-medium text-red-600" role="status">{actionError}</div>}
+      {actionError && (
+        <div className="mx-5 mb-2 flex items-start justify-between gap-3 rounded-2xl bg-red-50 px-4 py-3 text-[13px] font-medium text-red-600" role="status">
+          <span>{actionError.message}</span>
+          <button type="button" onClick={() => dismissActionError(gym.id)} className="min-h-6 flex-shrink-0 font-bold">닫기</button>
+        </div>
+      )}
 
       <div className="overflow-y-auto pb-10 min-h-screen">
         <GymDetailCarousel

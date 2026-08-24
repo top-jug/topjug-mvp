@@ -2,17 +2,20 @@ import { createContext, PropsWithChildren, useCallback, useContext, useEffect, u
 import { ClimbingRecord } from '../../entities/record/types';
 import { listRecords, mapApiRecordSummary } from '../api/record-api';
 import { useAuth } from '../../features/auth/AuthProvider';
+import { createRecordListFailure } from '../../features/record/record-async-state';
 
 interface RecordHistoryContextValue {
   records: ClimbingRecord[];
   isLoading: boolean;
   isLoadingMore: boolean;
   error: string | null;
+  paginationError: string | null;
   hasMore: boolean;
   addRecord: (record: ClimbingRecord) => void;
   getRecord: (recordId: string) => ClimbingRecord | undefined;
   refresh: () => Promise<void>;
   loadMore: () => Promise<void>;
+  retryLoadMore: () => Promise<void>;
 }
 
 const RecordHistoryContext = createContext<RecordHistoryContextValue | null>(null);
@@ -24,21 +27,27 @@ export function RecordHistoryProvider({ children }: PropsWithChildren) {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paginationError, setPaginationError] = useState<{ cursor: string; message: string } | null>(null);
   const requestIdRef = useRef(0);
+  const requestControllerRef = useRef<AbortController | null>(null);
 
   const fetchRecords = useCallback(async (options: { cursor?: string | null; replace: boolean }) => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
 
     if (options.replace) {
       setIsLoading(true);
     } else {
       setIsLoadingMore(true);
     }
-    setError(null);
+    if (options.replace) setError(null);
+    else setPaginationError(null);
 
     try {
-      const payload = await listRecords({ cursor: options.cursor, limit: 20 });
+      const payload = await listRecords({ cursor: options.cursor, limit: 20, signal: controller.signal });
       if (requestId !== requestIdRef.current) return;
 
       const nextRecords = payload.data.map(mapApiRecordSummary);
@@ -49,9 +58,14 @@ export function RecordHistoryProvider({ children }: PropsWithChildren) {
         return [...current, ...nextRecords.filter((record) => !seenIds.has(record.id))];
       });
       setNextCursor(payload.meta.nextCursor);
+      if (options.replace) setPaginationError(null);
     } catch (fetchError) {
       if (requestId !== requestIdRef.current) return;
-      setError(fetchError instanceof Error ? fetchError.message : '기록 목록을 불러오지 못했어요.');
+      if (fetchError instanceof DOMException && fetchError.name === 'AbortError') return;
+      const message = fetchError instanceof Error ? fetchError.message : '기록 목록을 불러오지 못했어요.';
+      const failure = createRecordListFailure(options.replace ? null : options.cursor, message);
+      if (failure.scope === 'pagination') setPaginationError({ cursor: failure.cursor, message: failure.message });
+      else setError(failure.message);
     } finally {
       if (requestId !== requestIdRef.current) return;
       setIsLoading(false);
@@ -62,14 +76,20 @@ export function RecordHistoryProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (authStatus === 'authenticated') {
       void fetchRecords({ replace: true });
-      return;
+      return () => {
+        requestIdRef.current += 1;
+        requestControllerRef.current?.abort();
+      };
     }
     requestIdRef.current += 1;
+    requestControllerRef.current?.abort();
     setRecords([]);
     setNextCursor(null);
     setError(null);
+    setPaginationError(null);
     setIsLoadingMore(false);
     setIsLoading(authStatus === 'loading');
+    return undefined;
   }, [authStatus, fetchRecords, user?.id]);
 
   const refresh = useCallback(() => fetchRecords({ replace: true }), [fetchRecords]);
@@ -79,12 +99,18 @@ export function RecordHistoryProvider({ children }: PropsWithChildren) {
     await fetchRecords({ cursor: nextCursor, replace: false });
   }, [fetchRecords, isLoadingMore, nextCursor]);
 
+  const retryLoadMore = useCallback(async () => {
+    if (!paginationError || isLoadingMore) return;
+    await fetchRecords({ cursor: paginationError.cursor, replace: false });
+  }, [fetchRecords, isLoadingMore, paginationError]);
+
   const value = useMemo<RecordHistoryContextValue>(
     () => ({
       records,
       isLoading,
       isLoadingMore,
       error,
+      paginationError: paginationError?.message ?? null,
       hasMore: Boolean(nextCursor),
       addRecord: (record) => {
         setRecords((current) => {
@@ -95,8 +121,9 @@ export function RecordHistoryProvider({ children }: PropsWithChildren) {
       getRecord: (recordId) => records.find((record) => record.id === recordId),
       refresh,
       loadMore,
+      retryLoadMore,
     }),
-    [error, isLoading, isLoadingMore, loadMore, nextCursor, records, refresh],
+    [error, isLoading, isLoadingMore, loadMore, nextCursor, paginationError, records, refresh, retryLoadMore],
   );
 
   return <RecordHistoryContext.Provider value={value}>{children}</RecordHistoryContext.Provider>;

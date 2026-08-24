@@ -46,12 +46,15 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
     savedGyms,
     isLoading: isLoadingSavedGyms,
     error: savedGymsError,
-    actionError,
+    getActionError,
+    dismissActionError,
     pendingGymIds,
     isSavedGym,
     refreshSavedGyms,
     toggleSavedGym,
   } = useSavedGyms();
+
+  useEffect(() => () => dismissActionError(), [dismissActionError]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -134,8 +137,6 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
         )}
       </div>
 
-      {actionError && <div className="mx-5 mt-3 rounded-2xl bg-red-50 px-4 py-3 text-[13px] font-medium text-red-600" role="status">{actionError}</div>}
-
       {activeView === 'search' ? (
         <>
           {showRegionFilter && (
@@ -171,6 +172,8 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
             isSavedGym={isSavedGym}
             onToggleSavedGym={handleToggleSavedGym}
             isSavingGym={(gymId) => pendingGymIds.includes(gymId)}
+            getActionError={getActionError}
+            onDismissActionError={dismissActionError}
             isLoading={isLoadingGyms}
             error={gymError}
             onRetry={() => setRequestVersion((version) => version + 1)}
@@ -186,6 +189,8 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
           isSavedGym={isSavedGym}
           onToggleSavedGym={handleToggleSavedGym}
           isSavingGym={(gymId) => pendingGymIds.includes(gymId)}
+          getActionError={getActionError}
+          onDismissActionError={dismissActionError}
           isLoading={isLoadingSavedGyms}
           error={savedGymsError}
           emptyMessage="저장한 암장이 없어요."

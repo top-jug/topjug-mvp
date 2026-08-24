@@ -2,13 +2,21 @@ import { createContext, PropsWithChildren, useCallback, useContext, useEffect, u
 import { ApiClientError } from '../api/api-client';
 import { ApiGymSummary, listSavedGyms, saveGym, unsaveGym } from '../api/gym-api';
 import { useAuth } from '../../features/auth/AuthProvider';
+import {
+  clearSavedGymActionError,
+  createSavedGymActionErrorGuard,
+  SavedGymActionError,
+  SavedGymActionErrors,
+  setSavedGymActionError,
+} from '../../features/gym-search/saved-gym-action-state';
 
 interface SavedGymsContextValue {
   savedGyms: ApiGymSummary[];
   savedGymIds: string[];
   isLoading: boolean;
   error: string | null;
-  actionError: string | null;
+  getActionError: (gymId: string) => SavedGymActionError | null;
+  dismissActionError: (gymId?: string) => void;
   pendingGymIds: string[];
   isSavedGym: (gymId: string) => boolean;
   refreshSavedGyms: () => Promise<void>;
@@ -28,10 +36,11 @@ export function SavedGymsProvider({ children }: PropsWithChildren) {
   const [savedGyms, setSavedGyms] = useState<ApiGymSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionErrors, setActionErrors] = useState<SavedGymActionErrors>({});
   const [pendingGymIds, setPendingGymIds] = useState<string[]>([]);
   const accountGeneration = useRef(0);
   const refreshVersion = useRef(0);
+  const actionErrorGuard = useRef(createSavedGymActionErrorGuard());
 
   const refreshSavedGyms = useCallback(async () => {
     const account = accountGeneration.current;
@@ -39,7 +48,6 @@ export function SavedGymsProvider({ children }: PropsWithChildren) {
     refreshVersion.current = version;
     setIsLoading(true);
     setError(null);
-    setActionError(null);
 
     try {
       const response = await listSavedGyms();
@@ -58,16 +66,23 @@ export function SavedGymsProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     accountGeneration.current += 1;
     refreshVersion.current += 1;
+    actionErrorGuard.current.invalidate();
     if (authStatus === 'authenticated') {
       void refreshSavedGyms();
       return;
     }
     setSavedGyms([]);
     setError(null);
-    setActionError(null);
+    setActionErrors({});
     setPendingGymIds([]);
     setIsLoading(authStatus === 'loading');
   }, [authStatus, refreshSavedGyms, user?.id]);
+
+  const getActionError = useCallback((gymId: string) => actionErrors[gymId] ?? null, [actionErrors]);
+  const dismissActionError = useCallback((gymId?: string) => {
+    actionErrorGuard.current.invalidate(gymId);
+    setActionErrors((current) => clearSavedGymActionError(current, gymId));
+  }, []);
 
   const value = useMemo<SavedGymsContextValue>(() => {
     const savedGymIds = savedGyms.map((gym) => gym.id);
@@ -77,7 +92,8 @@ export function SavedGymsProvider({ children }: PropsWithChildren) {
       savedGymIds,
       isLoading,
       error,
-      actionError,
+      getActionError,
+      dismissActionError,
       pendingGymIds,
       isSavedGym: (gymId: string) => savedGymIds.includes(gymId),
       refreshSavedGyms,
@@ -86,9 +102,10 @@ export function SavedGymsProvider({ children }: PropsWithChildren) {
 
         const wasSaved = savedGymIds.includes(gym.id);
         const account = accountGeneration.current;
+        const errorScope = actionErrorGuard.current.begin(gym.id);
         refreshVersion.current += 1;
         setIsLoading(false);
-        setActionError(null);
+        setActionErrors((current) => clearSavedGymActionError(current, gym.id));
         setPendingGymIds((current) => [...current, gym.id]);
         setSavedGyms((current) => wasSaved
           ? current.filter((item) => item.id !== gym.id)
@@ -102,13 +119,20 @@ export function SavedGymsProvider({ children }: PropsWithChildren) {
           setSavedGyms((current) => wasSaved
             ? current.filter((item) => item.id !== gym.id)
             : [gym, ...current.filter((item) => item.id !== gym.id)]);
+          setActionErrors((current) => clearSavedGymActionError(current, gym.id));
         } catch (requestError) {
           if (account !== accountGeneration.current) return;
           setSavedGyms((current) => wasSaved
             ? [gym, ...current.filter((item) => item.id !== gym.id)]
             : current.filter((item) => item.id !== gym.id));
           const message = savedGymErrorMessage(requestError);
-          setActionError(message);
+          if (actionErrorGuard.current.isCurrent(errorScope)) {
+            setActionErrors((current) => setSavedGymActionError(current, {
+              gymId: gym.id,
+              action: wasSaved ? 'unsave' : 'save',
+              message,
+            }));
+          }
           throw new Error(message);
         } finally {
           if (account === accountGeneration.current) {
@@ -117,7 +141,7 @@ export function SavedGymsProvider({ children }: PropsWithChildren) {
         }
       },
     };
-  }, [actionError, error, isLoading, pendingGymIds, refreshSavedGyms, savedGyms]);
+  }, [dismissActionError, error, getActionError, isLoading, pendingGymIds, refreshSavedGyms, savedGyms]);
 
   return <SavedGymsContext.Provider value={value}>{children}</SavedGymsContext.Provider>;
 }

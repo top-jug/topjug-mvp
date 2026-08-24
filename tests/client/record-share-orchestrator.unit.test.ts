@@ -155,6 +155,11 @@ test('list-error unknown state requires duplicate-risk confirmation', () => {
   assert.equal(getRecordShareCreationState(share, [], false, false), 'managed');
 });
 
+test('managed token state remains authoritative while the share list is unknown', () => {
+  assert.equal(getRecordShareCreationState(share, [], false, false), 'managed');
+  assert.equal(getRecordShareCreationState(null, [], false, false), 'unknown');
+});
+
 test('A to B to A reuses one creation and prevents out-of-order cache overwrite', async () => {
   const storage = createStorage();
   const guard = createRecordShareRouteGuard();

@@ -6,7 +6,7 @@ import { useNavigateBack } from '../navigation';
 export default function MyRecordsPage() {
   const navigate = useNavigate();
   const navigateBack = useNavigateBack('/profile');
-  const { records, isLoading, isLoadingMore, error, hasMore, refresh, loadMore } = useRecordHistory();
+  const { records, isLoading, isLoadingMore, error, paginationError, hasMore, refresh, loadMore, retryLoadMore } = useRecordHistory();
   const totalSuccess = records.reduce((total, record) => total + getRecordTotals(record).success, 0);
 
   return (
@@ -93,7 +93,19 @@ export default function MyRecordsPage() {
                   </button>
                 );
               })}
-              {hasMore && (
+              {paginationError ? (
+                <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-center">
+                  <div className="text-[13px] font-medium text-red-700">{paginationError}</div>
+                  <button
+                    type="button"
+                    onClick={retryLoadMore}
+                    disabled={isLoadingMore}
+                    className="mt-3 h-11 rounded-xl bg-white px-4 text-[13px] font-bold text-red-700 disabled:opacity-50"
+                  >
+                    {isLoadingMore ? '다시 불러오는 중...' : '이어서 다시 시도'}
+                  </button>
+                </div>
+              ) : hasMore && (
                 <button
                   type="button"
                   onClick={loadMore}
