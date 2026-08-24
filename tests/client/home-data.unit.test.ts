@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ApiRecentVisitedGym } from '../../src/app/api/gym-api';
 import type { SettingEvent } from '../../src/features/calendar/setting-calendar';
-import { getHomeDataState } from '../../src/features/home/home-state';
+import { getHomeDataState, getRetainedHomeDataState } from '../../src/features/home/home-state';
 import { buildHomeSettingEntries, getHomeClock, getHomeWeek, shouldRefreshHome } from '../../src/features/home/home-week';
 import { buildRecentGyms, loadRecentGyms } from '../../src/features/home/recent-gyms';
 
@@ -136,4 +136,20 @@ test('home card state does not mistake failed or in-flight empty data for a legi
   assert.equal(getHomeDataState(false, 'membership request failed', 2), 'error');
   assert.equal(getHomeDataState(false, null, 0), 'empty');
   assert.equal(getHomeDataState(false, null, 3), 'ready');
+});
+
+test('retained home data transitions from ready through refreshing and stale to retry recovery', () => {
+  assert.equal(getRetainedHomeDataState(false, null, 3, true), 'ready');
+  assert.equal(getRetainedHomeDataState(true, null, 3, true), 'refreshing');
+  assert.equal(getRetainedHomeDataState(false, 'temporary failure', 3, true), 'stale');
+  assert.equal(getRetainedHomeDataState(true, null, 3, true), 'refreshing');
+  assert.equal(getRetainedHomeDataState(false, null, 2, true), 'ready');
+});
+
+test('retained home data keeps initial failures and legitimate empty results distinct', () => {
+  assert.equal(getRetainedHomeDataState(true, null, 0, false), 'loading');
+  assert.equal(getRetainedHomeDataState(false, 'initial failure', 0, false), 'error');
+  assert.equal(getRetainedHomeDataState(false, null, 0, true), 'empty');
+  assert.equal(getRetainedHomeDataState(true, null, 0, true), 'refreshing');
+  assert.equal(getRetainedHomeDataState(false, 'temporary failure', 0, true), 'stale');
 });

@@ -1,3 +1,5 @@
+import { ApiClientError } from '../../lib/api/error';
+
 export type MembershipResourceResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: unknown };
@@ -15,6 +17,7 @@ export interface MembershipAccountState<TMembership, TGymOption> {
   memberships: TMembership[];
   gymOptions: TGymOption[];
   isLoading: boolean;
+  hasLoadedMemberships: boolean;
   error: string | null;
   isGymOptionsLoading: boolean;
   gymOptionsError: string | null;
@@ -30,11 +33,18 @@ export function emptyMembershipAccountState<TMembership = never, TGymOption = ne
     memberships: [],
     gymOptions: [],
     isLoading,
+    hasLoadedMemberships: false,
     error: null,
     isGymOptionsLoading: isLoading,
     gymOptionsError: null,
     actionError: null,
   };
+}
+
+export function membershipDataAfterFailure<T>(memberships: T[], hasLoadedMemberships: boolean, error: unknown) {
+  return error instanceof ApiClientError && error.status === 401
+    ? { memberships: [] as T[], hasLoadedMemberships: false }
+    : { memberships, hasLoadedMemberships };
 }
 
 export function membershipStateForAccount<TMembership, TGymOption>(

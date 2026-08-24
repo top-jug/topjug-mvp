@@ -19,12 +19,13 @@ import {
   parseMembershipCounts,
 } from '../../features/membership/membership-contract';
 import { deriveMembershipPresentation, localCalendarDaysRemaining, millisecondsUntilNextMembershipPresentation } from '../../features/membership/membership-summary';
-import { emptyMembershipAccountState, loadMembershipResource, membershipStateForAccount } from '../../features/membership/membership-loading';
+import { emptyMembershipAccountState, loadMembershipResource, membershipDataAfterFailure, membershipStateForAccount } from '../../features/membership/membership-loading';
 
 interface MembershipContextValue {
   memberships: MembershipItem[];
   gymOptions: Array<{ gymName: string; gymId: string; lightBg: string; darkText: string }>;
   isLoading: boolean;
+  hasLoadedMemberships: boolean;
   error: string | null;
   isGymOptionsLoading: boolean;
   gymOptionsError: string | null;
@@ -98,6 +99,7 @@ export function MembershipProvider({ children }: PropsWithChildren) {
   const [memberships, setMemberships] = useState<MembershipItem[]>([]);
   const [gymOptions, setGymOptions] = useState<MembershipContextValue['gymOptions']>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadedMemberships, setHasLoadedMemberships] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isGymOptionsLoading, setIsGymOptionsLoading] = useState(true);
   const [gymOptionsError, setGymOptionsError] = useState<string | null>(null);
@@ -110,6 +112,10 @@ export function MembershipProvider({ children }: PropsWithChildren) {
   const membershipRefreshInFlight = useRef<{ account: number; promise: Promise<void> } | null>(null);
   const gymRefreshInFlight = useRef<{ account: number; promise: Promise<void> } | null>(null);
   const gymOptionsRef = useRef(gymOptions);
+  const membershipsRef = useRef(memberships);
+  const hasLoadedMembershipsRef = useRef(hasLoadedMemberships);
+  membershipsRef.current = memberships;
+  hasLoadedMembershipsRef.current = hasLoadedMemberships;
 
   const refreshMemberships = useCallback(async () => {
     const account = accountGeneration.current;
@@ -124,9 +130,17 @@ export function MembershipProvider({ children }: PropsWithChildren) {
       if (result.ok) {
         const now = new Date();
         setPresentationNow(now);
-        setMemberships(result.data.data.map((membership) => apiMembershipToItem(membership, gymOptionsRef.current, now)));
+        const nextMemberships = result.data.data.map((membership) => apiMembershipToItem(membership, gymOptionsRef.current, now));
+        membershipsRef.current = nextMemberships;
+        hasLoadedMembershipsRef.current = true;
+        setMemberships(nextMemberships);
+        setHasLoadedMemberships(true);
       } else {
-        setMemberships([]);
+        const retained = membershipDataAfterFailure(membershipsRef.current, hasLoadedMembershipsRef.current, result.error);
+        membershipsRef.current = retained.memberships;
+        hasLoadedMembershipsRef.current = retained.hasLoadedMemberships;
+        setMemberships(retained.memberships);
+        setHasLoadedMemberships(retained.hasLoadedMemberships);
         setError(messageForError(result.error));
       }
       setIsLoading(false);
@@ -177,6 +191,9 @@ export function MembershipProvider({ children }: PropsWithChildren) {
     const emptyState = emptyMembershipAccountState(authAccountId, authStatus === 'loading' || authStatus === 'authenticated');
     setStateAccountId(emptyState.accountId);
     setMemberships(emptyState.memberships);
+    setHasLoadedMemberships(emptyState.hasLoadedMemberships);
+    membershipsRef.current = emptyState.memberships;
+    hasLoadedMembershipsRef.current = emptyState.hasLoadedMemberships;
     setGymOptions(emptyState.gymOptions);
     gymOptionsRef.current = emptyState.gymOptions;
     setError(emptyState.error);
@@ -207,6 +224,7 @@ export function MembershipProvider({ children }: PropsWithChildren) {
       memberships,
       gymOptions,
       isLoading,
+      hasLoadedMemberships,
       error,
       isGymOptionsLoading,
       gymOptionsError,
@@ -221,6 +239,7 @@ export function MembershipProvider({ children }: PropsWithChildren) {
       memberships: presentedMemberships,
       gymOptions: accountGymOptions,
       isLoading: accountState.isLoading,
+      hasLoadedMemberships: accountState.hasLoadedMemberships,
       error: accountState.error,
       isGymOptionsLoading: accountState.isGymOptionsLoading,
       gymOptionsError: accountState.gymOptionsError,
@@ -238,7 +257,13 @@ export function MembershipProvider({ children }: PropsWithChildren) {
           const response = await createMembership(buildMembershipInput(membership, accountGymOptions, accountMemberships));
           if (account !== accountGeneration.current) return;
           refreshVersion.current += 1;
-          setMemberships((prev) => [apiMembershipToItem(response.data, accountGymOptions), ...prev]);
+          hasLoadedMembershipsRef.current = true;
+          setHasLoadedMemberships(true);
+          setMemberships((prev) => {
+            const next = [apiMembershipToItem(response.data, accountGymOptions), ...prev];
+            membershipsRef.current = next;
+            return next;
+          });
         } catch (requestError) {
           if (account !== accountGeneration.current) throw requestError;
           const message = messageForError(requestError);
@@ -261,7 +286,13 @@ export function MembershipProvider({ children }: PropsWithChildren) {
           if (account !== accountGeneration.current) return;
           refreshVersion.current += 1;
           const nextMembership = apiMembershipToItem(response.data, accountGymOptions);
-          setMemberships((prev) => prev.map((item) => (item.id === membership.id ? nextMembership : item)));
+          hasLoadedMembershipsRef.current = true;
+          setHasLoadedMemberships(true);
+          setMemberships((prev) => {
+            const next = prev.map((item) => (item.id === membership.id ? nextMembership : item));
+            membershipsRef.current = next;
+            return next;
+          });
         } catch (requestError) {
           if (account !== accountGeneration.current) throw requestError;
           if (requestError instanceof ApiClientError && requestError.code === 'MEMBERSHIP_CHANGED') {
@@ -282,7 +313,13 @@ export function MembershipProvider({ children }: PropsWithChildren) {
           await archiveMembership(membershipId);
           if (account !== accountGeneration.current) return;
           refreshVersion.current += 1;
-          setMemberships((prev) => prev.filter((item) => item.id !== membershipId));
+          hasLoadedMembershipsRef.current = true;
+          setHasLoadedMemberships(true);
+          setMemberships((prev) => {
+            const next = prev.filter((item) => item.id !== membershipId);
+            membershipsRef.current = next;
+            return next;
+          });
         } catch (requestError) {
           if (account !== accountGeneration.current) throw requestError;
           const message = messageForError(requestError);
@@ -293,7 +330,7 @@ export function MembershipProvider({ children }: PropsWithChildren) {
       countPasses,
       periodPasses,
     };
-  }, [actionError, authAccountId, error, gymOptions, gymOptionsError, isGymOptionsLoading, isLoading, memberships, presentationNow, refreshGymOptions, refreshMembershipPresentation, refreshMemberships, stateAccountId]);
+  }, [actionError, authAccountId, error, gymOptions, gymOptionsError, hasLoadedMemberships, isGymOptionsLoading, isLoading, memberships, presentationNow, refreshGymOptions, refreshMembershipPresentation, refreshMemberships, stateAccountId]);
 
   return <MembershipContext.Provider value={value}>{children}</MembershipContext.Provider>;
 }
