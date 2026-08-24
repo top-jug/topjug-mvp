@@ -130,3 +130,10 @@ test('home data state distinguishes loading, error, empty, and ready UI', () => 
   assert.equal(getHomeDataState(false, null, 0), 'empty');
   assert.equal(getHomeDataState(false, null, 1), 'ready');
 });
+
+test('home card state does not mistake failed or in-flight empty data for a legitimate empty result', () => {
+  assert.equal(getHomeDataState(true, 'previous failure', 0), 'loading');
+  assert.equal(getHomeDataState(false, 'membership request failed', 2), 'error');
+  assert.equal(getHomeDataState(false, null, 0), 'empty');
+  assert.equal(getHomeDataState(false, null, 3), 'ready');
+});

@@ -3,6 +3,7 @@ import { ApiClientError } from '../../lib/api/error';
 import { apiClient } from '../../lib/api/client';
 import { getCurrentUser, hasPendingLogout, LOGOUT_PENDING_KEY, login as loginRequest, logout as logoutRequest, register as registerRequest, restoreSession } from './api';
 import { canUseSessionStorage, createSessionReconciler, isSessionStateEvent, publishAuthenticatedSession, publishLoggedOutSession, readSessionStateEvent, shouldForceActivationReconciliation } from './session-events';
+import { profileRefreshFailure } from './profile-refresh';
 import type { AuthStatus, AuthUser, LoginInput, RegisterInput } from './types';
 
 export type AuthContextValue = {
@@ -10,6 +11,8 @@ export type AuthContextValue = {
   user: AuthUser | null;
   error: ApiClientError | null;
   isRestoringSession: boolean;
+  isRefreshingUser: boolean;
+  refreshUserError: ApiClientError | null;
   login: (input: LoginInput) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
@@ -29,16 +32,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [error, setError] = useState<ApiClientError | null>(null);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
+  const [isRefreshingUser, setIsRefreshingUser] = useState(false);
+  const [refreshUserError, setRefreshUserError] = useState<ApiClientError | null>(null);
+  const userRef = useRef<AuthUser | null>(null);
   const operation = useRef(0);
   const localSessionOperation = useRef(false);
   const sessionReconciler = useRef<ReturnType<typeof createSessionReconciler> | null>(null);
   const sessionEventSnapshot = useRef<string | null>(null);
+  userRef.current = user;
 
   async function initialize() {
     const currentOperation = ++operation.current;
     setIsRestoringSession(true);
     setStatus('loading');
     setError(null);
+    setIsRefreshingUser(false);
+    setRefreshUserError(null);
     try {
       const currentUser = await restoreSession();
       if (currentOperation !== operation.current) return;
@@ -68,6 +77,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setUser(null);
       setError(null);
       setStatus('unauthenticated');
+      setIsRefreshingUser(false);
+      setRefreshUserError(null);
     });
     const handleStorage = (event: StorageEvent) => {
       if (event.key === LOGOUT_PENDING_KEY && event.newValue === 'true') {
@@ -123,6 +134,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setStatus('loading');
     setIsRestoringSession(false);
     setError(null);
+    setIsRefreshingUser(false);
+    setRefreshUserError(null);
     try {
       const currentUser = await loginRequest(input);
       if (currentOperation !== operation.current) {
@@ -149,6 +162,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setStatus('loading');
     setIsRestoringSession(false);
     setError(null);
+    setIsRefreshingUser(false);
+    setRefreshUserError(null);
     try {
       const currentUser = await registerRequest(input);
       if (currentOperation !== operation.current) {
@@ -176,6 +191,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setUser(null);
     setError(null);
     setStatus('unauthenticated');
+    setIsRefreshingUser(false);
+    setRefreshUserError(null);
     try {
       await logoutRequest();
       sessionReconciler.current?.markClean();
@@ -189,12 +206,26 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }
 
   const refreshUser = useCallback(async () => {
-    const currentOperation = operation.current;
-    const currentUser = await getCurrentUser();
-    if (currentOperation !== operation.current) return;
-    setUser(currentUser);
-    setError(null);
-    setStatus('authenticated');
+    const currentOperation = ++operation.current;
+    setIsRefreshingUser(true);
+    setRefreshUserError(null);
+    try {
+      const currentUser = await getCurrentUser();
+      if (currentOperation !== operation.current) return;
+      setUser(currentUser);
+      setError(null);
+      setStatus('authenticated');
+    } catch (nextError) {
+      if (currentOperation !== operation.current) throw nextError;
+      const apiError = asApiError(nextError);
+      const failure = profileRefreshFailure(userRef.current, apiError);
+      setUser(failure.user);
+      setStatus(failure.status);
+      setRefreshUserError(failure.error);
+      throw nextError;
+    } finally {
+      if (currentOperation === operation.current) setIsRefreshingUser(false);
+    }
   }, []);
 
   async function retry() {
@@ -203,7 +234,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }
 
   return (
-    <AuthContext.Provider value={{ status, user, error, isRestoringSession, login, register, logout, refreshUser, retry }}>
+    <AuthContext.Provider value={{ status, user, error, isRestoringSession, isRefreshingUser, refreshUserError, login, register, logout, refreshUser, retry }}>
       {children}
     </AuthContext.Provider>
   );
