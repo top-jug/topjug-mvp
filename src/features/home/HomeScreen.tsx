@@ -13,7 +13,7 @@ export default function HomeScreen() {
     <>
       <HomeTopBar onProfileClick={() => navigateToScreen('profile')} />
 
-      <div className="px-5 overflow-y-auto hide-scrollbar pb-24 min-h-screen">
+      <main className="px-5 overflow-y-auto hide-scrollbar pb-24 min-h-screen">
         <div className="mb-7">
           <HomeCalendarGrid onOpen={() => navigateToScreen('calendar')} />
         </div>
@@ -26,7 +26,7 @@ export default function HomeScreen() {
         <HomeNearbyGyms onGymClick={(gymId) => navigateToScreen('detail', { gymId })} onOpen={() => navigateToScreen('gymSearch')} />
 
         <div className="h-2"></div>
-      </div>
+      </main>
 
       <BottomTabBar activeTab="home" onNavigate={navigateToScreen} />
     </>

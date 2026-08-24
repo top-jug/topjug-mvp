@@ -285,6 +285,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
         onToggleStatus={viewMode === 'setting' ? toggleStatus : undefined}
       />
 
+      <main>
       {calendarState !== 'ready' && (
         <div className={`mx-5 mt-3 rounded-xl px-4 py-3 text-center text-[13px] ${calendarState === 'error' ? 'bg-red-50 text-red-600' : 'bg-neutral-50 text-neutral-500'}`}>
           {calendarState === 'loading' && (viewMode === 'record' ? '기록을 불러오는 중입니다.' : '세팅 일정을 불러오는 중입니다.')}
@@ -386,6 +387,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
           }}
         />
       )}
+      </main>
 
       <BottomTabBar activeTab="calendar" onNavigate={onNavigate} />
     </>

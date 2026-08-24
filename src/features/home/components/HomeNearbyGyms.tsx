@@ -90,7 +90,7 @@ export function HomeNearbyGyms({ onGymClick, onOpen }: HomeNearbyGymsProps) {
                     {gym.cover?.url ? <ImageWithFallback src={gym.cover.url} alt={`${displayGymName(gym)} 대표 이미지`} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center bg-blue-50 text-[36px] font-black text-blue-200">{displayGymName(gym).slice(0, 1)}</div>}
                   </div>
                   <div className="p-3 bg-white">
-                    <h4 className="font-semibold text-[14px] mb-0.5">{displayGymName(gym)}</h4>
+                    <h3 className="font-semibold text-[14px] mb-0.5">{displayGymName(gym)}</h3>
                     <div className="flex items-center gap-1 text-[13px] text-neutral-500">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />

@@ -23,15 +23,17 @@ export default function TopTabHeader<T extends string>({
   return (
     <div className={containerClassName}>
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-6" role="group" aria-label="화면 보기">
           {tabs.map((tab) => {
             const isActive = tab.value === activeTab;
             return (
               <button
                 key={tab.value}
+                type="button"
+                aria-pressed={isActive}
                 onClick={() => onChangeTab(tab.value)}
                 className={`text-[28px] tracking-[-0.03em] transition-colors ${
-                  isActive ? 'font-bold text-neutral-950' : 'font-semibold text-neutral-400'
+                  isActive ? 'font-bold text-neutral-950' : 'font-semibold text-neutral-500'
                 }`}
               >
                 {tab.label}

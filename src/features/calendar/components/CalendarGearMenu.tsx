@@ -13,10 +13,11 @@ export default function CalendarGearMenu({ gyms, activeGyms, onSelectAll, onTogg
   const allSelected = gyms.length > 0 && gyms.every((gym) => activeGyms[gym.id]);
 
   return (
-    <BottomSheet onClose={onClose} title="암장 필터" maxHeightClassName="max-h-[70vh]">
+    <BottomSheet onClose={onClose} title="암장 필터" description="캘린더에 표시할 암장을 선택합니다." maxHeightClassName="max-h-[70vh]">
           <button
             onClick={onSelectAll}
-            className={`w-full py-4 rounded-full text-[17px] font-semibold transition-colors mb-5 ${allSelected ? 'bg-blue-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}
+            aria-pressed={allSelected}
+            className={`w-full py-4 rounded-full text-[17px] font-semibold transition-colors mb-5 ${allSelected ? 'bg-blue-700 text-white' : 'bg-neutral-100 text-neutral-700'}`}
           >
             전체 선택
           </button>
@@ -25,8 +26,9 @@ export default function CalendarGearMenu({ gyms, activeGyms, onSelectAll, onTogg
               <button
                 key={gym.id}
                 onClick={() => onToggleGym(gym.id)}
+                aria-pressed={Boolean(activeGyms[gym.id])}
                 className={`py-3 rounded-full text-[15px] font-medium transition-colors flex items-center gap-2 ${
-                  activeGyms[gym.id] ? 'bg-blue-500 text-white' : 'bg-neutral-100 text-neutral-700'
+                  activeGyms[gym.id] ? 'bg-blue-700 text-white' : 'bg-neutral-100 text-neutral-700'
                 }`}
               >
                 <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ backgroundColor: activeGyms[gym.id] ? 'rgba(255,255,255,0.3)' : gym.lightBg, color: activeGyms[gym.id] ? 'white' : gym.darkText }}>
