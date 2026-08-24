@@ -3,7 +3,7 @@ import 'server-only';
 import { GetParametersCommand, SSMClient } from '@aws-sdk/client-ssm';
 
 const PARAMETER_ENV_MAP = {
-  'database-url': 'DATABASE_URL',
+  'runtime-database-url': 'DATABASE_URL',
   'jwt-access-secret': 'JWT_ACCESS_SECRET',
   'jwt-refresh-secret': 'JWT_REFRESH_SECRET',
   'auth-rate-limit-pepper': 'AUTH_RATE_LIMIT_PEPPER',
