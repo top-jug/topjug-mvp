@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { MembershipItem } from '../../src/mocks/memberships';
-import { emptyMembershipAccountState, loadMembershipResource, membershipStateForAccount } from '../../src/features/membership/membership-loading';
+import { ApiClientError } from '../../src/lib/api/error';
+import { emptyMembershipAccountState, loadMembershipResource, membershipDataAfterFailure, membershipStateForAccount } from '../../src/features/membership/membership-loading';
 import {
   ACTIVATION_REFRESH_COALESCE_MS,
   countExpiringSoon,
@@ -142,6 +143,7 @@ test('account reset clears memberships and scoped errors before new account reso
     memberships: ['old-membership'],
     gymOptions: ['old-gym'],
     isLoading: false,
+    hasLoadedMemberships: true,
     error: 'old membership error',
     isGymOptionsLoading: false,
     gymOptionsError: 'old gym error',
@@ -153,10 +155,25 @@ test('account reset clears memberships and scoped errors before new account reso
     memberships: [],
     gymOptions: [],
     isLoading: true,
+    hasLoadedMemberships: false,
     error: null,
     isGymOptionsLoading: true,
     gymOptionsError: null,
     actionError: null,
   });
   assert.deepEqual(emptyMembershipAccountState(null, false).memberships, []);
+});
+
+test('same-account transient membership failures retain resolved data for stale rendering', () => {
+  const memberships = ['membership-1'];
+  const transient = membershipDataAfterFailure(memberships, true, new ApiClientError('unavailable', 503, 'UNAVAILABLE'));
+  assert.deepEqual(transient, { memberships, hasLoadedMemberships: true });
+  assert.equal(transient.memberships, memberships);
+});
+
+test('membership 401 failures clear resolved data instead of exposing it as stale', () => {
+  assert.deepEqual(
+    membershipDataAfterFailure(['membership-1'], true, new ApiClientError('login required', 401, 'AUTH_REQUIRED')),
+    { memberships: [], hasLoadedMemberships: false },
+  );
 });

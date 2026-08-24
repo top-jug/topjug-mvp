@@ -2,12 +2,14 @@ import { useEffect } from 'react';
 import { useAppScreenNavigate, useNavigateBack } from '../navigation';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../features/auth/AuthProvider';
+import { getProfileRefreshState } from '../../features/auth/profile-refresh';
 
 export default function ProfilePage() {
   const navigateToScreen = useAppScreenNavigate();
   const navigateBack = useNavigateBack('/');
   const navigate = useNavigate();
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout, refreshUser, isRefreshingUser, refreshUserError } = useAuth();
+  const refreshState = getProfileRefreshState(isRefreshingUser, refreshUserError, Boolean(user));
 
   useEffect(() => {
     void refreshUser().catch(() => undefined);
@@ -36,6 +38,19 @@ export default function ProfilePage() {
           </button>
           <h1 className="text-[20px] font-bold tracking-[-0.03em] text-neutral-950">프로필</h1>
         </div>
+
+        {refreshState === 'loading' && (
+          <div className="rounded-2xl bg-blue-50 px-4 py-3 text-[13px] font-medium text-blue-700" role="status" aria-busy="true">
+            최신 프로필 정보를 확인하고 있어요.
+          </div>
+        )}
+        {refreshState === 'stale' && (
+          <div className="rounded-2xl bg-amber-50 px-4 py-3 text-[13px] text-amber-900" role="alert">
+            <div className="font-semibold">최신 정보를 불러오지 못해 이전 정보를 표시하고 있어요.</div>
+            <div className="mt-1 text-[12px] text-amber-800">{refreshUserError?.message}</div>
+            <button type="button" onClick={() => void refreshUser().catch(() => undefined)} className="mt-2 min-h-10 font-semibold underline">프로필 다시 시도</button>
+          </div>
+        )}
 
         <div className="bg-white border border-neutral-200 rounded-2xl p-5">
           <div className="flex items-center gap-4">
