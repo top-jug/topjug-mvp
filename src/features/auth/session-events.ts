@@ -32,24 +32,29 @@ export function isAuthenticatedSessionEvent(event: SessionEvent) {
   }
 }
 
-export function createSessionEventSynchronizer(synchronize: () => Promise<void>) {
-  let active = false;
-  let queued = false;
+export function createSessionReconciler(reconcile: () => Promise<void>, canReconcile: () => boolean = () => true) {
+  let dirty = false;
+  let active: Promise<void> | null = null;
 
-  const run = () => {
-    if (active) {
-      queued = true;
-      return;
-    }
-    active = true;
-    void synchronize().finally(() => {
-      active = false;
-      if (queued) {
-        queued = false;
-        run();
-      }
-    });
+  return {
+    markDirty() {
+      dirty = true;
+    },
+    markClean() {
+      dirty = false;
+    },
+    isDirty() {
+      return dirty;
+    },
+    reconcileOnActivation() {
+      if (active || !canReconcile()) return active ?? Promise.resolve();
+      dirty = false;
+      active = Promise.resolve()
+        .then(reconcile)
+        .finally(() => {
+          active = null;
+        });
+      return active;
+    },
   };
-
-  return run;
 }

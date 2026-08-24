@@ -1,6 +1,7 @@
 import { apiClient, apiRequest } from '../../lib/api/client';
 import { ApiClientError } from '../../lib/api/error';
 import type { ApiDataResponse } from '../../lib/api/types';
+import { runWithAuthSessionLock } from '../../lib/api/session-lock';
 import type { AuthUser, LoginInput, RegisterInput } from './types';
 
 export const LOGOUT_PENDING_KEY = 'topjug.logout-pending';
@@ -49,9 +50,13 @@ async function clearRefreshSession() {
   throw lastError;
 }
 
+function runSharedSessionTransition<T>(operation: () => Promise<T>) {
+  return runWithAuthSessionLock(() => apiClient.runSessionTransition(operation));
+}
+
 async function establishSession(path: '/auth/login' | '/auth/register', input: LoginInput | RegisterInput) {
   const authenticationGeneration = apiClient.beginAuthentication();
-  return apiClient.runSessionTransition(async () => {
+  return runSharedSessionTransition(async () => {
     let sessionGeneration: number | undefined;
     try {
       const response = await apiRequest<AuthResponse>(path, {
@@ -60,7 +65,7 @@ async function establishSession(path: '/auth/login' | '/auth/register', input: L
         body: JSON.stringify(input),
       });
       sessionGeneration = apiClient.setAccessToken(response.data.accessToken, authenticationGeneration);
-      const user = await getCurrentUser();
+      const user = await getCurrentUser(true);
       clearLogoutPending();
       return user;
     } catch (error) {
@@ -85,10 +90,12 @@ export function register(input: RegisterInput) {
 
 export async function restoreSession() {
   if (hasPendingLogout()) {
-    apiClient.clearSession();
-    await apiClient.runSessionTransition(clearRefreshSession);
-    clearLogoutPending();
-    throw new ApiClientError('로그인이 필요합니다.', 401, 'AUTH_REQUIRED');
+    return runSharedSessionTransition(async () => {
+      apiClient.clearSession();
+      await clearRefreshSession();
+      clearLogoutPending();
+      throw new ApiClientError('로그인이 필요합니다.', 401, 'AUTH_REQUIRED');
+    });
   }
   return apiClient.runSessionTransition(async () => {
     await apiClient.refreshSession();
@@ -96,15 +103,17 @@ export async function restoreSession() {
   });
 }
 
-export async function getCurrentUser() {
-  const response = await apiRequest<ApiDataResponse<AuthUser>>('/me');
+export async function getCurrentUser(useCurrentSession = false) {
+  const response = useCurrentSession
+    ? await apiClient.requestCurrentSession<ApiDataResponse<AuthUser>>('/me')
+    : await apiRequest<ApiDataResponse<AuthUser>>('/me');
   return response.data;
 }
 
 export function logout() {
   apiClient.clearSession();
-  markLogoutPending();
-  return apiClient.runSessionTransition(async () => {
+  return runSharedSessionTransition(async () => {
+    markLogoutPending();
     await clearRefreshSession();
     clearLogoutPending();
   });

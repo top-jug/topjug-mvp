@@ -59,6 +59,7 @@ export function AuthScreen({ mode }: Props) {
   }
 
   const isLogin = mode === 'login';
+  const confirmationError = !isLogin && message === '비밀번호가 일치하지 않습니다.';
 
   return (
     <main className="min-h-screen bg-[#f4f7fb] px-5 py-10 flex items-center justify-center">
@@ -143,13 +144,15 @@ export function AuthScreen({ mode }: Props) {
                   autoComplete="new-password"
                   value={passwordConfirmation}
                   onChange={(event) => setPasswordConfirmation(event.target.value)}
+                  aria-invalid={confirmationError}
+                  aria-describedby={confirmationError ? 'password-confirmation-error' : undefined}
                   className="h-13 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 text-base text-neutral-950 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                   placeholder="비밀번호를 다시 입력"
                 />
               </label>
             )}
 
-            {message && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{message}</div>}
+            {message && <div id={confirmationError ? 'password-confirmation-error' : undefined} role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{message}</div>}
 
             <button disabled={submitting} className="h-13 w-full rounded-2xl bg-blue-600 text-base font-bold text-white transition hover:bg-blue-700 disabled:cursor-wait disabled:bg-blue-300">
               {submitting ? '확인 중...' : isLogin ? '로그인' : '계정 만들기'}

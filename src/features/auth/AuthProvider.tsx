@@ -2,7 +2,7 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 import { ApiClientError } from '../../lib/api/error';
 import { apiClient } from '../../lib/api/client';
 import { getCurrentUser, LOGOUT_PENDING_KEY, login as loginRequest, logout as logoutRequest, register as registerRequest, restoreSession } from './api';
-import { createSessionEventSynchronizer, isAuthenticatedSessionEvent, publishAuthenticatedSession } from './session-events';
+import { createSessionReconciler, isAuthenticatedSessionEvent, publishAuthenticatedSession } from './session-events';
 import type { AuthStatus, AuthUser, LoginInput, RegisterInput } from './types';
 
 export type AuthContextValue = {
@@ -30,6 +30,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [error, setError] = useState<ApiClientError | null>(null);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
   const operation = useRef(0);
+  const localSessionOperation = useRef(false);
+  const sessionReconciler = useRef<ReturnType<typeof createSessionReconciler> | null>(null);
 
   async function initialize() {
     const currentOperation = ++operation.current;
@@ -68,34 +70,41 @@ export function AuthProvider({ children }: PropsWithChildren) {
     });
     const handleStorage = (event: StorageEvent) => {
       if (event.key === LOGOUT_PENDING_KEY && event.newValue === 'true') {
-        operation.current += 1;
-        apiClient.clearSession();
-        setIsRestoringSession(false);
-        setUser(null);
-        setError(null);
-        setStatus('unauthenticated');
+        sessionReconciler.current?.markDirty();
       } else if (isAuthenticatedSessionEvent(event)) {
-        operation.current += 1;
-        apiClient.beginSessionRestoration();
-        synchronizeSession();
+        sessionReconciler.current?.markDirty();
       }
     };
-    const synchronizeSession = createSessionEventSynchronizer(async () => {
-      if (!active) return;
+    const reconciler = createSessionReconciler(async () => {
+      if (!active || localSessionOperation.current) return;
+      apiClient.beginSessionRestoration();
       await initialize();
-    });
+    }, () => active && !localSessionOperation.current);
+    sessionReconciler.current = reconciler;
+    const handleActivation = () => {
+      if (document.visibilityState !== 'visible') return;
+      void reconciler.reconcileOnActivation();
+    };
     window.addEventListener('storage', handleStorage);
+    window.addEventListener('focus', handleActivation);
+    window.addEventListener('pageshow', handleActivation);
+    document.addEventListener('visibilitychange', handleActivation);
 
-    void initialize();
+    void reconciler.reconcileOnActivation();
     return () => {
       active = false;
+      sessionReconciler.current = null;
       unsubscribe();
       window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', handleActivation);
+      window.removeEventListener('pageshow', handleActivation);
+      document.removeEventListener('visibilitychange', handleActivation);
     };
   }, []);
 
   async function login(input: LoginInput) {
     const currentOperation = ++operation.current;
+    localSessionOperation.current = true;
     setStatus('loading');
     setIsRestoringSession(false);
     setError(null);
@@ -106,6 +115,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
       setUser(currentUser);
       setStatus('authenticated');
+      sessionReconciler.current?.markClean();
       publishAuthenticatedSession();
     } catch (nextError) {
       if (currentOperation === operation.current) {
@@ -113,11 +123,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setStatus('unauthenticated');
       }
       throw nextError;
+    } finally {
+      localSessionOperation.current = false;
     }
   }
 
   async function register(input: RegisterInput) {
     const currentOperation = ++operation.current;
+    localSessionOperation.current = true;
     setStatus('loading');
     setIsRestoringSession(false);
     setError(null);
@@ -128,6 +141,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
       setUser(currentUser);
       setStatus('authenticated');
+      sessionReconciler.current?.markClean();
       publishAuthenticatedSession();
     } catch (nextError) {
       if (currentOperation === operation.current) {
@@ -135,20 +149,26 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setStatus('unauthenticated');
       }
       throw nextError;
+    } finally {
+      localSessionOperation.current = false;
     }
   }
 
   async function logout() {
     operation.current += 1;
+    localSessionOperation.current = true;
     setIsRestoringSession(false);
     setUser(null);
     setError(null);
     setStatus('unauthenticated');
     try {
       await logoutRequest();
+      sessionReconciler.current?.markClean();
     } catch (nextError) {
       setError(asApiError(nextError));
       throw nextError;
+    } finally {
+      localSessionOperation.current = false;
     }
   }
 
@@ -161,8 +181,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setStatus('authenticated');
   }, []);
 
+  async function retry() {
+    if (sessionReconciler.current) await sessionReconciler.current.reconcileOnActivation();
+    else await initialize();
+  }
+
   return (
-    <AuthContext.Provider value={{ status, user, error, isRestoringSession, login, register, logout, refreshUser, retry: initialize }}>
+    <AuthContext.Provider value={{ status, user, error, isRestoringSession, login, register, logout, refreshUser, retry }}>
       {children}
     </AuthContext.Provider>
   );

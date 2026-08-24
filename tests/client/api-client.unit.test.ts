@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiClient } from '../../src/lib/api/client';
 import { ApiClientError } from '../../src/lib/api/error';
+import type { SessionLockManager } from '../../src/lib/api/session-lock';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -56,6 +57,41 @@ test('protected concurrent requests share one rotating refresh request', async (
   assert.deepEqual(authorizations, ['Bearer shared-token', 'Bearer shared-token']);
 });
 
+test('separate tabs serialize rotating refresh requests through the shared lock', async () => {
+  let queue = Promise.resolve();
+  const manager: SessionLockManager = {
+    request: (_name, callback) => {
+      const result = queue.then(callback);
+      queue = result.then(() => undefined, () => undefined);
+      return result;
+    },
+  };
+  let refreshRequests = 0;
+  let releaseFirst: (() => void) | undefined;
+  const firstRefreshReady = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+  const fetchImplementation = async (input: string | URL | Request) => {
+    if (String(input).endsWith('/auth/refresh')) {
+      refreshRequests += 1;
+      if (refreshRequests === 1) await firstRefreshReady;
+      return jsonResponse({ data: { accessToken: `token-${refreshRequests}`, accessTokenExpiresIn: 900 } });
+    }
+    return jsonResponse({ data: 'ok' });
+  };
+  const firstTab = new ApiClient(fetchImplementation as typeof fetch, () => 'first-request', manager);
+  const secondTab = new ApiClient(fetchImplementation as typeof fetch, () => 'second-request', manager);
+
+  const first = firstTab.refreshSession();
+  const second = secondTab.refreshSession();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(refreshRequests, 1);
+
+  releaseFirst?.();
+  await Promise.all([first, second]);
+  assert.equal(refreshRequests, 2);
+});
+
 test('a protected 401 refreshes and retries the original request once', async () => {
   const calls: string[] = [];
   const fetchImplementation = async (input: string | URL | Request, init?: RequestInit) => {
@@ -81,6 +117,19 @@ test('a protected 401 refreshes and retries the original request once', async ()
     '/api/v1/auth/refresh:none',
     '/api/v1/protected:Bearer new-token',
   ]);
+});
+
+test('a current-session request fails without a nested refresh attempt', async () => {
+  const calls: string[] = [];
+  const fetchImplementation = async (input: string | URL | Request) => {
+    calls.push(String(input));
+    return jsonResponse({ error: { code: 'INVALID_ACCESS_TOKEN', message: 'invalid' } }, { status: 401 });
+  };
+  const client = new ApiClient(fetchImplementation as typeof fetch);
+  client.setAccessToken('new-login-token');
+
+  await assert.rejects(client.requestCurrentSession('/me'), { code: 'INVALID_ACCESS_TOKEN' });
+  assert.deepEqual(calls, ['/api/v1/me']);
 });
 
 test('structured API errors retain status, code, request ID, and retry timing', async () => {
