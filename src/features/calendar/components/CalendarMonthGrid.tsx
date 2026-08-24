@@ -17,6 +17,7 @@ interface CalendarMonthGridProps {
   selectedDate: number | null;
   selectedMonth: number;
   selectedYear: number;
+  isDateInteractionEnabled?: boolean;
   onSelectDate: (year: number, month: number, date: number) => void;
   onOpenDateMenu: (year: number, month: number, date: number) => void;
   onShiftPeriod: (direction: -1 | 1) => void;
@@ -41,6 +42,7 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
     selectedDate,
     selectedMonth,
     selectedYear,
+    isDateInteractionEnabled = true,
     onSelectDate,
     onOpenDateMenu,
     onShiftPeriod,
@@ -111,7 +113,7 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
                           if (typeof date.day === 'number') onOpenDateMenu(date.year, date.month, date.day);
                         }}
                         className={`min-h-[48px] rounded-md p-1 flex flex-col justify-between transition-colors ${isSelected ? 'bg-[#E6F1FB]' : 'hover:bg-white'}`}
-                        disabled={typeof date.day !== 'number'}
+                        disabled={typeof date.day !== 'number' || !isDateInteractionEnabled}
                       >
                         {typeof date.day === 'number' && (
                           <div className="flex flex-col items-center gap-0.5">

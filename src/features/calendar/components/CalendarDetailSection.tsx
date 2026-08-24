@@ -1,7 +1,7 @@
-import { UIEvent, useRef } from 'react';
+import { UIEvent, useLayoutEffect, useRef } from 'react';
 import { ImageWithFallback } from '../../../app/components/figma/ImageWithFallback';
 import { CalendarData, CalendarGym } from '../../../entities/calendar/types';
-import sectorMap from '../../../imports/image-4.png';
+import { getCalendarSlideStateKey, reconcileCalendarSlide } from '../calendar-state';
 
 interface CalendarDetailSectionProps {
   mode: 'record' | 'setting';
@@ -16,12 +16,39 @@ interface CalendarDetailSectionProps {
   onSelectSlide: (index: number) => void;
 }
 
-export default function CalendarDetailSection({ mode, selectedDate, activeSlide, gyms, calendarData, onOpenGym, onOpenRecord, onSelectSlide }: CalendarDetailSectionProps) {
+export default function CalendarDetailSection({ mode, year, month, selectedDate, activeSlide, gyms, calendarData, onOpenGym, onOpenRecord, onSelectSlide }: CalendarDetailSectionProps) {
   const carouselRef = useRef<HTMLDivElement>(null);
+  const previousSlideStateKeyRef = useRef<{ context: string; entries: string } | null>(null);
+  const expectedSlideRef = useRef(activeSlide);
   const entries = selectedDate ? calendarData[selectedDate] : undefined;
   const visibleEntries = entries ?? [];
+  const slideStateKey = getCalendarSlideStateKey({
+    mode,
+    year,
+    month,
+    selectedDate,
+    entryKeys: visibleEntries.map((entry, index) => (
+      entry.settingEventId ?? entry.recordId ?? `${entry.gymId ?? entry.gym}:${entry.startsAt ?? index}:${entry.wall}`
+    )),
+  });
   const emptyLabel = mode === 'record' ? '이 날짜에 등록된 기록이 없습니다.' : '이 날짜에 등록된 세팅 정보가 없습니다.';
   const sessionLabels = { free: '자유 세션', training: '집중 훈련', project: '프로젝트' } as const;
+
+  useLayoutEffect(() => {
+    const previousKey = previousSlideStateKeyRef.current;
+    const shouldReset = previousKey?.context !== slideStateKey.context;
+    const entriesChanged = previousKey?.entries !== slideStateKey.entries;
+    const nextSlide = reconcileCalendarSlide(activeSlide, visibleEntries.length, shouldReset);
+    previousSlideStateKeyRef.current = slideStateKey;
+    expectedSlideRef.current = nextSlide;
+
+    const container = carouselRef.current;
+    const slide = container?.children[nextSlide] as HTMLElement | undefined;
+    if (container && (shouldReset || entriesChanged || nextSlide !== activeSlide)) {
+      container.scrollLeft = slide?.offsetLeft ?? 0;
+    }
+    if (nextSlide !== activeSlide) onSelectSlide(nextSlide);
+  }, [activeSlide, onSelectSlide, slideStateKey.context, slideStateKey.entries, visibleEntries.length]);
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const container = event.currentTarget;
@@ -34,14 +61,16 @@ export default function CalendarDetailSection({ mode, selectedDate, activeSlide,
       { index: 0, distance: Number.POSITIVE_INFINITY },
     ).index;
 
-    if (nextIndex !== activeSlide) {
+    if (nextIndex !== expectedSlideRef.current) {
+      expectedSlideRef.current = nextIndex;
       onSelectSlide(nextIndex);
     }
   };
 
   const handleSelectSlide = (index: number) => {
+    expectedSlideRef.current = index;
     const slide = carouselRef.current?.children[index] as HTMLElement | undefined;
-    slide?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    if (carouselRef.current) carouselRef.current.scrollLeft = slide?.offsetLeft ?? 0;
     onSelectSlide(index);
   };
 
@@ -55,7 +84,7 @@ export default function CalendarDetailSection({ mode, selectedDate, activeSlide,
               if (!gymInfo) return null;
 
               return (
-                <div key={entry.recordId ?? `${entry.gym}-${idx}`} className="w-full flex-shrink-0 snap-center">
+                <div key={entry.settingEventId ?? entry.recordId ?? `${entry.gym}-${idx}`} className="w-full flex-shrink-0 snap-center">
                   {mode === 'setting' ? (
                     <button
                       type="button"
@@ -63,24 +92,25 @@ export default function CalendarDetailSection({ mode, selectedDate, activeSlide,
                       className="w-full border border-neutral-200 rounded-xl p-3 text-left cursor-pointer hover:border-neutral-300 transition-colors"
                     >
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center text-[24px] font-bold" style={{ backgroundColor: gymInfo.lightBg, color: gymInfo.darkText }}>
-                          {entry.gym.slice(0, 1)}
-                        </div>
+                        {entry.logoUrl ? (
+                          <ImageWithFallback src={entry.logoUrl} alt={`${entry.gym} 로고`} className="w-12 h-12 flex-shrink-0 rounded-xl border border-neutral-200 bg-neutral-50 object-contain" />
+                        ) : (
+                          <div className="w-12 h-12 flex-shrink-0 rounded-xl flex items-center justify-center text-[24px] font-bold" style={{ backgroundColor: gymInfo.lightBg, color: gymInfo.darkText }}>
+                            {entry.gym.slice(0, 1)}
+                          </div>
+                        )}
                         <div className="flex min-w-0 flex-1 items-center gap-2">
                           <div className="truncate text-[16px] font-semibold text-neutral-900">{entry.gym}</div>
                           <div className="flex-shrink-0 text-[15px] font-medium text-neutral-600">{entry.wall}</div>
                         </div>
                       </div>
-                      <div className="h-32 bg-neutral-800 rounded-lg mb-2 overflow-hidden">
-                        <ImageWithFallback src={sectorMap.src} alt="Sector Map" className="w-full h-full object-contain" />
-                      </div>
-                      <div className="flex items-center gap-1 text-[13px] text-neutral-500">
+                      {entry.address && <div className="flex items-center gap-1 text-[13px] text-neutral-500">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                           <circle cx="12" cy="10" r="3" />
                         </svg>
-                        <span>서울특별시 강남구</span>
-                      </div>
+                        <span>{entry.address}</span>
+                      </div>}
                     </button>
                   ) : (
                     <button

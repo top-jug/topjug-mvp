@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import BottomTabBar from '../../app/components/layout/BottomTabBar';
 import { useAuth } from '../auth/AuthProvider';
 import { ActiveGyms, CalendarData, CalendarGym } from '../../entities/calendar/types';
-import { CALENDAR_GYMS, CALENDAR_WEEKDAYS } from '../../mocks/calendar';
+import { CALENDAR_WEEKDAYS } from '../../mocks/calendar';
 import CalendarDetailSection from './components/CalendarDetailSection';
 import CalendarFilterBar from './components/CalendarFilterBar';
 import CalendarMonthGrid, { CalendarGridCell } from './components/CalendarMonthGrid';
@@ -17,7 +17,21 @@ import {
   getLocalCalendarDate,
   shiftCalendarMonth,
 } from './calendar-month';
-import { loadRecordCalendarMonth, type RecordCalendarSnapshot, resolveRecordCalendarSnapshot } from './record-calendar';
+import { loadRecordCalendarMonth, type RecordCalendarSnapshot } from './record-calendar';
+import {
+  ALL_CALENDAR_STATUSES,
+  filterCalendarData,
+  getCalendarGyms,
+  reconcileActiveGyms,
+  type ActiveStatuses,
+  type CalendarStatus,
+} from './calendar-filters';
+import {
+  CalendarRequestGate,
+  getCalendarViewState,
+  resolveCalendarSnapshot,
+  type CalendarSnapshot,
+} from './calendar-state';
 
 interface CalendarScreenProps {
   viewMode: CalendarViewMode;
@@ -31,26 +45,6 @@ type CalendarViewMode = 'record' | 'setting';
 
 interface SettingEventResponse {
   data: SettingEvent[];
-}
-
-function getModeGyms(calendarData: CalendarData): CalendarGym[] {
-  const apiGyms = new Map<string, CalendarGym>();
-
-  Object.values(calendarData).flat().forEach((entry) => {
-    if (!entry.gymId || apiGyms.has(entry.gymId)) return;
-    apiGyms.set(entry.gymId, {
-      id: entry.gymId,
-      name: entry.gym,
-      color: entry.color ?? '#185FA5',
-      lightBg: entry.lightBg ?? '#E6F1FB',
-      darkText: entry.darkText ?? '#0C447C',
-    });
-  });
-
-  if (apiGyms.size > 0) return [...apiGyms.values()];
-
-  const gymNames = new Set(Object.values(calendarData).flat().map((entry) => entry.gym));
-  return CALENDAR_GYMS.filter((gym) => gymNames.has(gym.name));
 }
 
 function createActiveGyms(gyms: CalendarGym[]): ActiveGyms {
@@ -75,35 +69,41 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
   const [showDayPopup, setShowDayPopup] = useState(false);
   const [popupDate, setPopupDate] = useState<number | null>(null);
   const [activeSlide, setActiveSlide] = useState(0);
-  const [filterGyms, setFilterGyms] = useState<CalendarGym[]>([]);
-  const [activeGyms, setActiveGyms] = useState<ActiveGyms>({});
-  const [settingCalendarData, setSettingCalendarData] = useState<CalendarData>({});
-  const [isSettingLoading, setIsSettingLoading] = useState(false);
-  const [settingError, setSettingError] = useState<string | null>(null);
+  const [filterGymsByMode, setFilterGymsByMode] = useState<Record<CalendarViewMode, CalendarGym[]>>({ record: [], setting: [] });
+  const [gymSelectionPreferences, setGymSelectionPreferences] = useState<ActiveGyms>({});
+  const [activeStatuses, setActiveStatuses] = useState<ActiveStatuses>({ ...ALL_CALENDAR_STATUSES });
+  const [settingSnapshot, setSettingSnapshot] = useState<CalendarSnapshot | null>(null);
   const [settingRequestKey, setSettingRequestKey] = useState(0);
   const [recordSnapshot, setRecordSnapshot] = useState<RecordCalendarSnapshot | null>(null);
   const [recordRequestKey, setRecordRequestKey] = useState(0);
+  const settingRequestGate = useRef(new CalendarRequestGate());
+  const recordRequestGate = useRef(new CalendarRequestGate());
 
-  const recordView = resolveRecordCalendarSnapshot(recordSnapshot, currentMonth.year, currentMonth.month);
-  const currentCalendarData = viewMode === 'record' ? recordView.data : settingCalendarData;
-
-  useEffect(() => {
-    const nextGyms = getModeGyms(currentCalendarData);
-    setFilterGyms(nextGyms);
-    setActiveGyms(createActiveGyms(nextGyms));
-    setActiveSlide(0);
-  }, [currentCalendarData, viewMode]);
+  const recordSource = resolveCalendarSnapshot(recordSnapshot, currentMonth.year, currentMonth.month);
+  const settingSource = resolveCalendarSnapshot(settingSnapshot, currentMonth.year, currentMonth.month);
+  const currentSource = viewMode === 'record' ? recordSource : settingSource;
+  const filterGyms = filterGymsByMode[viewMode];
+  const activeGyms = useMemo(
+    () => reconcileActiveGyms(gymSelectionPreferences, filterGyms),
+    [filterGyms, gymSelectionPreferences],
+  );
 
   useEffect(() => {
     if (viewMode !== 'setting') return;
 
     const controller = new AbortController();
+    const request = settingRequestGate.current.begin();
+    const requestedMonth = currentMonth;
     const { from, to } = getCalendarMonthRange(currentMonth.year, currentMonth.month);
     const query = new URLSearchParams({ from, to });
 
-    setIsSettingLoading(true);
-    setSettingCalendarData({});
-    setSettingError(null);
+    setSettingSnapshot((previous) => ({
+      year: requestedMonth.year,
+      month: requestedMonth.month,
+      data: previous?.year === requestedMonth.year && previous.month === requestedMonth.month ? previous.data : {},
+      error: null,
+      isLoading: true,
+    }));
 
     fetch(`/api/v1/setting-events?${query.toString()}`, { signal: controller.signal })
       .then(async (response) => {
@@ -115,69 +115,81 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
         return response.json() as Promise<SettingEventResponse>;
       })
       .then((payload) => {
-        setSettingCalendarData(buildSettingCalendarData(payload.data, currentMonth.year, currentMonth.month));
+        if (!settingRequestGate.current.isCurrent(request)) return;
+        const data = buildSettingCalendarData(payload.data, requestedMonth.year, requestedMonth.month);
+        const nextGyms = getCalendarGyms(data);
+        setSettingSnapshot({ ...requestedMonth, data, error: null, isLoading: false });
+        setFilterGymsByMode((previous) => ({ ...previous, setting: nextGyms }));
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
-        setSettingCalendarData({});
-        setSettingError(error instanceof Error ? error.message : '세팅 일정을 불러오지 못했습니다.');
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setIsSettingLoading(false);
+        if (!settingRequestGate.current.isCurrent(request)) return;
+        setSettingSnapshot((previous) => ({
+          ...requestedMonth,
+          data: previous?.year === requestedMonth.year && previous.month === requestedMonth.month ? previous.data : {},
+          error: error instanceof Error ? error.message : '세팅 일정을 불러오지 못했습니다.',
+          isLoading: false,
+        }));
       });
 
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      if (settingRequestGate.current.isCurrent(request)) settingRequestGate.current.invalidate();
+    };
   }, [currentMonth.month, currentMonth.year, settingRequestKey, viewMode]);
 
   useEffect(() => {
     if (viewMode !== 'record') return;
     if (authStatus !== 'authenticated') {
-      setRecordSnapshot({
+      setRecordSnapshot((previous) => ({
         year: currentMonth.year,
         month: currentMonth.month,
-        data: {},
+        data: previous?.year === currentMonth.year && previous.month === currentMonth.month ? previous.data : {},
         error: authStatus === 'error' ? '로그인 상태를 확인하지 못했어요.' : null,
         isLoading: authStatus === 'loading',
-      });
+      }));
       return;
     }
 
     const controller = new AbortController();
-    setRecordSnapshot({ year: currentMonth.year, month: currentMonth.month, data: {}, error: null, isLoading: true });
+    const request = recordRequestGate.current.begin();
+    const requestedMonth = currentMonth;
+    setRecordSnapshot((previous) => ({
+      ...requestedMonth,
+      data: previous?.year === requestedMonth.year && previous.month === requestedMonth.month ? previous.data : {},
+      error: null,
+      isLoading: true,
+    }));
 
     loadRecordCalendarMonth(currentMonth.year, currentMonth.month, controller.signal)
       .then((data) => {
-        setRecordSnapshot({ year: currentMonth.year, month: currentMonth.month, data, error: null, isLoading: false });
+        if (!recordRequestGate.current.isCurrent(request)) return;
+        const nextGyms = getCalendarGyms(data);
+        setRecordSnapshot({ ...requestedMonth, data, error: null, isLoading: false });
+        setFilterGymsByMode((previous) => ({ ...previous, record: nextGyms }));
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
-        setRecordSnapshot({
-          year: currentMonth.year,
-          month: currentMonth.month,
-          data: {},
+        if (!recordRequestGate.current.isCurrent(request)) return;
+        setRecordSnapshot((previous) => ({
+          ...requestedMonth,
+          data: previous?.year === requestedMonth.year && previous.month === requestedMonth.month ? previous.data : {},
           error: error instanceof Error ? error.message : '기록을 불러오지 못했어요.',
           isLoading: false,
-        });
+        }));
       });
 
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      if (recordRequestGate.current.isCurrent(request)) recordRequestGate.current.invalidate();
+    };
   }, [authStatus, currentMonth.month, currentMonth.year, recordRequestKey, user?.id, viewMode]);
 
   const filteredCalendarData = useMemo<CalendarData>(() => {
-    return Object.fromEntries(
-      Object.entries(currentCalendarData).map(([day, entries]) => [
-        Number(day),
-        entries.filter((entry) => {
-          const gymId = entry.gymId ?? filterGyms.find((gym) => gym.name === entry.gym)?.id;
-          return gymId ? activeGyms[gymId] : false;
-        }),
-      ]),
-    );
-  }, [currentCalendarData, activeGyms, filterGyms]);
-
-  const visibleCalendarData = useMemo<CalendarData>(() => {
-    return filteredCalendarData;
-  }, [filteredCalendarData]);
+    return filterCalendarData(currentSource.data, activeGyms, viewMode === 'setting' ? activeStatuses : undefined);
+  }, [activeGyms, activeStatuses, currentSource.data, viewMode]);
+  const visibleCalendarData = filteredCalendarData;
+  const calendarState = getCalendarViewState(currentSource.isLoading, currentSource.error, currentSource.data, filteredCalendarData);
 
   const periodPages = useMemo(() => {
     return [-1, 0, 1].map((delta) => {
@@ -188,41 +200,36 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
 
   const periodLabel = `${currentMonth.year}년 ${currentMonth.month}월`;
 
-  const selectedEntries = selectedDate ? visibleCalendarData[selectedDate] ?? [] : [];
-  const recordState = recordView.state;
-
-  useEffect(() => {
-    if (selectedEntries.length === 0 || activeSlide >= selectedEntries.length) {
-      setActiveSlide(0);
-    }
-  }, [activeSlide, selectedEntries.length]);
-
   const toggleGym = (gymId: string) => {
-    setActiveGyms((prev) => {
-      return { ...prev, [gymId]: !prev[gymId] };
-    });
+    setGymSelectionPreferences((previous) => ({ ...previous, [gymId]: !activeGyms[gymId] }));
   };
 
   const toggleAllGyms = () => {
-    setActiveGyms((prev) => {
-      const allSelected = filterGyms.length > 0 && filterGyms.every((gym) => prev[gym.id]);
-      return allSelected ? createInactiveGyms(filterGyms) : createActiveGyms(filterGyms);
-    });
+    const allSelected = filterGyms.length > 0 && filterGyms.every((gym) => activeGyms[gym.id]);
+    setGymSelectionPreferences((previous) => ({
+      ...previous,
+      ...(allSelected ? createInactiveGyms(filterGyms) : createActiveGyms(filterGyms)),
+    }));
+  };
+
+  const toggleStatus = (status: CalendarStatus) => {
+    setActiveStatuses((previous) => ({ ...previous, [status]: !previous[status] }));
   };
 
   const applyGymSearch = (query: string) => {
     const keyword = query.trim().toLowerCase();
 
     if (!keyword) {
-      setActiveGyms(createActiveGyms(filterGyms));
+      setGymSelectionPreferences((previous) => ({ ...previous, ...createActiveGyms(filterGyms) }));
       return;
     }
 
-    setActiveGyms(
-      Object.fromEntries(
+    setGymSelectionPreferences((previous) => ({
+      ...previous,
+      ...Object.fromEntries(
         filterGyms.map((gym) => [gym.id, gym.name.toLowerCase().includes(keyword)]),
       ),
-    );
+    }));
   };
 
   const handleDayLongPress = (day: number) => {
@@ -274,30 +281,28 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
         activeGyms={activeGyms}
         onToggleGym={toggleGym}
         onToggleAll={toggleAllGyms}
+        activeStatuses={viewMode === 'setting' ? activeStatuses : undefined}
+        onToggleStatus={viewMode === 'setting' ? toggleStatus : undefined}
       />
 
-      {viewMode === 'setting' && (isSettingLoading || settingError) && (
-        <div className={`px-5 py-2 text-center text-[12px] ${settingError ? 'text-red-500' : 'text-neutral-500'}`}>
-          {settingError ? (
-            <button onClick={() => setSettingRequestKey((key) => key + 1)} className="font-medium">
-              {settingError} 다시 시도
-            </button>
-          ) : (
-            '세팅 일정을 불러오는 중입니다.'
-          )}
-        </div>
-      )}
-
-      {viewMode === 'record' && recordState !== 'ready' && (
-        <div className={`mx-5 mt-3 rounded-xl px-4 py-3 text-center text-[13px] ${recordState === 'error' ? 'bg-red-50 text-red-600' : 'bg-neutral-50 text-neutral-500'}`}>
-          {recordState === 'loading' && '기록을 불러오는 중입니다.'}
-          {recordState === 'empty' && '이 달에 완료된 기록이 없습니다.'}
-          {recordState === 'error' && (
+      {calendarState !== 'ready' && (
+        <div className={`mx-5 mt-3 rounded-xl px-4 py-3 text-center text-[13px] ${calendarState === 'error' ? 'bg-red-50 text-red-600' : 'bg-neutral-50 text-neutral-500'}`}>
+          {calendarState === 'loading' && (viewMode === 'record' ? '기록을 불러오는 중입니다.' : '세팅 일정을 불러오는 중입니다.')}
+          {calendarState === 'source-empty' && (viewMode === 'record' ? '이 달에 완료된 기록이 없습니다.' : '이 달에 등록된 세팅 일정이 없습니다.')}
+          {calendarState === 'filtered-empty' && '선택한 필터에 해당하는 일정이 없습니다.'}
+          {calendarState === 'error' && (
             <>
-              <div>{recordView.error}</div>
+              <div>{currentSource.error}</div>
               <button
                 type="button"
-                onClick={() => authStatus === 'error' ? void retryAuth() : setRecordRequestKey((key) => key + 1)}
+                onClick={() => {
+                  if (viewMode === 'record') {
+                    if (authStatus === 'error') void retryAuth();
+                    else setRecordRequestKey((key) => key + 1);
+                  } else {
+                    setSettingRequestKey((key) => key + 1);
+                  }
+                }}
                 className="mt-2 font-semibold text-red-700"
               >
                 다시 시도
@@ -335,9 +340,10 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
           weekdays={CALENDAR_WEEKDAYS}
           pages={periodPages}
           getEntriesForCell={getEntriesForCell}
-          selectedDate={viewMode === 'record' && (recordState === 'loading' || recordState === 'error') ? null : selectedDate}
+          selectedDate={calendarState === 'ready' ? selectedDate : null}
           selectedMonth={currentMonth.month}
           selectedYear={currentMonth.year}
+          isDateInteractionEnabled={calendarState === 'ready'}
           onSelectDate={handleSelectFullDate}
           onOpenDateMenu={(year, month, day) => {
             setCurrentMonth({ year, month });
@@ -350,7 +356,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
           mode={viewMode}
           year={currentMonth.year}
           month={currentMonth.month}
-          selectedDate={viewMode === 'record' && (recordState === 'loading' || recordState === 'error') ? null : selectedDate}
+          selectedDate={calendarState === 'ready' ? selectedDate : null}
           activeSlide={activeSlide}
           gyms={filterGyms}
           calendarData={visibleCalendarData}
