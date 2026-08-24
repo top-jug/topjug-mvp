@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { ApiRecordSummary } from '../../src/app/api/record-api';
+import type { ApiRecentVisitedGym } from '../../src/app/api/gym-api';
 import type { SettingEvent } from '../../src/features/calendar/setting-calendar';
 import { getHomeDataState } from '../../src/features/home/home-state';
 import { buildHomeSettingEntries, getHomeClock, getHomeWeek, shouldRefreshHome } from '../../src/features/home/home-week';
@@ -27,23 +27,10 @@ function settingEvent(overrides: Partial<SettingEvent> = {}): SettingEvent {
   };
 }
 
-function record(gymId: string, overrides: Partial<ApiRecordSummary> = {}): ApiRecordSummary {
+function visit(gymId: string, overrides: Partial<ApiRecentVisitedGym> = {}): ApiRecentVisitedGym {
   return {
-    id: `record-${gymId}`,
     gym: { id: gymId, name: `암장 ${gymId}`, branchName: null },
-    membership: null,
-    accessType: 'day_pass',
-    status: 'completed',
-    sessionType: 'free',
-    startedAt: '2026-03-08T10:00:00.000Z',
-    endedAt: '2026-03-08T11:00:00.000Z',
-    activeDurationSeconds: 3600,
-    rating: null,
-    mode: 'normal',
-    note: null,
-    sends: 0,
-    attempts: 0,
-    createdAt: '2026-03-08T12:00:00.000Z',
+    lastVisitedAt: '2026-03-08T10:00:00.000Z',
     ...overrides,
   };
 }
@@ -91,13 +78,12 @@ test('setting events map to every overlapping local week day and clamp outside d
   }
 });
 
-test('recent gyms sort visits by startedAt before deduplicating stable IDs and building links', () => {
+test('recent gyms preserve endpoint recency order, public shape, and links', () => {
   const gyms = buildRecentGyms([
-    record('gym-a', { createdAt: '2026-03-12T12:00:00.000Z', startedAt: '2026-03-01T10:00:00.000Z' }),
-    record('gym-a', { id: 'older-created-a', createdAt: '2026-03-02T12:00:00.000Z', startedAt: '2026-03-10T10:00:00.000Z' }),
-    record('gym/b', { id: 'record-b', gym: { id: 'gym/b', name: '두번째', branchName: '지점' }, startedAt: '2026-03-11T10:00:00.000Z' }),
-    record('gym-c', { startedAt: '2026-03-09T10:00:00.000Z' }),
-    record('gym-d', { startedAt: '2026-03-08T10:00:00.000Z' }),
+    visit('gym/b', { gym: { id: 'gym/b', name: '두번째', branchName: '지점' }, lastVisitedAt: '2026-03-11T10:00:00.000Z' }),
+    visit('gym-a', { lastVisitedAt: '2026-03-10T10:00:00.000Z' }),
+    visit('gym-c', { lastVisitedAt: '2026-03-09T10:00:00.000Z' }),
+    visit('gym-d', { lastVisitedAt: '2026-03-08T10:00:00.000Z' }),
   ]);
   assert.deepEqual(gyms, [
     { id: 'gym/b', name: '두번째 지점', href: '/gyms/gym%2Fb' },
@@ -106,45 +92,16 @@ test('recent gyms sort visits by startedAt before deduplicating stable IDs and b
   ]);
 });
 
-test('recent gym loading exhausts pagination before selecting visits', async () => {
-  const cursors: Array<string | null | undefined> = [];
-  const limits: number[] = [];
-  const gyms = await loadRecentGyms(undefined, async ({ cursor, limit }) => {
-    cursors.push(cursor);
-    limits.push(limit);
-    if (!cursor) return { data: [record('gym-a', { startedAt: '2026-03-01T10:00:00.000Z' })], meta: { nextCursor: 'page-2' } };
-    if (cursor === 'page-2') return { data: [record('gym-b', { startedAt: '2026-03-02T10:00:00.000Z' })], meta: { nextCursor: 'page-3' } };
-    return { data: [record('gym-c', { startedAt: '2026-03-03T10:00:00.000Z' })], meta: { nextCursor: null } };
-  });
-  assert.deepEqual(cursors, [null, 'page-2', 'page-3']);
-  assert.deepEqual(limits, [100, 100, 100]);
-  assert.deepEqual(gyms.map((gym) => gym.id), ['gym-c', 'gym-b', 'gym-a']);
-});
-
-test('recent gym loading rejects a repeated cursor instead of looping', async () => {
-  await assert.rejects(
-    loadRecentGyms(undefined, async () => ({ data: [], meta: { nextCursor: 'repeat' } })),
-    /끝까지 불러오지 못했어요/,
-  );
-});
-
-test('recent gym loading honors an aborted request before fetching another page', async () => {
+test('recent gym loading makes one dedicated request and forwards cancellation', async () => {
   const controller = new AbortController();
-  controller.abort();
   let calls = 0;
-  await assert.rejects(loadRecentGyms(controller.signal, async () => {
+  const gyms = await loadRecentGyms(controller.signal, async (signal) => {
     calls += 1;
-    return { data: [], meta: { nextCursor: null } };
-  }), { name: 'AbortError' });
-  assert.equal(calls, 0);
-});
-
-test('recent gym loading discards a page when its request is aborted in flight', async () => {
-  const controller = new AbortController();
-  await assert.rejects(loadRecentGyms(controller.signal, async () => {
-    controller.abort();
-    return { data: [record('gym-a')], meta: { nextCursor: null } };
-  }), { name: 'AbortError' });
+    assert.equal(signal, controller.signal);
+    return { data: [visit('gym-b'), visit('gym-a')] };
+  });
+  assert.equal(calls, 1);
+  assert.deepEqual(gyms.map((gym) => gym.id), ['gym-b', 'gym-a']);
 });
 
 test('home clock recomputes today and the week at local midnight', () => {
