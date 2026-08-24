@@ -1,89 +1,133 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { runRecordShareAttempt } from '../../src/features/record/record-share-orchestrator';
+import {
+  createRecordShareRouteGuard,
+  deliverRecordShare,
+  getOrCreateRecordShare,
+  isShareNotFoundError,
+  readCachedRecordShare,
+  reconcileCachedRecordShare,
+  removeCachedRecordShare,
+  writeCachedRecordShare,
+} from '../../src/features/record/record-share-orchestrator';
+import type { ApiCreatedShare } from '../../src/app/api/record-api';
 
-test('creates and presents a share', async () => {
-  const calls: string[] = [];
-  const result = await runRecordShareAttempt({
-    createShare: async () => {
-      calls.push('create');
-      return { id: 'new-share' };
-    },
-    presentShare: async (share) => { calls.push(`share:${share.id}`); },
-    revokeShare: async () => { calls.push('revoke'); },
-  });
+const share: ApiCreatedShare = {
+  id: 'share-1',
+  token: 'secret-token',
+  apiPath: '/api/v1/shares/secret-token',
+  publicUrl: 'https://topjug.example/shares/secret-token',
+  status: 'active',
+  mediaAssetId: null,
+  expiresAt: '2026-09-01T00:00:00.000Z',
+  revokedAt: null,
+  createdAt: '2026-08-24T00:00:00.000Z',
+};
 
-  assert.deepEqual(calls, ['create', 'share:new-share']);
-  assert.deepEqual(result, { outcome: 'shared', share: { id: 'new-share' }, createdForAttempt: true });
+function createStorage() {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+    removeItem: (key: string) => { values.delete(key); },
+    values,
+  };
+}
+
+test('session cache accepts a valid active share only for its record', () => {
+  const storage = createStorage();
+  writeCachedRecordShare(storage, 'record-1', share);
+
+  assert.deepEqual(readCachedRecordShare(storage, 'record-1', Date.parse('2026-08-25T00:00:00Z')), share);
+  assert.equal(readCachedRecordShare(storage, 'record-2', Date.parse('2026-08-25T00:00:00Z')), null);
 });
 
-test('returns a create failure without trying to present or revoke', async () => {
-  const createError = new Error('create failed');
-  let followupCalls = 0;
-  const result = await runRecordShareAttempt({
-    createShare: async () => { throw createError; },
-    presentShare: async () => { followupCalls += 1; },
-    revokeShare: async () => { followupCalls += 1; },
-  });
+test('session cache removes malformed and expired credentials', () => {
+  const storage = createStorage();
+  storage.setItem('topjug:record-share:record-1', '{bad json');
+  assert.equal(readCachedRecordShare(storage, 'record-1'), null);
+  assert.equal(storage.values.size, 0);
 
-  assert.equal(followupCalls, 0);
-  assert.deepEqual(result, { outcome: 'failed', error: createError, createdForAttempt: true });
+  storage.setItem('topjug:record-share:record-1', JSON.stringify({ version: 1, recordId: 'record-2', share }));
+  assert.equal(readCachedRecordShare(storage, 'record-1'), null);
+  assert.equal(storage.values.size, 0);
+
+  writeCachedRecordShare(storage, 'record-1', share);
+  assert.equal(readCachedRecordShare(storage, 'record-1', Date.parse('2026-09-02T00:00:00Z')), null);
+  assert.equal(storage.values.size, 0);
 });
 
-test('revokes a newly created share when native sharing is cancelled with AbortError', async () => {
-  const calls: string[] = [];
-  const result = await runRecordShareAttempt({
-    createShare: async () => ({ id: 'new-share' }),
-    presentShare: async () => { throw new DOMException('cancelled', 'AbortError'); },
-    revokeShare: async (share) => { calls.push(share.id); },
-  });
+test('unavailable session storage does not change share lifecycle results', () => {
+  const unavailableStorage = {
+    getItem: () => { throw new Error('blocked'); },
+    setItem: () => { throw new Error('blocked'); },
+    removeItem: () => { throw new Error('blocked'); },
+  };
 
-  assert.deepEqual(calls, ['new-share']);
-  assert.deepEqual(result, { outcome: 'cancelled-revoked', share: { id: 'new-share' }, createdForAttempt: true });
+  assert.equal(readCachedRecordShare(unavailableStorage, 'record-1'), null);
+  assert.equal(writeCachedRecordShare(unavailableStorage, 'record-1', share), false);
+  assert.doesNotThrow(() => removeCachedRecordShare(unavailableStorage, 'record-1'));
 });
 
-test('discloses a newly created active share when cancellation cleanup fails', async () => {
-  const revokeError = new Error('revoke failed');
-  const result = await runRecordShareAttempt({
-    createShare: async () => ({ id: 'new-share' }),
-    presentShare: async () => { throw new DOMException('cancelled', 'AbortError'); },
-    revokeShare: async () => { throw revokeError; },
-  });
-
-  assert.deepEqual(result, {
-    outcome: 'cancelled-active',
-    share: { id: 'new-share' },
-    createdForAttempt: true,
-    revokeError,
-  });
+test('share list reconciliation retains only a matching active cached share', () => {
+  const summary = {
+    id: share.id,
+    status: share.status,
+    mediaAssetId: share.mediaAssetId,
+    expiresAt: share.expiresAt,
+    revokedAt: share.revokedAt,
+    createdAt: share.createdAt,
+  };
+  assert.equal(reconcileCachedRecordShare(share, [summary]), share);
+  assert.equal(reconcileCachedRecordShare(share, [{ ...summary, status: 'revoked' }]), null);
+  assert.equal(reconcileCachedRecordShare(share, []), null);
 });
 
-test('does not revoke a pre-existing share selected for a cancelled attempt', async () => {
-  let revokeCalls = 0;
-  const existingShare = { id: 'existing-share' };
-  const result = await runRecordShareAttempt({
-    existingShare,
-    createShare: async () => { throw new Error('must not create'); },
-    presentShare: async () => { throw new DOMException('cancelled', 'AbortError'); },
-    revokeShare: async () => { revokeCalls += 1; },
-  });
+test('route generations abort and reject results from an older record', () => {
+  const guard = createRecordShareRouteGuard();
+  const first = guard.begin('record-1');
+  const second = guard.begin('record-2');
 
-  assert.equal(revokeCalls, 0);
-  assert.deepEqual(result, { outcome: 'cancelled', share: existingShare, createdForAttempt: false });
+  assert.equal(first.signal.aborted, true);
+  assert.equal(guard.isCurrent(first), false);
+  assert.equal(guard.isCurrent(second), true);
+  assert.equal(guard.current('record-1'), null);
+  assert.equal(guard.current('record-2')?.generation, second.generation);
+
+  guard.cancel(second);
+  assert.equal(second.signal.aborted, true);
 });
 
-test('returns a presentation failure with the created share still active', async () => {
-  const shareError = new Error('share failed');
-  const result = await runRecordShareAttempt({
-    createShare: async () => ({ id: 'new-share' }),
-    presentShare: async () => { throw shareError; },
-    revokeShare: async () => undefined,
+test('native cancellation is reported without revoking the managed share', async () => {
+  const result = await deliverRecordShare(async () => {
+    throw new DOMException('cancelled', 'AbortError');
+  });
+  assert.deepEqual(result, { outcome: 'cancelled' });
+});
+
+test('SHARE_NOT_FOUND is safely classified for cache reconciliation', () => {
+  assert.equal(isShareNotFoundError({ code: 'SHARE_NOT_FOUND' }), true);
+  assert.equal(isShareNotFoundError({ code: 'OTHER' }), false);
+
+  const storage = createStorage();
+  writeCachedRecordShare(storage, 'record-1', share);
+  removeCachedRecordShare(storage, 'record-1');
+  assert.equal(readCachedRecordShare(storage, 'record-1'), null);
+});
+
+test('a retained share is reused without duplicate creation', async () => {
+  let createCalls = 0;
+  const reused = await getOrCreateRecordShare(share, async () => {
+    createCalls += 1;
+    return { ...share, id: 'share-2' };
+  });
+  const created = await getOrCreateRecordShare(null, async () => {
+    createCalls += 1;
+    return { ...share, id: 'share-2' };
   });
 
-  assert.deepEqual(result, {
-    outcome: 'failed',
-    error: shareError,
-    share: { id: 'new-share' },
-    createdForAttempt: true,
-  });
+  assert.deepEqual(reused, { share, created: false });
+  assert.equal(created.share.id, 'share-2');
+  assert.equal(created.created, true);
+  assert.equal(createCalls, 1);
 });
