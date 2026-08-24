@@ -16,7 +16,14 @@ export interface HomeWeek {
 }
 
 export interface HomeSettingEntry extends CalendarEntry {
+  eventId: string;
   logoUrl: string | null;
+}
+
+export interface HomeClock {
+  week: HomeWeek;
+  todayKey: string;
+  nextLocalMidnightAt: number;
 }
 
 const STATUS_LABELS = {
@@ -25,7 +32,7 @@ const STATUS_LABELS = {
   cancelled: '취소',
 } satisfies Record<SettingEvent['status'], string>;
 
-function dateKey(date: Date) {
+export function getLocalDateKey(date: Date) {
   return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
 }
 
@@ -35,7 +42,7 @@ export function getHomeWeek(now = new Date()): HomeWeek {
   const days = Array.from({ length: 7 }, (_, weekdayIndex) => {
     const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + weekdayIndex);
     return {
-      key: dateKey(date),
+      key: getLocalDateKey(date),
       year: date.getFullYear(),
       month: date.getMonth() + 1,
       day: date.getDate(),
@@ -44,6 +51,19 @@ export function getHomeWeek(now = new Date()): HomeWeek {
   });
 
   return { days, from: start.toISOString(), to: end.toISOString() };
+}
+
+export function getHomeClock(now = new Date()): HomeClock {
+  const nextLocalMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  return {
+    week: getHomeWeek(now),
+    todayKey: getLocalDateKey(now),
+    nextLocalMidnightAt: nextLocalMidnight.getTime(),
+  };
+}
+
+export function shouldRefreshHome(lastRefreshAt: number, now: number, minimumInterval = 1000) {
+  return now - lastRefreshAt >= minimumInterval;
 }
 
 export function buildHomeSettingEntries(events: SettingEvent[], week: HomeWeek) {
@@ -65,6 +85,7 @@ export function buildHomeSettingEntries(events: SettingEvent[], week: HomeWeek) 
     const title = sectorLabel || event.title || '세팅';
     const color = event.gym.calendarColor ?? '#185FA5';
     const entry: HomeSettingEntry = {
+      eventId: event.id,
       gym: gymName,
       gymId: event.gym.id,
       wall: `${title} · ${STATUS_LABELS[event.status]}`,
@@ -82,7 +103,7 @@ export function buildHomeSettingEntries(events: SettingEvent[], week: HomeWeek) 
       date <= lastDate;
       date = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1)
     ) {
-      const key = dateKey(date);
+      const key = getLocalDateKey(date);
       if (entriesByDay[key]) entriesByDay[key].push(entry);
     }
   });

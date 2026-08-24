@@ -3,7 +3,7 @@ import test from 'node:test';
 import type { ApiRecordSummary } from '../../src/app/api/record-api';
 import type { SettingEvent } from '../../src/features/calendar/setting-calendar';
 import { getHomeDataState } from '../../src/features/home/home-state';
-import { buildHomeSettingEntries, getHomeWeek } from '../../src/features/home/home-week';
+import { buildHomeSettingEntries, getHomeClock, getHomeWeek, shouldRefreshHome } from '../../src/features/home/home-week';
 import { buildRecentGyms, loadRecentGyms } from '../../src/features/home/recent-gyms';
 
 function settingEvent(overrides: Partial<SettingEvent> = {}): SettingEvent {
@@ -83,6 +83,7 @@ test('setting events map to every overlapping local week day and clamp outside d
     assert.equal(entries['2026-03-09'].length, 1);
     assert.equal(entries['2026-03-10'].length, 0);
     assert.equal(entries['2026-03-08'][0].gymId, 'gym-1');
+    assert.equal(entries['2026-03-08'][0].eventId, 'event-1');
     assert.equal(entries['2026-03-08'][0].logoUrl, 'https://example.com/logo.png');
   } finally {
     if (previousTimezone === undefined) delete process.env.TZ;
@@ -90,40 +91,80 @@ test('setting events map to every overlapping local week day and clamp outside d
   }
 });
 
-test('recent gyms deduplicate stable IDs while preserving newest record order and links', () => {
+test('recent gyms sort visits by startedAt before deduplicating stable IDs and building links', () => {
   const gyms = buildRecentGyms([
-    record('gym-a'),
-    record('gym-a', { id: 'older-a' }),
-    record('gym/b', { id: 'record-b', gym: { id: 'gym/b', name: '두번째', branchName: '지점' } }),
-    record('gym-c'),
-    record('gym-d'),
+    record('gym-a', { createdAt: '2026-03-12T12:00:00.000Z', startedAt: '2026-03-01T10:00:00.000Z' }),
+    record('gym-a', { id: 'older-created-a', createdAt: '2026-03-02T12:00:00.000Z', startedAt: '2026-03-10T10:00:00.000Z' }),
+    record('gym/b', { id: 'record-b', gym: { id: 'gym/b', name: '두번째', branchName: '지점' }, startedAt: '2026-03-11T10:00:00.000Z' }),
+    record('gym-c', { startedAt: '2026-03-09T10:00:00.000Z' }),
+    record('gym-d', { startedAt: '2026-03-08T10:00:00.000Z' }),
   ]);
   assert.deepEqual(gyms, [
-    { id: 'gym-a', name: '암장 gym-a', href: '/gyms/gym-a' },
     { id: 'gym/b', name: '두번째 지점', href: '/gyms/gym%2Fb' },
+    { id: 'gym-a', name: '암장 gym-a', href: '/gyms/gym-a' },
     { id: 'gym-c', name: '암장 gym-c', href: '/gyms/gym-c' },
   ]);
 });
 
-test('recent gym loading follows bounded pages and stops after enough distinct gyms', async () => {
+test('recent gym loading exhausts pagination before selecting visits', async () => {
   const cursors: Array<string | null | undefined> = [];
-  const gyms = await loadRecentGyms(undefined, async ({ cursor }) => {
+  const limits: number[] = [];
+  const gyms = await loadRecentGyms(undefined, async ({ cursor, limit }) => {
     cursors.push(cursor);
-    return cursor
-      ? { data: [record('gym-b'), record('gym-c')], meta: { nextCursor: 'unused' } }
-      : { data: [record('gym-a'), record('gym-a', { id: 'duplicate-a' })], meta: { nextCursor: 'page-2' } };
-  });
-  assert.deepEqual(cursors, [null, 'page-2']);
-  assert.deepEqual(gyms.map((gym) => gym.id), ['gym-a', 'gym-b', 'gym-c']);
-});
-
-test('recent gym loading never scans more than three record pages', async () => {
-  const cursors: Array<string | null | undefined> = [];
-  await loadRecentGyms(undefined, async ({ cursor }) => {
-    cursors.push(cursor);
-    return { data: [record('gym-a', { id: `record-${cursors.length}` })], meta: { nextCursor: `page-${cursors.length + 1}` } };
+    limits.push(limit);
+    if (!cursor) return { data: [record('gym-a', { startedAt: '2026-03-01T10:00:00.000Z' })], meta: { nextCursor: 'page-2' } };
+    if (cursor === 'page-2') return { data: [record('gym-b', { startedAt: '2026-03-02T10:00:00.000Z' })], meta: { nextCursor: 'page-3' } };
+    return { data: [record('gym-c', { startedAt: '2026-03-03T10:00:00.000Z' })], meta: { nextCursor: null } };
   });
   assert.deepEqual(cursors, [null, 'page-2', 'page-3']);
+  assert.deepEqual(limits, [100, 100, 100]);
+  assert.deepEqual(gyms.map((gym) => gym.id), ['gym-c', 'gym-b', 'gym-a']);
+});
+
+test('recent gym loading rejects a repeated cursor instead of looping', async () => {
+  await assert.rejects(
+    loadRecentGyms(undefined, async () => ({ data: [], meta: { nextCursor: 'repeat' } })),
+    /끝까지 불러오지 못했어요/,
+  );
+});
+
+test('recent gym loading honors an aborted request before fetching another page', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let calls = 0;
+  await assert.rejects(loadRecentGyms(controller.signal, async () => {
+    calls += 1;
+    return { data: [], meta: { nextCursor: null } };
+  }), { name: 'AbortError' });
+  assert.equal(calls, 0);
+});
+
+test('recent gym loading discards a page when its request is aborted in flight', async () => {
+  const controller = new AbortController();
+  await assert.rejects(loadRecentGyms(controller.signal, async () => {
+    controller.abort();
+    return { data: [record('gym-a')], meta: { nextCursor: null } };
+  }), { name: 'AbortError' });
+});
+
+test('home clock recomputes today and the week at local midnight', () => {
+  const saturday = getHomeClock(new Date(2026, 7, 29, 23, 59, 59));
+  const sunday = getHomeClock(new Date(2026, 7, 30, 0, 0, 0));
+  assert.equal(saturday.todayKey, '2026-08-29');
+  assert.equal(sunday.todayKey, '2026-08-30');
+  assert.notEqual(saturday.week.from, sunday.week.from);
+  assert.equal(saturday.nextLocalMidnightAt, new Date(2026, 7, 30).getTime());
+  assert.equal(shouldRefreshHome(1000, 1500), false);
+  assert.equal(shouldRefreshHome(1000, 2000), true);
+});
+
+test('setting markers retain unique event identities for the same gym and start time', () => {
+  const week = getHomeWeek(new Date(2026, 2, 8, 12));
+  const entries = buildHomeSettingEntries([
+    settingEvent({ id: 'event-a', startsAt: new Date(2026, 2, 8, 10).toISOString(), endsAt: null }),
+    settingEvent({ id: 'event-b', startsAt: new Date(2026, 2, 8, 10).toISOString(), endsAt: null }),
+  ], week);
+  assert.deepEqual(entries['2026-03-08'].map((entry) => entry.eventId), ['event-a', 'event-b']);
 });
 
 test('home data state distinguishes loading, error, empty, and ready UI', () => {

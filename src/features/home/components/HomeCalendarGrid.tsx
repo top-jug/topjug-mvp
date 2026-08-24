@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CALENDAR_WEEKDAYS } from '../../../mocks/calendar';
 import type { SettingEvent } from '../../calendar/setting-calendar';
-import { buildHomeSettingEntries, getHomeWeek, type HomeSettingEntry, type HomeWeekDay } from '../home-week';
+import { buildHomeSettingEntries, getHomeClock, shouldRefreshHome, type HomeSettingEntry, type HomeWeekDay } from '../home-week';
 import { getHomeDataState } from '../home-state';
 import { HomeSectionShell } from './HomeSectionShell';
 
@@ -31,9 +31,9 @@ function HomeScheduleDay({ weekday, date, entries, isToday }: HomeScheduleDayPro
       {entries.length > 0 && (
         <div className="flex flex-col items-center gap-1 pt-1">
           {entries.slice(0, 2).map((entry) => entry.logoUrl ? (
-            <img key={`${entry.gymId}-${entry.startsAt}`} src={entry.logoUrl} alt={entry.gym} className="h-8 w-8 rounded-full border border-neutral-200 bg-neutral-100 object-cover" />
+            <img key={entry.eventId} src={entry.logoUrl} alt={entry.gym} className="h-8 w-8 rounded-full border border-neutral-200 bg-neutral-100 object-cover" />
           ) : (
-            <div key={`${entry.gymId}-${entry.startsAt}`} title={entry.gym} className="flex h-8 w-8 items-center justify-center rounded-full border text-[12px] font-bold" style={{ backgroundColor: entry.lightBg, borderColor: entry.color, color: entry.darkText }}>
+            <div key={entry.eventId} title={entry.gym} className="flex h-8 w-8 items-center justify-center rounded-full border text-[12px] font-bold" style={{ backgroundColor: entry.lightBg, borderColor: entry.color, color: entry.darkText }}>
               {entry.gym.slice(0, 1)}
             </div>
           ))}
@@ -45,15 +45,47 @@ function HomeScheduleDay({ weekday, date, entries, isToday }: HomeScheduleDayPro
 }
 
 export function HomeCalendarGrid({ onOpen }: HomeCalendarGridProps) {
-  const [week] = useState(() => getHomeWeek());
+  const [clock, setClock] = useState(() => getHomeClock());
   const [entriesByDay, setEntriesByDay] = useState<Record<string, HomeSettingEntry[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [requestKey, setRequestKey] = useState(0);
-  const now = new Date();
-  const today = week.days.find((date) => date.year === now.getFullYear() && date.month === now.getMonth() + 1 && date.day === now.getDate())?.key;
+  const lastRefreshAt = useRef(Date.now());
+  const { week, todayKey } = clock;
   const entryCount = Object.values(entriesByDay).reduce((count, entries) => count + entries.length, 0);
   const state = getHomeDataState(isLoading, error, entryCount);
+
+  useEffect(() => {
+    let midnightTimer: ReturnType<typeof setTimeout>;
+
+    const scheduleMidnightRefresh = () => {
+      clearTimeout(midnightTimer);
+      const now = new Date();
+      const delay = getHomeClock(now).nextLocalMidnightAt - now.getTime();
+      midnightTimer = setTimeout(() => refresh(true), delay + 25);
+    };
+    const refresh = (force = false) => {
+      const now = new Date();
+      if (!force && !shouldRefreshHome(lastRefreshAt.current, now.getTime())) return;
+      lastRefreshAt.current = now.getTime();
+      setClock(getHomeClock(now));
+      scheduleMidnightRefresh();
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+
+    scheduleMidnightRefresh();
+    window.addEventListener('focus', refreshWhenVisible);
+    window.addEventListener('pageshow', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      clearTimeout(midnightTimer);
+      window.removeEventListener('focus', refreshWhenVisible);
+      window.removeEventListener('pageshow', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -93,7 +125,7 @@ export function HomeCalendarGrid({ onOpen }: HomeCalendarGridProps) {
           <>
             <div className="grid grid-cols-7 gap-1">
               {week.days.map((date, index) => (
-                <HomeScheduleDay key={date.key} weekday={CALENDAR_WEEKDAYS[index]} date={date} entries={entriesByDay[date.key] ?? []} isToday={date.key === today} />
+                <HomeScheduleDay key={date.key} weekday={CALENDAR_WEEKDAYS[index]} date={date} entries={entriesByDay[date.key] ?? []} isToday={date.key === todayKey} />
               ))}
             </div>
             {state === 'empty' && <div className="pt-4 text-center text-[12px] text-neutral-400">이번 주에 등록된 세팅 일정이 없어요.</div>}
