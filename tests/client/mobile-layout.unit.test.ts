@@ -42,7 +42,7 @@ test('critical mobile class contracts remain attached to shared and record layou
   const records = source('src/app/pages/MyRecordsPage.tsx');
   const result = source('src/app/pages/RecordResultPage.tsx');
 
-  assert.match(styles, /@media \(max-width: 375px\)[\s\S]*\.home-summary-grid h3[\s\S]*text-overflow: ellipsis;[\s\S]*white-space: nowrap;/);
+  assert.match(styles, /@media \(max-width: 375px\)[\s\S]*\.home-summary-grid h2[\s\S]*text-overflow: ellipsis;[\s\S]*white-space: nowrap;/);
   assert.match(styles, /\.mobile-bottom-sheet \{\s*padding-bottom: var\(--mobile-safe-bottom\);/);
   assert.match(styles, /\.mobile-bottom-sheet-max-h-80 \{\s*max-height: 80vh;\s*\}\s*@supports \(height: 100dvh\) \{\s*\.mobile-bottom-sheet-max-h-80 \{\s*max-height: 80dvh;/);
   assert.match(styles, /\.mobile-bottom-sheet-max-h-70 \{\s*max-height: 70vh;\s*\}\s*@supports \(height: 100dvh\) \{\s*\.mobile-bottom-sheet-max-h-70 \{\s*max-height: 70dvh;/);

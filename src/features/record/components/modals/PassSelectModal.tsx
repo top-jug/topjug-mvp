@@ -13,7 +13,7 @@ export default function PassSelectModal({ passType, countPasses, periodPasses, o
   const passes = passType === '횟수권' ? countPasses : periodPasses;
 
   return (
-    <RecordModalShell onClose={onClose} panelClassName="bg-white rounded-3xl p-6 w-[340px] shadow-2xl max-h-[500px] overflow-y-auto">
+    <RecordModalShell onClose={onClose} title={passType === '횟수권' ? '보유한 횟수권' : '보유한 기간권'} description={`이번 운동에 사용할 ${passType}을 선택합니다.`} maxHeightClassName="max-h-[min(500px,calc(100dvh-2rem))]" panelClassName="max-w-[340px] bg-white rounded-3xl p-6 shadow-2xl">
       <h3 className="text-lg font-bold mb-4">{passType === '횟수권' ? '보유한 횟수권' : '보유한 기간권'}</h3>
 
       <div className="space-y-3 mb-6">

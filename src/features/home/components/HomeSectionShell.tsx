@@ -12,7 +12,7 @@ export function HomeSectionShell({ title, children, onAction, actionLabel, borde
   return (
     <section className={bordered ? 'border border-neutral-200 rounded-2xl p-3 bg-white' : ''}>
       <div className="mb-3 flex min-w-0 items-center justify-between gap-1">
-        <h3 className="min-w-0 flex-1 truncate font-bold text-[15px]" title={title}>{title}</h3>
+        <h2 className="min-w-0 flex-1 truncate font-bold text-[15px]" title={title}>{title}</h2>
         {onAction && (
           <button
             onClick={onAction}

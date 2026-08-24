@@ -135,54 +135,56 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
         )}
       </div>
 
-      {activeView === 'search' ? (
-        <>
-          {showRegionFilter && (
-            <RegionFilterModal
-              selectedRegion={selectedRegion}
-              regions={GYM_SEARCH_REGIONS}
-              onClose={() => setShowRegionFilter(false)}
-              onSelectRegion={(region) => {
-                setVisibleCount(PAGE_SIZE);
-                setSelectedRegion(region);
-                setShowRegionFilter(false);
-              }}
+      <main>
+        {activeView === 'search' ? (
+          <>
+            {showRegionFilter && (
+              <RegionFilterModal
+                selectedRegion={selectedRegion}
+                regions={GYM_SEARCH_REGIONS}
+                onClose={() => setShowRegionFilter(false)}
+                onSelectRegion={(region) => {
+                  setVisibleCount(PAGE_SIZE);
+                  setSelectedRegion(region);
+                  setShowRegionFilter(false);
+                }}
+              />
+            )}
+            <GymSearchList
+              gyms={visibleGyms}
+              onSelectGym={(gym) => onNavigate('detail', gym.id)}
+              title="암장"
+              countOverride={filteredGyms.length}
+              countLabel={`불러온 검색 결과 ${filteredGyms.length}개`}
+              isSavedGym={isSavedGym}
+              onToggleSavedGym={handleToggleSavedGym}
+              isSavingGym={(gymId) => pendingGymIds.includes(gymId)}
+              getActionError={getActionError}
+              onDismissActionError={dismissActionError}
+              isLoading={isLoadingGyms}
+              error={gymError}
+              onRetry={() => setRequestVersion((version) => version + 1)}
+              hasMore={visibleCount < filteredGyms.length}
+              onLoadMore={() => setVisibleCount((count) => count + PAGE_SIZE)}
             />
-          )}
+          </>
+        ) : (
           <GymSearchList
-            gyms={visibleGyms}
+            gyms={savedGyms}
             onSelectGym={(gym) => onNavigate('detail', gym.id)}
-            title="암장"
-            countOverride={filteredGyms.length}
-            countLabel={`불러온 검색 결과 ${filteredGyms.length}개`}
+            title="내 암장"
             isSavedGym={isSavedGym}
             onToggleSavedGym={handleToggleSavedGym}
             isSavingGym={(gymId) => pendingGymIds.includes(gymId)}
             getActionError={getActionError}
             onDismissActionError={dismissActionError}
-            isLoading={isLoadingGyms}
-            error={gymError}
-            onRetry={() => setRequestVersion((version) => version + 1)}
-            hasMore={visibleCount < filteredGyms.length}
-            onLoadMore={() => setVisibleCount((count) => count + PAGE_SIZE)}
+            isLoading={isLoadingSavedGyms}
+            error={savedGymsError}
+            emptyMessage="저장한 암장이 없어요."
+            onRetry={() => void refreshSavedGyms()}
           />
-        </>
-      ) : (
-        <GymSearchList
-          gyms={savedGyms}
-          onSelectGym={(gym) => onNavigate('detail', gym.id)}
-          title="내 암장"
-          isSavedGym={isSavedGym}
-          onToggleSavedGym={handleToggleSavedGym}
-          isSavingGym={(gymId) => pendingGymIds.includes(gymId)}
-          getActionError={getActionError}
-          onDismissActionError={dismissActionError}
-          isLoading={isLoadingSavedGyms}
-          error={savedGymsError}
-          emptyMessage="저장한 암장이 없어요."
-          onRetry={() => void refreshSavedGyms()}
-        />
-      )}
+        )}
+      </main>
 
       <BottomTabBar activeTab="gymSearch" onNavigate={onNavigate} />
     </>

@@ -17,7 +17,7 @@ export default function SubmitConfirmModal(props: SubmitConfirmModalProps) {
   const { selectedGym, date, duration, selectedPassType, selectedPass, rating, onClose, onSubmit } = props;
 
   return (
-    <RecordModalShell onClose={onClose}>
+    <RecordModalShell onClose={onClose} title="운동 종료 확인" description="운동 정보 요약을 확인하고 운동을 종료하거나 계속합니다." role="alertdialog">
       <h3 className="text-lg font-bold mb-4 text-center">운동을 그만두시겠어요?</h3>
 
       <div className="bg-neutral-50 rounded-2xl p-4 mb-6">

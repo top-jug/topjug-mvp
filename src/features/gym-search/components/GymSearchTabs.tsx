@@ -13,8 +13,9 @@ export default function GymSearchTabs({ selectedTabs, tabs, regionLabel, onSelec
     <div className="px-5 pb-3 pt-2 flex gap-2 bg-white overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <button
         onClick={() => onSelectTab('전체')}
+        aria-pressed={isAllSelected}
         className={`px-4 py-1.5 rounded-full text-[14px] font-medium transition-colors flex-shrink-0 ${
-          isAllSelected ? 'bg-blue-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
+          isAllSelected ? 'bg-blue-700 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
         }`}
       >
         전체
@@ -30,8 +31,9 @@ export default function GymSearchTabs({ selectedTabs, tabs, regionLabel, onSelec
         <button
           key={tab}
           onClick={() => onSelectTab(tab)}
+          aria-pressed={selectedTabs.includes(tab)}
           className={`px-4 py-1.5 rounded-full text-[14px] font-medium transition-colors flex-shrink-0 ${
-            selectedTabs.includes(tab) ? 'bg-blue-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
+            selectedTabs.includes(tab) ? 'bg-blue-700 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
           }`}
         >
           {tab}

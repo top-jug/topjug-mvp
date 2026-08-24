@@ -25,8 +25,9 @@ export default function CalendarFilterBar({ gyms, activeGyms, onToggleGym, onTog
         <button
           type="button"
           onClick={onToggleAll}
+          aria-pressed={allSelected}
           className={`px-4 py-2 rounded-full text-[14px] font-medium transition-colors flex-shrink-0 ${
-            allSelected ? 'bg-blue-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
+            allSelected ? 'bg-blue-700 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
           }`}
         >
           전체
@@ -39,8 +40,9 @@ export default function CalendarFilterBar({ gyms, activeGyms, onToggleGym, onTog
               type="button"
               key={gym.id}
               onClick={() => onToggleGym(gym.id)}
+              aria-pressed={Boolean(isActive)}
               className={`px-2 py-1.5 rounded-full text-[14px] font-medium transition-colors flex items-center gap-1.5 flex-shrink-0 ${
-                isActive ? 'bg-blue-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
+                isActive ? 'bg-blue-700 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
               }`}
             >
               <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ backgroundColor: gym.lightBg, color: gym.darkText }}>

@@ -23,15 +23,17 @@ export default function TopTabHeader<T extends string>({
   return (
     <div className={`${containerClassName} mobile-safe-top`}>
       <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-4 min-[360px]:gap-6">
+        <div className="flex min-w-0 flex-1 items-center gap-4 min-[360px]:gap-6" role="group" aria-label="화면 보기">
           {tabs.map((tab) => {
             const isActive = tab.value === activeTab;
             return (
               <button
                 key={tab.value}
+                type="button"
+                aria-pressed={isActive}
                 onClick={() => onChangeTab(tab.value)}
                 className={`shrink-0 whitespace-nowrap text-[26px] tracking-[-0.03em] transition-colors min-[360px]:text-[28px] ${
-                  isActive ? 'font-bold text-neutral-950' : 'font-semibold text-neutral-400'
+                  isActive ? 'font-bold text-neutral-950' : 'font-semibold text-neutral-500'
                 }`}
               >
                 {tab.label}

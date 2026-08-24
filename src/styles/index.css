@@ -85,7 +85,7 @@ body,
     gap: 0.125rem;
   }
 
-  .home-summary-grid h3 {
+  .home-summary-grid h2 {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
