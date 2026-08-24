@@ -1,10 +1,19 @@
-import { UIEvent, useRef } from 'react';
+import { type KeyboardEvent, type UIEvent, useId, useRef } from 'react';
 import { ImageWithFallback } from '../../../app/components/figma/ImageWithFallback';
+import {
+  carouselSlideForKey,
+  clampCarouselSlide,
+  GYM_DETAIL_SLIDE_TITLES,
+  gymDetailSlideLabel,
+  wrapCarouselSlide,
+} from '../gym-detail-controls';
 
 interface GymDetailCarouselProps {
   currentSlide: number;
   photos: string[];
   mapImage?: string | null;
+  mapHref?: string | null;
+  mapLinkLabel?: string;
   calendarDays: Array<number | ''>;
   eventDays?: number[];
   monthLabel?: string;
@@ -12,35 +21,76 @@ interface GymDetailCarouselProps {
   onSlideChange: (index: number) => void;
 }
 
-const SLIDE_TITLES = ['암장캘린더', '암장 사진', '지도'];
-
-export default function GymDetailCarousel({ currentSlide, photos, mapImage, calendarDays, eventDays = [], monthLabel = '세팅 일정', onChangeEventMonth, onSlideChange }: GymDetailCarouselProps) {
+export default function GymDetailCarousel({ currentSlide, photos, mapImage, mapHref, mapLinkLabel = 'Google 지도에서 암장 위치 보기', calendarDays, eventDays = [], monthLabel = '세팅 일정', onChangeEventMonth, onSlideChange }: GymDetailCarouselProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const carouselId = useId();
+  const slideCount = GYM_DETAIL_SLIDE_TITLES.length;
+  const activeSlide = clampCarouselSlide(currentSlide, slideCount);
+
+  const selectSlide = (index: number) => {
+    const nextSlide = wrapCarouselSlide(index, slideCount);
+    const slide = scrollerRef.current?.children[nextSlide] as HTMLElement | undefined;
+    scrollerRef.current?.scrollTo({ left: slide?.offsetLeft ?? 0, behavior: 'smooth' });
+    onSlideChange(nextSlide);
+  };
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const container = event.currentTarget;
     if (container.clientWidth === 0) return;
 
-    const nextSlide = Math.max(0, Math.min(SLIDE_TITLES.length - 1, Math.round(container.scrollLeft / container.clientWidth)));
-    if (nextSlide !== currentSlide) onSlideChange(nextSlide);
+    const nextSlide = clampCarouselSlide(Math.round(container.scrollLeft / container.clientWidth), slideCount);
+    if (nextSlide !== activeSlide) onSlideChange(nextSlide);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // Calendar month controls own their keyboard events even though they live in the scroller.
+    if (event.target !== event.currentTarget) return;
+    const nextSlide = carouselSlideForKey(event.key, activeSlide, slideCount);
+    if (nextSlide === null) return;
+    event.preventDefault();
+    selectSlide(nextSlide);
   };
 
   return (
-    <div className="px-5 mb-4">
-      <div className="mb-2 mt-2 flex items-center justify-between px-0 py-3">
-        <h2 className="text-[18px] font-bold text-neutral-900">{SLIDE_TITLES[currentSlide]}</h2>
+    <section className="px-5 mb-4" role="region" aria-roledescription="carousel" aria-label="암장 상세 정보">
+      <div className="mb-2 mt-2 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2 py-3">
+        <button
+          type="button"
+          onClick={() => selectSlide(activeSlide - 1)}
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-200 bg-white text-[22px] text-neutral-700 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+          aria-label={`이전 슬라이드: ${gymDetailSlideLabel(wrapCarouselSlide(activeSlide - 1, slideCount))}`}
+        >
+          <span aria-hidden="true">‹</span>
+        </button>
+        <h2 id={`${carouselId}-title`} className="truncate text-center text-[18px] font-bold text-neutral-900">{GYM_DETAIL_SLIDE_TITLES[activeSlide]}</h2>
+        <button
+          type="button"
+          onClick={() => selectSlide(activeSlide + 1)}
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-200 bg-white text-[22px] text-neutral-700 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+          aria-label={`다음 슬라이드: ${gymDetailSlideLabel(wrapCarouselSlide(activeSlide + 1, slideCount))}`}
+        >
+          <span aria-hidden="true">›</span>
+        </button>
       </div>
+
+      <p id={`${carouselId}-instructions`} className="sr-only">좌우 방향키로 슬라이드를 이동하고 Home과 End 키로 처음과 마지막 슬라이드로 이동할 수 있습니다.</p>
+      <p className="sr-only" aria-live="polite">{gymDetailSlideLabel(activeSlide)} 표시 중</p>
 
       <div
         ref={scrollerRef}
         onScroll={handleScroll}
-        className="flex w-full snap-x snap-mandatory overflow-x-auto rounded-2xl select-none touch-pan-x cursor-grab active:cursor-grabbing [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+        aria-labelledby={`${carouselId}-title`}
+        aria-describedby={`${carouselId}-instructions`}
+        className="flex w-full snap-x snap-mandatory overflow-x-auto rounded-2xl select-none touch-pan-x cursor-grab outline-none active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-          <div className="w-full flex-shrink-0 snap-center min-h-[300px] bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-4 relative flex flex-col">
+          <div role="group" aria-roledescription="slide" aria-label={gymDetailSlideLabel(0)} aria-hidden={activeSlide !== 0} className="w-full flex-shrink-0 snap-center min-h-[300px] bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-4 relative flex flex-col">
             <div className="mb-4 flex min-h-11 items-center justify-center gap-3 text-center">
               <button
                 type="button"
                 onClick={() => onChangeEventMonth?.(-1)}
+                tabIndex={activeSlide === 0 ? 0 : -1}
                 className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[20px] font-medium text-neutral-700 shadow-sm"
                 aria-label="이전 달"
               >
@@ -50,6 +100,7 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, cale
               <button
                 type="button"
                 onClick={() => onChangeEventMonth?.(1)}
+                tabIndex={activeSlide === 0 ? 0 : -1}
                 className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[20px] font-medium text-neutral-700 shadow-sm"
                 aria-label="다음 달"
               >
@@ -77,7 +128,7 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, cale
             </div>
           </div>
 
-          <div className="w-full flex-shrink-0 snap-center rounded-2xl bg-white border border-neutral-200 p-3 min-h-[300px]">
+          <div role="group" aria-roledescription="slide" aria-label={gymDetailSlideLabel(1)} aria-hidden={activeSlide !== 1} className="w-full flex-shrink-0 snap-center rounded-2xl bg-white border border-neutral-200 p-3 min-h-[300px]">
             <div className="grid grid-cols-[1.5fr_1fr] gap-3 h-full min-h-[276px]">
               <div className="rounded-2xl overflow-hidden bg-neutral-100">
                 {photos[0] ? <ImageWithFallback src={photos[0]} alt="암장 대표 사진" className="w-full h-full object-cover" /> : <div className="flex h-full items-center justify-center text-[13px] text-neutral-400">등록된 사진이 없습니다.</div>}
@@ -85,7 +136,7 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, cale
               <div className="grid grid-rows-2 gap-3">
                 {photos.slice(1, 3).map((photo, index) => (
                   <div key={photo} className="rounded-2xl overflow-hidden relative">
-                    <ImageWithFallback src={photo} alt={`Gym Photo ${index + 2}`} className="w-full h-full object-cover" />
+                    <ImageWithFallback src={photo} alt={`암장 사진 ${index + 2}`} className="w-full h-full object-cover" />
                     {index === 1 && photos.length > 3 && (
                       <div className="absolute inset-0 bg-black/35 flex items-center justify-center text-white text-[18px] font-bold">
                         +{photos.length - 3}
@@ -97,50 +148,38 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, cale
             </div>
           </div>
 
-          <div className="w-full flex-shrink-0 snap-center min-h-[300px] bg-gradient-to-br from-blue-50 via-green-50 to-blue-100 rounded-2xl relative overflow-hidden">
-            {mapImage ? <ImageWithFallback src={mapImage} alt="암장 지도" className="w-full h-full object-cover opacity-40" /> : <div className="absolute inset-0 flex items-start justify-center pt-16 text-[13px] text-neutral-500">등록된 지도 이미지가 없습니다.</div>}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="relative">
-                <div className="w-14 h-14 bg-blue-400 rounded-full opacity-30 animate-ping absolute"></div>
-                <div className="w-14 h-14 bg-blue-500 rounded-full border-4 border-white shadow-lg relative flex items-center justify-center">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <button className="absolute top-3 right-3 w-11 h-11 bg-white rounded-lg flex items-center justify-center shadow-md">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 3 21 3 21 9" />
-                <polyline points="9 21 3 21 3 15" />
-                <line x1="21" y1="3" x2="14" y2="10" />
-                <line x1="3" y1="21" x2="10" y2="14" />
-              </svg>
-            </button>
-
-            <button className="absolute bottom-3 right-3 w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center shadow-lg">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="3 11 22 2 13 21 11 13 3 11" />
-              </svg>
-            </button>
-
-            <button className="absolute bottom-3 left-3 min-h-11 bg-white rounded-full px-4 py-2 shadow-md flex items-center gap-1.5">
-              <div className="flex gap-0.5">
-                <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
-                <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-              </div>
-              <span className="text-[12px] font-medium">MAP APPS</span>
-            </button>
+          <div role="group" aria-roledescription="slide" aria-label={gymDetailSlideLabel(2)} aria-hidden={activeSlide !== 2} className="w-full flex-shrink-0 snap-center min-h-[300px] bg-neutral-100 rounded-2xl relative overflow-hidden">
+            {mapImage ? <ImageWithFallback src={mapImage} alt="암장 지도 참고 이미지" className="h-full w-full object-cover" /> : <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-[13px] text-neutral-500">등록된 지도 이미지가 없습니다.</div>}
+            <div className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-2 text-[12px] font-semibold text-neutral-700 shadow-sm">위치 참고 이미지</div>
+            {mapHref && (
+              <a
+                href={mapHref}
+                target="_blank"
+                rel="noreferrer"
+                tabIndex={activeSlide === 2 ? 0 : -1}
+                className="absolute bottom-3 left-3 flex min-h-11 items-center rounded-full bg-white px-4 py-2 text-[13px] font-semibold text-blue-700 shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                aria-label={`${mapLinkLabel} (새 창)`}
+              >
+                Google 지도에서 위치 보기
+              </a>
+            )}
           </div>
       </div>
 
-      <div className="flex justify-center gap-1.5 mt-3 mb-4">
-        {SLIDE_TITLES.map((title, index) => (
-          <div key={title} className={`w-1.5 h-1.5 rounded-full transition-colors ${currentSlide === index ? 'bg-blue-500' : 'bg-neutral-300'}`} />
+      <div className="mt-2 mb-3 flex justify-center" role="group" aria-label="슬라이드 선택">
+        {GYM_DETAIL_SLIDE_TITLES.map((title, index) => (
+          <button
+            type="button"
+            key={title}
+            onClick={() => selectSlide(index)}
+            className="flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-500"
+            aria-label={`${gymDetailSlideLabel(index)}로 이동`}
+            aria-current={activeSlide === index ? 'true' : undefined}
+          >
+            <span aria-hidden="true" className={`h-1.5 rounded-full transition-all ${activeSlide === index ? 'w-4 bg-blue-500' : 'w-1.5 bg-neutral-300'}`} />
+          </button>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

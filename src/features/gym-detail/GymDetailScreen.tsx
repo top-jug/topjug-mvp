@@ -8,6 +8,7 @@ import GymDetailHeader from './components/GymDetailHeader';
 import GymDifficultySection from './components/GymDifficultySection';
 import GymFacilitiesSection from './components/GymFacilitiesSection';
 import GymInfoSection from './components/GymInfoSection';
+import { buildGymMapLink } from './gym-detail-controls';
 import {
   buildGymSettingCalendar,
   presentGymContacts,
@@ -82,6 +83,7 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
       logoUrl: logo?.url ?? null,
       photos: photos.length > 0 ? photos : photoFallback ? [photoFallback] : [],
       mapImage,
+      mapHref: buildGymMapLink(gym.latitude, gym.longitude),
       calendar,
       focusMonth,
       grades: gym.grades.map((grade) => ({ color: grade.color, label: grade.label })),
@@ -120,6 +122,8 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
           currentSlide={currentSlide}
           photos={presentation.photos}
           mapImage={presentation.mapImage}
+          mapHref={presentation.mapHref}
+          mapLinkLabel={`Google 지도에서 ${presentation.title} 위치 보기`}
           calendarDays={presentation.calendar.days}
           eventDays={presentation.calendar.eventDays}
           monthLabel={presentation.calendar.monthLabel}
