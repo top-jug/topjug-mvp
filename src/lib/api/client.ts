@@ -55,6 +55,12 @@ export class ApiClient {
     return this.sessionGeneration;
   }
 
+  beginSessionRestoration() {
+    this.sessionGeneration += 1;
+    this.accessToken = null;
+    this.refreshBlocked = false;
+  }
+
   setAccessToken(accessToken: string, expectedGeneration?: number) {
     if (expectedGeneration !== undefined && expectedGeneration !== this.sessionGeneration) {
       throw new ApiClientError('인증 상태가 변경되었습니다.', 401, 'AUTH_SESSION_CHANGED');

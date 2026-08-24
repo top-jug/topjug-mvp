@@ -131,6 +131,35 @@ test('logout invalidates a refresh result that is still in flight', async () => 
   });
 });
 
+test('cross-tab restoration invalidates stale work while allowing a fresh refresh', async () => {
+  let releaseOldRequest: (() => void) | undefined;
+  const oldRequestReady = new Promise<void>((resolve) => {
+    releaseOldRequest = resolve;
+  });
+  const fetchImplementation = async (input: string | URL | Request, init?: RequestInit) => {
+    const path = String(input);
+    if (path.endsWith('/old')) {
+      await oldRequestReady;
+      return jsonResponse({ data: 'old-account-data' });
+    }
+    if (path.endsWith('/auth/refresh')) {
+      return jsonResponse({ data: { accessToken: 'cross-tab-token', accessTokenExpiresIn: 900 } });
+    }
+    return jsonResponse({ data: new Headers(init?.headers).get('Authorization') });
+  };
+  const client = new ApiClient(fetchImplementation as typeof fetch);
+  client.setAccessToken('old-token');
+  const oldRequest = client.request('/old');
+
+  client.beginSessionRestoration();
+  await client.refreshSession();
+  releaseOldRequest?.();
+
+  await assert.rejects(oldRequest, { code: 'AUTH_SESSION_CHANGED' });
+  const current = await client.request<{ data: string }>('/current');
+  assert.equal(current.data, 'Bearer cross-tab-token');
+});
+
 test('protected requests cannot start refresh after logout begins', async () => {
   let refreshRequests = 0;
   const fetchImplementation = async (input: string | URL | Request) => {

@@ -2,12 +2,14 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 import { ApiClientError } from '../../lib/api/error';
 import { apiClient } from '../../lib/api/client';
 import { getCurrentUser, LOGOUT_PENDING_KEY, login as loginRequest, logout as logoutRequest, register as registerRequest, restoreSession } from './api';
+import { createSessionEventSynchronizer, isAuthenticatedSessionEvent, publishAuthenticatedSession } from './session-events';
 import type { AuthStatus, AuthUser, LoginInput, RegisterInput } from './types';
 
 export type AuthContextValue = {
   status: AuthStatus;
   user: AuthUser | null;
   error: ApiClientError | null;
+  isRestoringSession: boolean;
   login: (input: LoginInput) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
@@ -26,10 +28,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<AuthUser | null>(null);
   const [error, setError] = useState<ApiClientError | null>(null);
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
   const operation = useRef(0);
 
   async function initialize() {
     const currentOperation = ++operation.current;
+    setIsRestoringSession(true);
     setStatus('loading');
     setError(null);
     try {
@@ -47,6 +51,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setError(apiError);
         setStatus('error');
       }
+    } finally {
+      if (currentOperation === operation.current) setIsRestoringSession(false);
     }
   }
 
@@ -55,18 +61,29 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const unsubscribe = apiClient.subscribeUnauthorized(() => {
       if (!active) return;
       operation.current += 1;
+      setIsRestoringSession(false);
       setUser(null);
       setError(null);
       setStatus('unauthenticated');
     });
     const handleStorage = (event: StorageEvent) => {
-      if (event.key !== LOGOUT_PENDING_KEY || event.newValue !== 'true') return;
-      operation.current += 1;
-      apiClient.clearSession();
-      setUser(null);
-      setError(null);
-      setStatus('unauthenticated');
+      if (event.key === LOGOUT_PENDING_KEY && event.newValue === 'true') {
+        operation.current += 1;
+        apiClient.clearSession();
+        setIsRestoringSession(false);
+        setUser(null);
+        setError(null);
+        setStatus('unauthenticated');
+      } else if (isAuthenticatedSessionEvent(event)) {
+        operation.current += 1;
+        apiClient.beginSessionRestoration();
+        synchronizeSession();
+      }
     };
+    const synchronizeSession = createSessionEventSynchronizer(async () => {
+      if (!active) return;
+      await initialize();
+    });
     window.addEventListener('storage', handleStorage);
 
     void initialize();
@@ -80,6 +97,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   async function login(input: LoginInput) {
     const currentOperation = ++operation.current;
     setStatus('loading');
+    setIsRestoringSession(false);
     setError(null);
     try {
       const currentUser = await loginRequest(input);
@@ -88,6 +106,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
       setUser(currentUser);
       setStatus('authenticated');
+      publishAuthenticatedSession();
     } catch (nextError) {
       if (currentOperation === operation.current) {
         setUser(null);
@@ -100,6 +119,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   async function register(input: RegisterInput) {
     const currentOperation = ++operation.current;
     setStatus('loading');
+    setIsRestoringSession(false);
     setError(null);
     try {
       const currentUser = await registerRequest(input);
@@ -108,6 +128,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
       setUser(currentUser);
       setStatus('authenticated');
+      publishAuthenticatedSession();
     } catch (nextError) {
       if (currentOperation === operation.current) {
         setUser(null);
@@ -119,6 +140,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   async function logout() {
     operation.current += 1;
+    setIsRestoringSession(false);
     setUser(null);
     setError(null);
     setStatus('unauthenticated');
@@ -140,7 +162,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ status, user, error, login, register, logout, refreshUser, retry: initialize }}>
+    <AuthContext.Provider value={{ status, user, error, isRestoringSession, login, register, logout, refreshUser, retry: initialize }}>
       {children}
     </AuthContext.Provider>
   );

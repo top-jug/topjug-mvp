@@ -2,6 +2,7 @@ import { type FormEvent, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { isApiClientError } from '../../lib/api';
 import { useAuth } from './AuthProvider';
+import { toRegisterInput, validateRegistrationPasswords } from './registration';
 
 type Props = {
   mode: 'login' | 'register';
@@ -13,28 +14,44 @@ function intendedPath(state: unknown) {
 }
 
 export function AuthScreen({ mode }: Props) {
-  const { status, login, register } = useAuth();
+  const { status, isRestoringSession, login, register } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const submitting = status === 'loading';
 
   if (status === 'authenticated') return <Navigate to={intendedPath(location.state)} replace />;
+  if (isRestoringSession) {
+    return (
+      <main className="min-h-screen bg-[#f4f7fb] px-5 flex items-center justify-center" aria-busy="true" aria-live="polite">
+        <div className="text-center">
+          <div className="mx-auto h-10 w-10 rounded-full border-[3px] border-blue-100 border-t-blue-600 animate-spin" aria-hidden="true" />
+          <h1 className="mt-5 text-lg font-black tracking-[-0.03em] text-neutral-950">로그인 상태를 확인하고 있어요</h1>
+          <p className="mt-2 text-sm text-neutral-500">잠시만 기다려주세요.</p>
+        </div>
+      </main>
+    );
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
-    if (mode === 'register' && password.length < 12) {
-      setMessage('비밀번호는 12자 이상 입력해주세요.');
-      return;
+    if (mode === 'register') {
+      const validationMessage = validateRegistrationPasswords(password, passwordConfirmation);
+      if (validationMessage) {
+        setMessage(validationMessage);
+        return;
+      }
     }
 
     try {
       if (mode === 'login') await login({ email, password });
-      else await register({ displayName, email, password });
+      else await register(toRegisterInput({ displayName, email, password, passwordConfirmation }));
       navigate(intendedPath(location.state), { replace: true });
     } catch (error) {
       setMessage(isApiClientError(error) ? error.message : '요청을 처리하지 못했습니다.');
@@ -89,18 +106,48 @@ export function AuthScreen({ mode }: Props) {
             </label>
             <label className="block">
               <span className="mb-2 block text-sm font-bold text-neutral-800">비밀번호</span>
-              <input
-                required
-                type="password"
-                minLength={isLogin ? 1 : 12}
-                maxLength={128}
-                autoComplete={isLogin ? 'current-password' : 'new-password'}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className="h-13 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 text-base text-neutral-950 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                placeholder={isLogin ? '비밀번호' : '12자 이상 입력'}
-              />
+              <span className="relative block">
+                <input
+                  required
+                  type={!isLogin && showPassword ? 'text' : 'password'}
+                  minLength={isLogin ? 1 : 12}
+                  maxLength={128}
+                  autoComplete={isLogin ? 'current-password' : 'new-password'}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className={`h-13 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 text-base text-neutral-950 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 ${isLogin ? '' : 'pr-20'}`}
+                  placeholder={isLogin ? '비밀번호' : '12자 이상 입력'}
+                />
+                {!isLogin && (
+                  <button
+                    type="button"
+                    aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 표시하기'}
+                    aria-pressed={showPassword}
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    className="absolute inset-y-1 right-1 min-w-16 rounded-xl px-3 text-sm font-bold text-blue-600 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  >
+                    {showPassword ? '숨기기' : '보기'}
+                  </button>
+                )}
+              </span>
             </label>
+
+            {!isLogin && (
+              <label className="block">
+                <span className="mb-2 block text-sm font-bold text-neutral-800">비밀번호 확인</span>
+                <input
+                  required
+                  type={showPassword ? 'text' : 'password'}
+                  minLength={12}
+                  maxLength={128}
+                  autoComplete="new-password"
+                  value={passwordConfirmation}
+                  onChange={(event) => setPasswordConfirmation(event.target.value)}
+                  className="h-13 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 text-base text-neutral-950 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  placeholder="비밀번호를 다시 입력"
+                />
+              </label>
+            )}
 
             {message && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{message}</div>}
 
