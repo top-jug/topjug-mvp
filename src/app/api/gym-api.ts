@@ -31,7 +31,7 @@ export interface ApiGymSummary {
   facilities: string[];
   calendarColor: string | null;
   calendarTextColor: string | null;
-  brand: { id: string; name: string } | null;
+  brand: { id: string; name: string; websiteUrl: string | null; instagramUrl: string | null } | null;
   cover: GymMediaReference | null;
   tags: GymTag[];
   dayPassPrice: GymPrice | null;
@@ -54,6 +54,15 @@ export interface GymOperatingHours {
   opensAt: string | null;
   closesAt: string | null;
   isClosed: boolean;
+}
+
+export interface GymOperatingHourOverride {
+  date: string;
+  sequence: number;
+  opensAt: string | null;
+  closesAt: string | null;
+  isClosed: boolean;
+  note: string | null;
 }
 
 export interface GymGrade {
@@ -84,6 +93,13 @@ export interface GymWall {
   sectors: GymSector[];
 }
 
+export interface GymSettingEvent {
+  id: string;
+  status: 'scheduled' | 'completed' | 'cancelled';
+  startsAt: string;
+  endsAt: string | null;
+}
+
 export interface ApiGymDetail extends ApiGymSummary {
   phone: string | null;
   websiteUrl: string | null;
@@ -93,10 +109,11 @@ export interface ApiGymDetail extends ApiGymSummary {
   parkingInfo: string | null;
   media: GymMedia[];
   operatingHours: GymOperatingHours[];
+  operatingHourOverrides: GymOperatingHourOverride[];
   prices: GymPrice[];
   grades: GymGrade[];
   walls: GymWall[];
-  settingEvents: Array<{ id: string; startsAt: string }>;
+  settingEvents: GymSettingEvent[];
 }
 
 export interface ListGymsInput {

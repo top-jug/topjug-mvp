@@ -8,8 +8,16 @@ import GymDetailHeader from './components/GymDetailHeader';
 import GymDifficultySection from './components/GymDifficultySection';
 import GymFacilitiesSection from './components/GymFacilitiesSection';
 import GymInfoSection from './components/GymInfoSection';
+import {
+  buildGymSettingCalendar,
+  presentGymContacts,
+  presentOperatingHourOverrides,
+  presentWeeklyOperatingHours,
+  selectInitialGymSettingMonth,
+  shiftGymSettingMonth,
+  type GymSettingMonth,
+} from './gym-presentation';
 
-const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 const FACILITIES: Record<string, GymFacility> = {
   shower: { label: '샤워실', icon: 'shower' },
   kilter_board: { label: '킬터보드', icon: 'boulder' },
@@ -25,54 +33,26 @@ function detailErrorMessage(error: unknown) {
   return '암장 상세 정보를 불러오지 못했습니다.';
 }
 
-function calendarFor(gym: ApiGymDetail) {
-  const eventDates = gym.settingEvents.map((event) => new Date(event.startsAt)).filter((date) => !Number.isNaN(date.getTime()));
-  const focus = eventDates[0] ?? new Date();
-  const year = focus.getFullYear();
-  const month = focus.getMonth();
-  const firstDay = new Date(year, month, 1).getDay();
-  const lastDate = new Date(year, month + 1, 0).getDate();
-  const days: Array<number | ''> = [
-    ...Array.from({ length: firstDay }, () => '' as const),
-    ...Array.from({ length: lastDate }, (_, index) => index + 1),
-  ];
-  while (days.length % 7 !== 0) days.push('');
-
-  return {
-    days,
-    eventDays: eventDates
-      .filter((date) => date.getFullYear() === year && date.getMonth() === month)
-      .map((date) => date.getDate()),
-    monthLabel: `${year}년 ${month + 1}월`,
-  };
-}
-
-function operatingHoursFor(gym: ApiGymDetail) {
-  if (gym.operatingHoursNote) return gym.operatingHoursNote.split('\n').filter(Boolean);
-  if (gym.operatingHours.length === 0) return ['운영시간 정보가 없습니다.'];
-
-  return gym.operatingHours.map((hours) => {
-    const day = DAY_LABELS[hours.dayOfWeek] ?? `${hours.dayOfWeek}`;
-    if (hours.isClosed) return `${day}요일 휴무`;
-    return `${day}요일 ${hours.opensAt?.slice(0, 5) ?? '-'} - ${hours.closesAt?.slice(0, 5) ?? '-'}`;
-  });
-}
-
 export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onClose: () => void }) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [gym, setGym] = useState<ApiGymDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [requestVersion, setRequestVersion] = useState(0);
+  const [calendarMonth, setCalendarMonth] = useState<GymSettingMonth | null>(null);
   const { isSavedGym, toggleSavedGym, pendingGymIds, actionError } = useSavedGyms();
 
   useEffect(() => {
     const controller = new AbortController();
     setIsLoading(true);
     setError(null);
+    setCalendarMonth(null);
 
     getGym(gymId, controller.signal)
-      .then((response) => setGym(response.data))
+      .then((response) => {
+        setGym(response.data);
+        setCalendarMonth(selectInitialGymSettingMonth(response.data.settingEvents));
+      })
       .catch((requestError) => {
         if (requestError instanceof DOMException && requestError.name === 'AbortError') return;
         setGym(null);
@@ -94,7 +74,8 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
     const mapImage = gym.media.find((media) => media.type === 'map' && media.url)?.url
       ?? gym.walls.find((wall) => wall.mapMedia?.url)?.mapMedia?.url
       ?? null;
-    const calendar = calendarFor(gym);
+    const focusMonth = calendarMonth ?? selectInitialGymSettingMonth(gym.settingEvents);
+    const calendar = buildGymSettingCalendar(gym.settingEvents, focusMonth);
 
     return {
       title: displayGymName(gym),
@@ -102,12 +83,15 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
       photos: photos.length > 0 ? photos : photoFallback ? [photoFallback] : [],
       mapImage,
       calendar,
+      focusMonth,
       grades: gym.grades.map((grade) => ({ color: grade.color, label: grade.label })),
       facilities: gym.facilities.map((facility) => FACILITIES[facility]).filter((facility): facility is GymFacility => Boolean(facility)),
-      hours: operatingHoursFor(gym),
+      weeklyHours: presentWeeklyOperatingHours(gym.operatingHours, gym.operatingHoursNote),
+      operatingHourOverrides: presentOperatingHourOverrides(gym.operatingHourOverrides),
+      contacts: presentGymContacts(gym),
       prices: gym.prices.map((price) => `${price.type === 'shoe_rental' ? '암벽화 대여' : '일일 이용권'} · ${price.rawText}`),
     };
-  }, [gym]);
+  }, [calendarMonth, gym]);
 
   if (isLoading) {
     return <DetailState title="암장 상세" message="암장 정보를 불러오는 중입니다." onBack={onClose} />;
@@ -139,10 +123,23 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
           calendarDays={presentation.calendar.days}
           eventDays={presentation.calendar.eventDays}
           monthLabel={presentation.calendar.monthLabel}
+          onChangeEventMonth={(delta) => {
+            setCalendarMonth(shiftGymSettingMonth(presentation.focusMonth, delta));
+          }}
           onSlideChange={setCurrentSlide}
         />
         {presentation.grades.length > 0 && <GymDifficultySection grades={presentation.grades} />}
-        <GymInfoSection address={gym.address} nearby={gym.nearbyDirections ?? ''} operatingHours={presentation.hours} prices={presentation.prices} />
+        <GymInfoSection
+          address={gym.address}
+          nearby={gym.nearbyDirections ?? ''}
+          operationStatus={gym.operationStatus}
+          operatingHours={presentation.weeklyHours.hours}
+          operatingHoursNote={presentation.weeklyHours.note}
+          operatingHourOverrides={presentation.operatingHourOverrides}
+          prices={presentation.prices}
+          parkingInfo={gym.parkingInfo}
+          contacts={presentation.contacts}
+        />
         {presentation.facilities.length > 0 && <GymFacilitiesSection facilities={presentation.facilities} />}
       </div>
     </>

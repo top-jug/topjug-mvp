@@ -1,5 +1,6 @@
 import { ImageWithFallback } from '../../../app/components/figma/ImageWithFallback';
 import { ApiGymSummary, displayGymName } from '../../../app/api/gym-api';
+import { OPERATION_STATUS_PRESENTATION } from '../../gym-detail/gym-presentation';
 
 interface GymSearchCardProps {
   gym: ApiGymSummary;
@@ -21,6 +22,7 @@ export default function GymSearchCard({ gym, onClick, isSaved, onToggleSaved, is
   const tags = gym.tags.length > 0
     ? gym.tags.map((tag) => tag.label)
     : gym.facilities.map((facility) => FACILITY_LABELS[facility] ?? facility);
+  const operationStatus = OPERATION_STATUS_PRESENTATION[gym.operationStatus];
 
   return (
     <div onClick={onClick} className="flex gap-3 bg-white border border-neutral-200 rounded-2xl p-4 hover:border-blue-500 transition-colors cursor-pointer min-h-[116px]">
@@ -34,7 +36,12 @@ export default function GymSearchCard({ gym, onClick, isSaved, onToggleSaved, is
         )}
       </div>
       <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-[15px] mb-1">{displayGymName(gym)}</h3>
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <h3 className="font-bold text-[15px]">{displayGymName(gym)}</h3>
+            <span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${operationStatus.className}`}>
+              {operationStatus.label}
+            </span>
+          </div>
           <p className="text-[13px] text-neutral-500 mb-2 line-clamp-1">{gym.address}</p>
           <div className="flex items-center gap-2">
             {tags.slice(0, 2).map((tag) => (
