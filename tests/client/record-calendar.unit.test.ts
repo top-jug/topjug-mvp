@@ -5,12 +5,14 @@ import {
   buildMonthCells,
   getCalendarMonthRange,
   getLocalCalendarDate,
+  getCalendarWeekdayKind,
   shiftCalendarMonth,
 } from '../../src/features/calendar/calendar-month';
 import {
   buildRecordCalendarData,
   getRecordCalendarState,
   loadRecordCalendarMonth,
+  resolveRecordCalendarSnapshot,
 } from '../../src/features/calendar/record-calendar';
 
 function record(overrides: Partial<ApiRecordSummary> = {}): ApiRecordSummary {
@@ -57,6 +59,15 @@ test('API record summaries map to their local day with real IDs and details', ()
   }]);
 });
 
+test('record gym names do not repeat a branch already included in the name', () => {
+  const startedAt = new Date(2026, 7, 24, 10).toISOString();
+  const data = buildRecordCalendarData([
+    record({ gym: { id: 'gym-1', name: '더클라임 강남', branchName: '강남' }, startedAt }),
+  ], 2026, 8);
+
+  assert.equal(data[24][0].gym, '더클라임 강남');
+});
+
 test('month movement and ranges cross year and short-month boundaries', () => {
   assert.deepEqual(shiftCalendarMonth(2026, 12, 1), { year: 2027, month: 1 });
   assert.deepEqual(shiftCalendarMonth(2027, 1, -1), { year: 2026, month: 12 });
@@ -69,6 +80,13 @@ test('month movement and ranges cross year and short-month boundaries', () => {
   const january = buildMonthCells(2027, 1);
   assert.equal(january.findIndex((cell) => cell.day === 1), 5);
   assert.equal(january.filter((cell) => cell.day !== null).length, 31);
+});
+
+test('Sunday-first calendar columns classify weekend colors consistently', () => {
+  assert.equal(getCalendarWeekdayKind(0), 'sunday');
+  assert.equal(getCalendarWeekdayKind(1), 'weekday');
+  assert.equal(getCalendarWeekdayKind(5), 'weekday');
+  assert.equal(getCalendarWeekdayKind(6), 'saturday');
 });
 
 test('month loading follows every cursor instead of treating the first page as complete', async () => {
@@ -90,4 +108,42 @@ test('record calendar exposes loading, empty, error, and ready states', () => {
   assert.equal(getRecordCalendarState(false, null, {}), 'empty');
   assert.equal(getRecordCalendarState(false, 'failed', {}), 'error');
   assert.equal(getRecordCalendarState(false, null, { 1: [{ gym: '암장', wall: '완등 1' }] }), 'ready');
+});
+
+test('record calendar hides a snapshot that belongs to a different displayed month', () => {
+  const snapshot = {
+    year: 2026,
+    month: 8,
+    data: { 24: [{ gym: '암장', wall: '완등 1', recordId: 'august-record' }] },
+    error: null,
+    isLoading: false,
+  };
+
+  assert.deepEqual(resolveRecordCalendarSnapshot(snapshot, 2026, 9), {
+    data: {},
+    error: null,
+    state: 'loading',
+  });
+  assert.equal(resolveRecordCalendarSnapshot(snapshot, 2026, 8).state, 'ready');
+});
+
+test('record calendar hides carried data while the matching month is loading or failed', () => {
+  const snapshot = {
+    year: 2026,
+    month: 8,
+    data: { 24: [{ gym: '암장', wall: '완등 1', recordId: 'stale-record' }] },
+    error: null,
+    isLoading: true,
+  };
+
+  assert.deepEqual(resolveRecordCalendarSnapshot(snapshot, 2026, 8), {
+    data: {},
+    error: null,
+    state: 'loading',
+  });
+  assert.deepEqual(resolveRecordCalendarSnapshot({ ...snapshot, error: 'failed', isLoading: false }, 2026, 8), {
+    data: {},
+    error: 'failed',
+    state: 'error',
+  });
 });

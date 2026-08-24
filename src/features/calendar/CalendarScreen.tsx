@@ -17,7 +17,7 @@ import {
   getLocalCalendarDate,
   shiftCalendarMonth,
 } from './calendar-month';
-import { getRecordCalendarState, loadRecordCalendarMonth } from './record-calendar';
+import { loadRecordCalendarMonth, type RecordCalendarSnapshot, resolveRecordCalendarSnapshot } from './record-calendar';
 
 interface CalendarScreenProps {
   viewMode: CalendarViewMode;
@@ -81,12 +81,11 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
   const [isSettingLoading, setIsSettingLoading] = useState(false);
   const [settingError, setSettingError] = useState<string | null>(null);
   const [settingRequestKey, setSettingRequestKey] = useState(0);
-  const [recordCalendarData, setRecordCalendarData] = useState<CalendarData>({});
-  const [isRecordLoading, setIsRecordLoading] = useState(false);
-  const [recordError, setRecordError] = useState<string | null>(null);
+  const [recordSnapshot, setRecordSnapshot] = useState<RecordCalendarSnapshot | null>(null);
   const [recordRequestKey, setRecordRequestKey] = useState(0);
 
-  const currentCalendarData = viewMode === 'record' ? recordCalendarData : settingCalendarData;
+  const recordView = resolveRecordCalendarSnapshot(recordSnapshot, currentMonth.year, currentMonth.month);
+  const currentCalendarData = viewMode === 'record' ? recordView.data : settingCalendarData;
 
   useEffect(() => {
     const nextGyms = getModeGyms(currentCalendarData);
@@ -133,25 +132,32 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
   useEffect(() => {
     if (viewMode !== 'record') return;
     if (authStatus !== 'authenticated') {
-      setRecordCalendarData({});
-      setRecordError(authStatus === 'error' ? '로그인 상태를 확인하지 못했어요.' : null);
-      setIsRecordLoading(authStatus === 'loading');
+      setRecordSnapshot({
+        year: currentMonth.year,
+        month: currentMonth.month,
+        data: {},
+        error: authStatus === 'error' ? '로그인 상태를 확인하지 못했어요.' : null,
+        isLoading: authStatus === 'loading',
+      });
       return;
     }
 
     const controller = new AbortController();
-    setIsRecordLoading(true);
-    setRecordCalendarData({});
-    setRecordError(null);
+    setRecordSnapshot({ year: currentMonth.year, month: currentMonth.month, data: {}, error: null, isLoading: true });
 
     loadRecordCalendarMonth(currentMonth.year, currentMonth.month, controller.signal)
-      .then(setRecordCalendarData)
+      .then((data) => {
+        setRecordSnapshot({ year: currentMonth.year, month: currentMonth.month, data, error: null, isLoading: false });
+      })
       .catch((error) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
-        setRecordError(error instanceof Error ? error.message : '기록을 불러오지 못했어요.');
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setIsRecordLoading(false);
+        setRecordSnapshot({
+          year: currentMonth.year,
+          month: currentMonth.month,
+          data: {},
+          error: error instanceof Error ? error.message : '기록을 불러오지 못했어요.',
+          isLoading: false,
+        });
       });
 
     return () => controller.abort();
@@ -183,7 +189,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
   const periodLabel = `${currentMonth.year}년 ${currentMonth.month}월`;
 
   const selectedEntries = selectedDate ? visibleCalendarData[selectedDate] ?? [] : [];
-  const recordState = getRecordCalendarState(isRecordLoading, recordError, recordCalendarData);
+  const recordState = recordView.state;
 
   useEffect(() => {
     if (selectedEntries.length === 0 || activeSlide >= selectedEntries.length) {
@@ -288,7 +294,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
           {recordState === 'empty' && '이 달에 완료된 기록이 없습니다.'}
           {recordState === 'error' && (
             <>
-              <div>{recordError}</div>
+              <div>{recordView.error}</div>
               <button
                 type="button"
                 onClick={() => authStatus === 'error' ? void retryAuth() : setRecordRequestKey((key) => key + 1)}
@@ -344,7 +350,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
           mode={viewMode}
           year={currentMonth.year}
           month={currentMonth.month}
-          selectedDate={selectedDate}
+          selectedDate={viewMode === 'record' && (recordState === 'loading' || recordState === 'error') ? null : selectedDate}
           activeSlide={activeSlide}
           gyms={filterGyms}
           calendarData={visibleCalendarData}

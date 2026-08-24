@@ -5,6 +5,14 @@ export interface CalendarMonthCell {
   month: number;
 }
 
+export type CalendarWeekdayKind = 'weekday' | 'saturday' | 'sunday';
+
+export function getCalendarWeekdayKind(columnIndex: number): CalendarWeekdayKind {
+  if (columnIndex === 0) return 'sunday';
+  if (columnIndex === 6) return 'saturday';
+  return 'weekday';
+}
+
 export function getLocalCalendarDate(now = new Date()) {
   return { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() };
 }

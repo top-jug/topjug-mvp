@@ -1,8 +1,10 @@
 import { listRecords, type ApiRecordSummary } from '../../app/api/record-api';
+import { displayGymName } from '../../app/api/gym-api';
 import type { CalendarData, CalendarEntry } from '../../entities/calendar/types';
 import { getCalendarMonthRange } from './calendar-month';
 
 const RECORD_PAGE_SIZE = 100;
+const EMPTY_CALENDAR_DATA: CalendarData = {};
 
 type RecordPage = Awaited<ReturnType<typeof listRecords>>;
 type ListRecordPage = (params: {
@@ -14,6 +16,14 @@ type ListRecordPage = (params: {
 }) => Promise<RecordPage>;
 
 export type RecordCalendarState = 'loading' | 'empty' | 'error' | 'ready';
+
+export interface RecordCalendarSnapshot {
+  year: number;
+  month: number;
+  data: CalendarData;
+  error: string | null;
+  isLoading: boolean;
+}
 
 export function buildRecordCalendarData(records: ApiRecordSummary[], year: number, month: number) {
   const calendarData: CalendarData = {};
@@ -27,7 +37,7 @@ export function buildRecordCalendarData(records: ApiRecordSummary[], year: numbe
     ) return;
 
     const day = startedAt.getDate();
-    const gymName = [record.gym.name, record.gym.branchName].filter(Boolean).join(' ');
+    const gymName = displayGymName(record.gym);
     const entry: CalendarEntry = {
       gym: gymName,
       gymId: record.gym.id,
@@ -79,4 +89,22 @@ export function getRecordCalendarState(isLoading: boolean, error: string | null,
   if (isLoading) return 'loading';
   if (error) return 'error';
   return Object.values(calendarData).some((entries) => entries.length > 0) ? 'ready' : 'empty';
+}
+
+export function resolveRecordCalendarSnapshot(
+  snapshot: RecordCalendarSnapshot | null,
+  year: number,
+  month: number,
+) {
+  if (!snapshot || snapshot.year !== year || snapshot.month !== month) {
+    return { data: EMPTY_CALENDAR_DATA, error: null, state: 'loading' as const };
+  }
+
+  const state = getRecordCalendarState(snapshot.isLoading, snapshot.error, snapshot.data);
+
+  return {
+    data: state === 'loading' || state === 'error' ? EMPTY_CALENDAR_DATA : snapshot.data,
+    error: snapshot.error,
+    state,
+  };
 }
