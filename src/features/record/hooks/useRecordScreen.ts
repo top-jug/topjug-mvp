@@ -16,6 +16,7 @@ import { ClimbingRecord, DifficultyOption, RecordCountType, RecordSectorId, Rout
 import {
   RecordSectorOption,
   calculateActiveDurationSeconds,
+  canUseRecordActions,
   difficultyOptionsFromGym,
   formatElapsedTime,
   recordCountKey,
@@ -25,7 +26,7 @@ import {
 } from '../record-session-model';
 
 interface UseRecordScreenOptions {
-  onClose: () => void;
+  onClose: () => void | Promise<void>;
   initialDraft: RecordDraft;
   onSubmitComplete?: (record: ClimbingRecord) => void | Promise<void>;
 }
@@ -52,6 +53,7 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
   const [showRatingWarning, setShowRatingWarning] = useState(false);
   const [routeCounts, setRouteCounts] = useState<RouteCounts>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +71,7 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
   const hydrate = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setIsHydrated(false);
     hydratedRef.current = false;
 
     try {
@@ -94,6 +97,7 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
       latestCountsRef.current = nextCounts;
       setRating(active.rating);
       hydratedRef.current = true;
+      setIsHydrated(true);
     } catch (hydrateError) {
       setError(messageForRecordError(hydrateError));
     } finally {
@@ -149,6 +153,7 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
   }, [routeCounts, saveCounts]);
 
   const handleCountChange = (sectorId: RecordSectorId, gradeId: string, type: RecordCountType, delta: number) => {
+    if (!canUseRecordActions(hydratedRef.current, isLoading)) return;
     const key = recordCountKey(sectorId, gradeId);
     setRouteCounts((currentCounts) => {
       const current = currentCounts[key] ?? { success: 0, attempt: 0 };
@@ -166,7 +171,7 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
   };
 
   const handleRecordingToggle = async () => {
-    if (isTransitioning) return;
+    if (!canUseRecordActions(hydratedRef.current, isLoading) || isTransitioning) return;
     setIsTransitioning(true);
     setError(null);
     const at = new Date().toISOString();
@@ -193,6 +198,7 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
   };
 
   const handleSubmitClick = () => {
+    if (!canUseRecordActions(hydratedRef.current, isLoading)) return;
     if (rating === null) {
       setShowRatingWarning(true);
       return;
@@ -201,7 +207,7 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
   };
 
   const handleSubmitConfirm = async () => {
-    if (isTransitioning) return;
+    if (!canUseRecordActions(hydratedRef.current, isLoading) || isTransitioning) return;
     setShowSubmitConfirm(false);
     setIsTransitioning(true);
     setError(null);
@@ -220,12 +226,12 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
   };
 
   const handleCancel = async () => {
-    if (isTransitioning) return;
+    if (!canUseRecordActions(hydratedRef.current, isLoading) || isTransitioning) return;
     setIsTransitioning(true);
     setError(null);
     try {
       await cancelRecordSession(initialDraft.recordId);
-      onClose();
+      await onClose();
     } catch (cancelError) {
       setError(messageForRecordError(cancelError));
     } finally {
@@ -251,6 +257,7 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
       difficulties,
       sectors,
       isLoading,
+      isHydrated,
       isSaving,
       isTransitioning,
       error,
@@ -258,7 +265,9 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
     },
     actions: {
       setExpandedSectors,
-      setRating,
+      setRating: (value: number) => {
+        if (canUseRecordActions(hydratedRef.current, isLoading)) setRating(value);
+      },
       setShowSubmitConfirm,
       setShowRatingWarning,
       handleCountChange,
@@ -266,6 +275,7 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
       handleSubmitClick,
       handleSubmitConfirm,
       handleCancel,
+      handleSafeExit: onClose,
       retryHydrate: hydrate,
       retrySave: () => saveCounts(latestCountsRef.current),
     },

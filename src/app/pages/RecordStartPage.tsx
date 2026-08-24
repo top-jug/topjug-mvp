@@ -14,6 +14,7 @@ import {
 import DatePickerModal from '../../features/record/components/modals/DatePickerModal';
 import GymSelectModal from '../../features/record/components/modals/GymSelectModal';
 import PassSelectModal from '../../features/record/components/modals/PassSelectModal';
+import { shiftRecordMonth } from '../../features/record/record-date';
 
 const MONTH_NAMES = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
 const TIME_WHEEL_ITEM_HEIGHT = 44;
@@ -154,7 +155,7 @@ export default function RecordStartPage() {
   const [selectedGymId, setSelectedGymId] = useState(draft?.selectedGymId ?? '');
   const [selectedGym, setSelectedGym] = useState(draft?.selectedGym ?? '암장을 선택하세요');
   const [selectedDate, setSelectedDate] = useState(initialDate);
-  const [selectedYear] = useState(parsedDate.year);
+  const [selectedYear, setSelectedYear] = useState(parsedDate.year);
   const [selectedMonth, setSelectedMonth] = useState(parsedDate.month);
   const [selectedDay, setSelectedDay] = useState(parsedDate.day);
   const [selectedStartTime, setSelectedStartTime] = useState(initialStartTime);
@@ -174,6 +175,12 @@ export default function RecordStartPage() {
   const [isRecovering, setIsRecovering] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+
+  const moveSelectedMonth = (delta: number) => {
+    const next = shiftRecordMonth(selectedYear, selectedMonth, delta);
+    setSelectedYear(next.year);
+    setSelectedMonth(next.month);
+  };
 
   useEffect(() => {
     if (selectedGymId || gymChoices.length === 0) return;
@@ -322,7 +329,7 @@ export default function RecordStartPage() {
       </div>
 
       {showGymModal && <GymSelectModal gyms={gymChoices} selectedGymId={selectedGymId} onSelect={(gym) => { setSelectedGymId(gym.id); setSelectedGym(gym.name); setSelectedPassType(null); setSelectedPass(null); setSelectedMembershipId(null); setShowGymModal(false); }} onClose={() => setShowGymModal(false)} />}
-      {showDatePicker && <DatePickerModal selectedYear={selectedYear} selectedMonth={selectedMonth} selectedDay={selectedDay} monthNames={MONTH_NAMES} getFirstDayOfMonth={(year, month) => new Date(year, month, 1).getDay()} getDaysInMonth={(year, month) => new Date(year, month + 1, 0).getDate()} onPrevMonth={() => setSelectedMonth(selectedMonth === 0 ? 11 : selectedMonth - 1)} onNextMonth={() => setSelectedMonth(selectedMonth === 11 ? 0 : selectedMonth + 1)} onSelectDay={(day) => { setSelectedDay(day); setSelectedDate(formatRecordDate(selectedYear, selectedMonth, day)); setShowDatePicker(false); }} onClose={() => setShowDatePicker(false)} />}
+      {showDatePicker && <DatePickerModal selectedYear={selectedYear} selectedMonth={selectedMonth} selectedDay={selectedDay} monthNames={MONTH_NAMES} getFirstDayOfMonth={(year, month) => new Date(year, month, 1).getDay()} getDaysInMonth={(year, month) => new Date(year, month + 1, 0).getDate()} onPrevMonth={() => moveSelectedMonth(-1)} onNextMonth={() => moveSelectedMonth(1)} onSelectDay={(day) => { setSelectedDay(day); setSelectedDate(formatRecordDate(selectedYear, selectedMonth, day)); setShowDatePicker(false); }} onClose={() => setShowDatePicker(false)} />}
       {showPassModal && <PassSelectModal passType={tempPassType} countPasses={eligibleCountPasses} periodPasses={eligiblePeriodPasses} onSelect={(passType, pass, membershipId) => { setSelectedPassType(passType); setSelectedPass(pass); setSelectedMembershipId(membershipId); setShowPassModal(false); }} onClose={() => setShowPassModal(false)} />}
       {showTimeModal && <CenteredModalShell onClose={() => setShowTimeModal(false)} panelClassName="bg-white rounded-[28px] p-5 w-[min(92vw,420px)]"><h3 className="text-[18px] font-bold text-center mb-2">시작 시간</h3><div className="flex gap-3"><TimeWheelColumn label="오전/오후" items={Array.from(TIME_PERIODS)} value={tempStartPeriod} onChange={(value) => setTempStartPeriod(value as (typeof TIME_PERIODS)[number])} /><TimeWheelColumn label="시" items={hourItems} value={tempStartHour} onChange={setTempStartHour} /><TimeWheelColumn label="분" items={minuteItems} value={tempStartMinute} onChange={setTempStartMinute} /></div><div className="flex gap-2 mt-5"><button onClick={() => setShowTimeModal(false)} className="flex-1 py-2.5 bg-neutral-100 text-neutral-700 rounded-xl font-medium">취소</button><button onClick={() => { setSelectedStartTime(formatTimeValue(tempStartPeriod, Number(tempStartHour), Number(tempStartMinute))); setShowTimeModal(false); }} className="flex-1 py-2.5 bg-blue-500 text-white rounded-xl font-medium">확인</button></div></CenteredModalShell>}
     </div>

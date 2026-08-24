@@ -1,9 +1,10 @@
 interface RecordRatingCardProps {
   rating: number | null;
   onChange: (value: number) => void;
+  disabled?: boolean;
 }
 
-export default function RecordRatingCard({ rating, onChange }: RecordRatingCardProps) {
+export default function RecordRatingCard({ rating, onChange, disabled = false }: RecordRatingCardProps) {
   return (
     <div className="py-4 rating-section">
       <div className="bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl p-4 text-white text-center">
@@ -16,8 +17,10 @@ export default function RecordRatingCard({ rating, onChange }: RecordRatingCardP
             return (
               <div
                 key={starNum}
-                className="relative cursor-pointer"
+                className={`relative ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                aria-disabled={disabled}
                 onClick={(event) => {
+                  if (disabled) return;
                   const rect = event.currentTarget.getBoundingClientRect();
                   const x = event.clientX - rect.left;
                   onChange(x < rect.width / 2 ? starNum - 0.5 : starNum);

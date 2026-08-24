@@ -4,6 +4,10 @@ import type { DifficultyOption, RouteCounts } from '../../entities/record/types'
 
 const KEY_SEPARATOR = '::';
 
+export function canUseRecordActions(isHydrated: boolean, isLoading: boolean) {
+  return isHydrated && !isLoading;
+}
+
 export interface RecordSectorOption {
   id: string;
   name: string;

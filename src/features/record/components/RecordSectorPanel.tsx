@@ -9,10 +9,11 @@ interface RecordSectorPanelProps {
   difficulties: DifficultyOption[];
   routeCounts: RouteCounts;
   onCountChange: (sectorId: RecordSectorId, gradeId: string, type: RecordCountType, delta: number) => void;
+  disabled?: boolean;
 }
 
 export default function RecordSectorPanel(props: RecordSectorPanelProps) {
-  const { title, sectorId, expanded, onToggle, difficulties, routeCounts, onCountChange } = props;
+  const { title, sectorId, expanded, onToggle, difficulties, routeCounts, onCountChange, disabled } = props;
 
   return (
     <div className="bg-neutral-50 rounded-2xl p-4">
@@ -43,6 +44,7 @@ export default function RecordSectorPanel(props: RecordSectorPanelProps) {
           sectorId={sectorId}
           routeCounts={routeCounts}
           onCountChange={onCountChange}
+          disabled={disabled}
         />
       )}
     </div>
