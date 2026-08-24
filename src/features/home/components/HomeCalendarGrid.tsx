@@ -1,11 +1,9 @@
-import { CalendarEntry } from '../../../entities/calendar/types';
-import CalendarEntryStack from '../../calendar/components/CalendarEntryStack';
-import { CALENDAR_SETTING_ENTRIES, CALENDAR_WEEKDAYS } from '../../../mocks/calendar';
+import { useEffect, useRef, useState } from 'react';
+import { CALENDAR_WEEKDAYS } from '../../../mocks/calendar';
+import type { SettingEvent } from '../../calendar/setting-calendar';
+import { buildHomeSettingEntries, getHomeClock, shouldRefreshHome, type HomeSettingEntry, type HomeWeekDay } from '../home-week';
+import { getHomeDataState } from '../home-state';
 import { HomeSectionShell } from './HomeSectionShell';
-
-const HOME_WEEK_DAYS = [6, 7, 8, 9, 10, 11, 12];
-const TODAY = 10;
-const HOLIDAYS = new Set([6]);
 
 interface HomeCalendarGridProps {
   onOpen: () => void;
@@ -13,16 +11,13 @@ interface HomeCalendarGridProps {
 
 interface HomeScheduleDayProps {
   weekday: string;
-  day: number;
-  entries: CalendarEntry[];
-  dayIndex: number;
+  date: HomeWeekDay;
+  entries: HomeSettingEntry[];
+  isToday: boolean;
 }
 
-function HomeScheduleDay({ weekday, day, entries, dayIndex }: HomeScheduleDayProps) {
-  const isToday = day === TODAY;
-  const isHoliday = HOLIDAYS.has(day);
-  const isSaturday = dayIndex === 6;
-  const weekdayColor = isHoliday ? 'text-[#E24B4A]' : isSaturday ? 'text-[#185FA5]' : 'text-neutral-950';
+function HomeScheduleDay({ weekday, date, entries, isToday }: HomeScheduleDayProps) {
+  const weekdayColor = date.weekdayIndex === 0 ? 'text-[#E24B4A]' : date.weekdayIndex === 6 ? 'text-[#185FA5]' : 'text-neutral-950';
   const dayColor = isToday ? 'text-white' : weekdayColor;
 
   return (
@@ -30,38 +25,112 @@ function HomeScheduleDay({ weekday, day, entries, dayIndex }: HomeScheduleDayPro
       <div className={`flex h-[22px] items-center text-[12px] leading-none ${weekdayColor}`}>{weekday}</div>
       <div className="flex h-[38px] items-center justify-center">
         <div className={`h-8 w-8 rounded-full text-center text-[20px] font-bold leading-8 ${isToday ? 'bg-[#185FA5]' : ''} ${dayColor}`}>
-          {day}
+          {date.day}
         </div>
       </div>
-      <CalendarEntryStack
-        entries={entries}
-        className="pt-1"
-        logoClassName="h-8 w-8"
-        hiddenCountClassName="text-[11px] font-medium leading-none text-neutral-500"
-      />
+      {entries.length > 0 && (
+        <div className="flex flex-col items-center gap-1 pt-1">
+          {entries.slice(0, 2).map((entry) => entry.logoUrl ? (
+            <img key={entry.eventId} src={entry.logoUrl} alt={entry.gym} className="h-8 w-8 rounded-full border border-neutral-200 bg-neutral-100 object-cover" />
+          ) : (
+            <div key={entry.eventId} title={entry.gym} className="flex h-8 w-8 items-center justify-center rounded-full border text-[12px] font-bold" style={{ backgroundColor: entry.lightBg, borderColor: entry.color, color: entry.darkText }}>
+              {entry.gym.slice(0, 1)}
+            </div>
+          ))}
+          {entries.length > 2 && <div className="text-[11px] font-medium leading-none text-neutral-500">+{entries.length - 2}개</div>}
+        </div>
+      )}
     </div>
   );
 }
 
 export function HomeCalendarGrid({ onOpen }: HomeCalendarGridProps) {
+  const [clock, setClock] = useState(() => getHomeClock());
+  const [entriesByDay, setEntriesByDay] = useState<Record<string, HomeSettingEntry[]>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [requestKey, setRequestKey] = useState(0);
+  const lastRefreshAt = useRef(Date.now());
+  const { week, todayKey } = clock;
+  const entryCount = Object.values(entriesByDay).reduce((count, entries) => count + entries.length, 0);
+  const state = getHomeDataState(isLoading, error, entryCount);
+
+  useEffect(() => {
+    let midnightTimer: ReturnType<typeof setTimeout>;
+
+    const scheduleMidnightRefresh = () => {
+      clearTimeout(midnightTimer);
+      const now = new Date();
+      const delay = getHomeClock(now).nextLocalMidnightAt - now.getTime();
+      midnightTimer = setTimeout(() => refresh(true), delay + 25);
+    };
+    const refresh = (force = false) => {
+      const now = new Date();
+      if (!force && !shouldRefreshHome(lastRefreshAt.current, now.getTime())) return;
+      lastRefreshAt.current = now.getTime();
+      setClock(getHomeClock(now));
+      scheduleMidnightRefresh();
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+
+    scheduleMidnightRefresh();
+    window.addEventListener('focus', refreshWhenVisible);
+    window.addEventListener('pageshow', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      clearTimeout(midnightTimer);
+      window.removeEventListener('focus', refreshWhenVisible);
+      window.removeEventListener('pageshow', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const query = new URLSearchParams({ from: week.from, to: week.to });
+    setIsLoading(true);
+    setError(null);
+
+    fetch(`/api/v1/setting-events?${query.toString()}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('세팅 일정을 불러오지 못했어요.');
+        return response.json() as Promise<{ data: SettingEvent[] }>;
+      })
+      .then((payload) => setEntriesByDay(buildHomeSettingEntries(payload.data, week)))
+      .catch((fetchError) => {
+        if (fetchError instanceof DOMException && fetchError.name === 'AbortError') return;
+        setEntriesByDay({});
+        setError(fetchError instanceof Error ? fetchError.message : '세팅 일정을 불러오지 못했어요.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [requestKey, week]);
+
   return (
     <HomeSectionShell title="세팅 일정" onAction={onOpen} actionLabel="더보기" bordered={false}>
       <div className="-mt-3 rounded-2xl border border-neutral-200 bg-white px-3 py-4">
-        <div className="grid grid-cols-7 gap-1">
-          {CALENDAR_WEEKDAYS.map((weekday, index) => {
-            const day = HOME_WEEK_DAYS[index];
-
-            return (
-              <HomeScheduleDay
-                key={`${weekday}-${day}`}
-                weekday={weekday}
-                day={day}
-                dayIndex={index}
-                entries={CALENDAR_SETTING_ENTRIES[day] ?? []}
-              />
-            );
-          })}
-        </div>
+        {state === 'loading' && <div className="py-9 text-center text-[13px] text-neutral-500">이번 주 세팅 일정을 불러오는 중입니다.</div>}
+        {state === 'error' && (
+          <div className="py-6 text-center text-[13px] text-red-600">
+            <div>{error}</div>
+            <button type="button" onClick={() => setRequestKey((key) => key + 1)} className="mt-2 min-h-10 font-semibold text-red-700">다시 시도</button>
+          </div>
+        )}
+        {(state === 'ready' || state === 'empty') && (
+          <>
+            <div className="grid grid-cols-7 gap-1">
+              {week.days.map((date, index) => (
+                <HomeScheduleDay key={date.key} weekday={CALENDAR_WEEKDAYS[index]} date={date} entries={entriesByDay[date.key] ?? []} isToday={date.key === todayKey} />
+              ))}
+            </div>
+            {state === 'empty' && <div className="pt-4 text-center text-[12px] text-neutral-400">이번 주에 등록된 세팅 일정이 없어요.</div>}
+          </>
+        )}
       </div>
     </HomeSectionShell>
   );

@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { registerUser, rotateRefreshToken } from '../../src/server/auth/auth-service';
 import { closeDatabase, getDatabase } from '../../src/server/db/client';
-import { auditEvents, gymGrades, gyms, gymSectors, gymWalls, loginAttempts, memberships, membershipUsages, users } from '../../src/server/db/schema';
+import { auditEvents, climbingRecords, gymGrades, gyms, gymSectors, gymWalls, loginAttempts, memberships, membershipUsages, users } from '../../src/server/db/schema';
 import { ApiError } from '../../src/server/http/api-error';
 import { runWithRequestContext } from '../../src/server/observability/request-context';
 import { createRecord, getRecord, listRecords } from '../../src/server/records/record-service';
+import { listRecentVisitedGyms } from '../../src/server/records/recent-visited-gym-service';
 import { archiveMembership, createMembership, replaceMembership } from '../../src/server/memberships/membership-service';
 import {
   completeRecordSession,
@@ -37,6 +38,10 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
   }).returning();
   const [wall] = await database.insert(gymWalls).values({ gymId: gym.id, code: 'main', name: 'Main Wall' }).returning();
   const [sector] = await database.insert(gymSectors).values({ gymId: gym.id, wallId: wall.id, code: 'a', name: 'Sector A' }).returning();
+  const recentGyms = await database.insert(gyms).values([0, 1, 2, 3].map((index) => ({
+    name: `Recent Integration Gym ${index} ${suffix}`,
+    address: 'Local Docker PostgreSQL',
+  }))).returning();
 
   try {
     await runWithRequestContext({ requestId }, async () => {
@@ -50,6 +55,44 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
         password: 'correct horse battery staple',
         displayName: 'Second',
       }, 'integration-second');
+
+      const tiedRecordIds = [randomUUID(), randomUUID()].sort();
+      await database.insert(climbingRecords).values([
+        {
+          userId: first.user.id, gymId: recentGyms[0].id, accessType: 'day_pass', status: 'completed', mode: 'normal',
+          startedAt: new Date('2026-09-04T10:00:00Z'), endedAt: new Date('2026-09-04T11:00:00Z'),
+        },
+        {
+          userId: first.user.id, gymId: recentGyms[0].id, accessType: 'day_pass', status: 'completed', mode: 'normal',
+          startedAt: new Date('2026-09-05T10:00:00Z'), endedAt: new Date('2026-09-05T11:00:00Z'),
+        },
+        {
+          userId: first.user.id, gymId: recentGyms[1].id, accessType: 'day_pass', status: 'completed', mode: 'normal',
+          startedAt: new Date('2026-09-06T10:00:00Z'), endedAt: new Date('2026-09-06T11:00:00Z'),
+        },
+        {
+          id: tiedRecordIds[0], userId: first.user.id, gymId: recentGyms[2].id, accessType: 'day_pass', status: 'completed', mode: 'normal',
+          startedAt: new Date('2026-09-07T10:00:00Z'), endedAt: new Date('2026-09-07T11:00:00Z'),
+        },
+        {
+          id: tiedRecordIds[1], userId: first.user.id, gymId: recentGyms[3].id, accessType: 'day_pass', status: 'completed', mode: 'normal',
+          startedAt: new Date('2026-09-07T10:00:00Z'), endedAt: new Date('2026-09-07T11:00:00Z'),
+        },
+        {
+          userId: first.user.id, gymId: gym.id, accessType: 'day_pass', status: 'cancelled', mode: 'normal',
+          startedAt: new Date('2026-09-09T10:00:00Z'), endedAt: new Date('2026-09-09T11:00:00Z'),
+        },
+        {
+          userId: second.user.id, gymId: gym.id, accessType: 'day_pass', status: 'completed', mode: 'normal',
+          startedAt: new Date('2026-09-10T10:00:00Z'), endedAt: new Date('2026-09-10T11:00:00Z'),
+        },
+      ]);
+
+      const recentVisited = await listRecentVisitedGyms(first.user.id);
+      assert.deepEqual(recentVisited.data.map((item) => item.gym.id), [recentGyms[3].id, recentGyms[2].id, recentGyms[1].id]);
+      assert.equal(new Set(recentVisited.data.map((item) => item.gym.id)).size, 3);
+      assert.deepEqual(Object.keys(recentVisited.data[0]!.gym).sort(), ['branchName', 'id', 'name']);
+      assert.equal(recentVisited.data[0]!.lastVisitedAt.toISOString(), '2026-09-07T10:00:00.000Z');
 
       const rotations = await Promise.allSettled([
         rotateRefreshToken(first.tokens.refreshToken),
@@ -234,6 +277,7 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
     await database.delete(auditEvents).where(eq(auditEvents.requestId, requestId));
     await database.delete(users).where(eq(users.email, `first-${suffix}@example.com`));
     await database.delete(users).where(eq(users.email, `second-${suffix}@example.com`));
+    await database.delete(gyms).where(inArray(gyms.id, recentGyms.map((recentGym) => recentGym.id)));
     await database.delete(gyms).where(eq(gyms.id, gym.id));
     await database.delete(loginAttempts);
     await closeDatabase();

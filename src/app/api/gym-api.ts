@@ -37,6 +37,11 @@ export interface ApiGymSummary {
   dayPassPrice: GymPrice | null;
 }
 
+export interface ApiRecentVisitedGym {
+  gym: Pick<ApiGymSummary, 'id' | 'name' | 'branchName'>;
+  lastVisitedAt: string;
+}
+
 export interface GymMedia extends GymMediaReference {
   type: 'logo' | 'cover' | 'photo' | 'map' | 'sector_map';
   altText: string | null;
@@ -140,6 +145,10 @@ export async function getGym(gymId: string, signal?: AbortSignal) {
 export async function listSavedGyms() {
   const response = await apiRequest<{ data: ApiGymSummary[] }>('/api/v1/me/saved-gyms');
   return { data: response.data.map(normalizeGymSummary) };
+}
+
+export function listRecentVisitedGyms(signal?: AbortSignal) {
+  return apiRequest<{ data: ApiRecentVisitedGym[] }>('/api/v1/me/recent-gyms', { signal });
 }
 
 export function saveGym(gymId: string) {

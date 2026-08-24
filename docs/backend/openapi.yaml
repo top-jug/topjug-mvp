@@ -256,6 +256,29 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /me/recent-gyms:
+    get:
+      operationId: listRecentVisitedGyms
+      summary: List the current user's three most recently visited gyms
+      description: Returns unique gyms from completed records only, ordered by the latest `startedAt` descending and record ID descending as a stable tie-breaker.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Up to three unique recently visited gyms
+          headers: *standardResponseHeaders
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    maxItems: 3
+                    items: { $ref: '#/components/schemas/RecentVisitedGym' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /me/saved-gyms/{gymId}:
     parameters:
       - { $ref: '#/components/parameters/GymIdPath' }
@@ -1102,6 +1125,12 @@ components:
           required: [savedAt]
           properties:
             savedAt: { type: string, format: date-time }
+    RecentVisitedGym:
+      type: object
+      required: [gym, lastVisitedAt]
+      properties:
+        gym: { $ref: '#/components/schemas/GymReference' }
+        lastVisitedAt: { type: string, format: date-time }
     GymTag:
       type: object
       required: [code, label]
