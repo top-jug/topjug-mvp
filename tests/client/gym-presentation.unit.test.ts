@@ -3,10 +3,13 @@ import test from 'node:test';
 import type { GymOperatingHourOverride, GymSettingEvent } from '../../src/app/api/gym-api';
 import {
   buildGymMapLink,
+  carouselNavigationAvailability,
   carouselSlideForKey,
   clampCarouselSlide,
   gymDetailSlideLabel,
-  wrapCarouselSlide,
+  isHorizontalArrowKey,
+  shouldSyncCarouselScroll,
+  shouldTransferCarouselFocus,
 } from '../../src/features/gym-detail/gym-detail-controls';
 import {
   buildGymSettingCalendar,
@@ -41,23 +44,44 @@ test('all gym lifecycle statuses use non-real-time presentation labels', () => {
   );
 });
 
-test('gym detail carousel clamps scroll positions and wraps explicit navigation', () => {
+test('gym detail carousel clamps every navigation path to hard boundaries', () => {
   assert.equal(clampCarouselSlide(-2, 3), 0);
   assert.equal(clampCarouselSlide(8, 3), 2);
-  assert.equal(wrapCarouselSlide(-1, 3), 2);
-  assert.equal(wrapCarouselSlide(3, 3), 0);
   assert.equal(clampCarouselSlide(1, 0), 0);
-  assert.equal(wrapCarouselSlide(1, 0), 0);
+  assert.equal(carouselSlideForKey('ArrowLeft', 0, 3), 0);
+  assert.equal(carouselSlideForKey('ArrowRight', 2, 3), 2);
+  assert.deepEqual(carouselNavigationAvailability(0, 3), { hasPrevious: false, hasNext: true });
+  assert.deepEqual(carouselNavigationAvailability(1, 3), { hasPrevious: true, hasNext: true });
+  assert.deepEqual(carouselNavigationAvailability(2, 3), { hasPrevious: true, hasNext: false });
 });
 
 test('gym detail carousel maps navigation keys and exposes numbered labels', () => {
-  assert.equal(carouselSlideForKey('ArrowLeft', 0, 3), 2);
-  assert.equal(carouselSlideForKey('ArrowRight', 2, 3), 0);
+  assert.equal(carouselSlideForKey('ArrowLeft', 1, 3), 0);
+  assert.equal(carouselSlideForKey('ArrowRight', 1, 3), 2);
   assert.equal(carouselSlideForKey('Home', 2, 3), 0);
   assert.equal(carouselSlideForKey('End', 0, 3), 2);
   assert.equal(carouselSlideForKey('Enter', 1, 3), null);
   assert.equal(gymDetailSlideLabel(0), '암장 캘린더, 1/3');
   assert.equal(gymDetailSlideLabel(2), '지도, 3/3');
+});
+
+test('programmatic carousel scroll ignores transient slides until its target is observed', () => {
+  assert.equal(shouldSyncCarouselScroll(1, 2), false);
+  assert.equal(shouldSyncCarouselScroll(2, 2), true);
+  assert.equal(shouldSyncCarouselScroll(1, null), true);
+});
+
+test('carousel focus transfers only when an active focused slide is deactivated', () => {
+  assert.equal(shouldTransferCarouselFocus(0, 1, true), true);
+  assert.equal(shouldTransferCarouselFocus(0, 0, true), false);
+  assert.equal(shouldTransferCarouselFocus(0, 1, false), false);
+});
+
+test('calendar controls consume only horizontal arrow keys from outer carousel movement', () => {
+  assert.equal(isHorizontalArrowKey('ArrowLeft'), true);
+  assert.equal(isHorizontalArrowKey('ArrowRight'), true);
+  assert.equal(isHorizontalArrowKey('Enter'), false);
+  assert.equal(isHorizontalArrowKey(' '), false);
 });
 
 test('gym map links are offered only for complete valid coordinates', () => {

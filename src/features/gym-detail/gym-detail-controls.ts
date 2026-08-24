@@ -5,18 +5,33 @@ export function clampCarouselSlide(index: number, slideCount: number) {
   return Math.max(0, Math.min(slideCount - 1, Math.trunc(index)));
 }
 
-export function wrapCarouselSlide(index: number, slideCount: number) {
-  if (slideCount <= 0) return 0;
-  return ((Math.trunc(index) % slideCount) + slideCount) % slideCount;
-}
-
 export function carouselSlideForKey(key: string, currentSlide: number, slideCount: number) {
   if (slideCount <= 0) return null;
-  if (key === 'ArrowLeft') return wrapCarouselSlide(currentSlide - 1, slideCount);
-  if (key === 'ArrowRight') return wrapCarouselSlide(currentSlide + 1, slideCount);
+  if (key === 'ArrowLeft') return clampCarouselSlide(currentSlide - 1, slideCount);
+  if (key === 'ArrowRight') return clampCarouselSlide(currentSlide + 1, slideCount);
   if (key === 'Home') return 0;
   if (key === 'End') return slideCount - 1;
   return null;
+}
+
+export function carouselNavigationAvailability(currentSlide: number, slideCount: number) {
+  const activeSlide = clampCarouselSlide(currentSlide, slideCount);
+  return {
+    hasPrevious: slideCount > 0 && activeSlide > 0,
+    hasNext: slideCount > 0 && activeSlide < slideCount - 1,
+  };
+}
+
+export function shouldSyncCarouselScroll(observedSlide: number, programmaticTarget: number | null) {
+  return programmaticTarget === null || observedSlide === programmaticTarget;
+}
+
+export function shouldTransferCarouselFocus(currentSlide: number, nextSlide: number, focusIsWithinCurrentSlide: boolean) {
+  return focusIsWithinCurrentSlide && currentSlide !== nextSlide;
+}
+
+export function isHorizontalArrowKey(key: string) {
+  return key === 'ArrowLeft' || key === 'ArrowRight';
 }
 
 export function gymDetailSlideLabel(index: number, slideCount = GYM_DETAIL_SLIDE_TITLES.length) {
