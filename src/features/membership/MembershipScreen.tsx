@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import ConfirmModal from '../../app/components/overlay/ConfirmModal';
 import BottomSheet from '../../app/components/overlay/BottomSheet';
-import { parseMembershipCounts } from './membership-contract';
+import { MembershipDateField, MembershipDateValidationError, parseMembershipCounts, validateMembershipDates } from './membership-contract';
 import { firstUnusedHomeOrder, MembershipItem } from '../../mocks/memberships';
 
 interface MembershipScreenProps {
@@ -14,7 +14,7 @@ interface MembershipScreenProps {
   onClose: () => void;
   onAddMembership: (membership: MembershipItem) => Promise<void>;
   onUpdateMembership: (membership: MembershipItem) => Promise<void>;
-  onDeleteMembership: (membershipId: string) => Promise<void>;
+  onArchiveMembership: (membershipId: string) => Promise<void>;
 }
 
 const UNASSIGNED_GYM = {
@@ -43,13 +43,13 @@ export default function MembershipScreen({
   onClose,
   onAddMembership,
   onUpdateMembership,
-  onDeleteMembership,
+  onArchiveMembership,
 }: MembershipScreenProps) {
   const countPasses = memberships.filter((membership) => membership.passType === 'count').length;
   const periodPasses = memberships.length - countPasses;
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [editingMembershipId, setEditingMembershipId] = useState<string | null>(null);
-  const [deletingMembershipId, setDeletingMembershipId] = useState<string | null>(null);
+  const [archivingMembershipId, setArchivingMembershipId] = useState<string | null>(null);
   const [gymName, setGymName] = useState('');
   const [passName, setPassName] = useState('10회 이용권');
   const [passType, setPassType] = useState<'count' | 'period'>('count');
@@ -58,10 +58,13 @@ export default function MembershipScreen({
   const initialDates = defaultMembershipDates();
   const [startDate, setStartDate] = useState(initialDates.startDate);
   const [endDate, setEndDate] = useState(initialDates.endDate);
-  const [note, setNote] = useState('저녁 시간대 사용 예정');
+  const [note, setNote] = useState('');
   const [favoriteMessage, setFavoriteMessage] = useState('');
   const [formMessage, setFormMessage] = useState('');
+  const [dateErrors, setDateErrors] = useState<Partial<Record<MembershipDateField, string>>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const archivePendingRef = useRef(false);
 
   const resetForm = () => {
     setGymName('');
@@ -72,7 +75,9 @@ export default function MembershipScreen({
     const dates = defaultMembershipDates();
     setStartDate(dates.startDate);
     setEndDate(dates.endDate);
-    setNote('저녁 시간대 사용 예정');
+    setNote('');
+    setDateErrors({});
+    setFormMessage('');
   };
 
   const openAddSheet = () => {
@@ -105,13 +110,18 @@ export default function MembershipScreen({
     resetForm();
   };
 
-  const handleDeleteMembership = async () => {
-    if (!deletingMembershipId) return;
+  const handleArchiveMembership = async () => {
+    if (!archivingMembershipId || archivePendingRef.current) return;
+    archivePendingRef.current = true;
+    setIsArchiving(true);
     try {
-      await onDeleteMembership(deletingMembershipId);
-      setDeletingMembershipId(null);
+      await onArchiveMembership(archivingMembershipId);
+      setArchivingMembershipId(null);
     } catch (requestError) {
       setFavoriteMessage(requestError instanceof Error ? requestError.message : '회원권을 보관하지 못했습니다.');
+    } finally {
+      archivePendingRef.current = false;
+      setIsArchiving(false);
     }
   };
 
@@ -127,6 +137,18 @@ export default function MembershipScreen({
         setFormMessage(validationError instanceof Error ? validationError.message : '횟수를 확인해주세요.');
         return;
       }
+    }
+
+    try {
+      validateMembershipDates(startDate, endDate);
+      setDateErrors({});
+    } catch (validationError) {
+      if (validationError instanceof MembershipDateValidationError) {
+        setDateErrors({ [validationError.field]: validationError.message });
+        setFormMessage('');
+        return;
+      }
+      throw validationError;
     }
 
     const nextMembership: MembershipItem = {
@@ -280,7 +302,7 @@ export default function MembershipScreen({
                         </svg>
                       </button>
                       <button onClick={() => openEditSheet(membership)} className="text-[12px] font-medium text-neutral-500">편집</button>
-                      <button onClick={() => setDeletingMembershipId(membership.id)} className="text-[12px] font-medium text-red-500">삭제</button>
+                      <button onClick={() => setArchivingMembershipId(membership.id)} className="text-[12px] font-medium text-red-500">보관</button>
                     </div>
                   </div>
 
@@ -348,17 +370,19 @@ export default function MembershipScreen({
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <div className="text-[13px] font-semibold text-neutral-700 mb-2">시작일</div>
-                  <input value={startDate} onChange={(event) => setStartDate(event.target.value)} className="w-full h-12 rounded-2xl border border-neutral-200 px-4 text-[15px] text-neutral-900 outline-none" />
+                  <input value={startDate} onChange={(event) => { setStartDate(event.target.value); setDateErrors((errors) => ({ ...errors, startDate: undefined })); }} aria-invalid={Boolean(dateErrors.startDate)} aria-describedby={dateErrors.startDate ? 'membership-start-date-error' : undefined} placeholder="YYYY.MM.DD" className="w-full h-12 rounded-2xl border border-neutral-200 px-4 text-[15px] text-neutral-900 outline-none" />
+                  {dateErrors.startDate && <div id="membership-start-date-error" className="mt-1.5 text-[12px] text-red-600" role="alert">{dateErrors.startDate}</div>}
                 </label>
                 <label className="block">
                   <div className="text-[13px] font-semibold text-neutral-700 mb-2">만료일</div>
-                  <input value={endDate} onChange={(event) => setEndDate(event.target.value)} className="w-full h-12 rounded-2xl border border-neutral-200 px-4 text-[15px] text-neutral-900 outline-none" />
+                  <input value={endDate} onChange={(event) => { setEndDate(event.target.value); setDateErrors((errors) => ({ ...errors, endDate: undefined })); }} aria-invalid={Boolean(dateErrors.endDate)} aria-describedby={dateErrors.endDate ? 'membership-end-date-error' : undefined} placeholder="YYYY.MM.DD" className="w-full h-12 rounded-2xl border border-neutral-200 px-4 text-[15px] text-neutral-900 outline-none" />
+                  {dateErrors.endDate && <div id="membership-end-date-error" className="mt-1.5 text-[12px] text-red-600" role="alert">{dateErrors.endDate}</div>}
                 </label>
               </div>
 
               <label className="block">
                 <div className="text-[13px] font-semibold text-neutral-700 mb-2">메모</div>
-                <textarea value={note} onChange={(event) => setNote(event.target.value)} className="w-full min-h-[96px] rounded-2xl border border-neutral-200 px-4 py-3 text-[15px] text-neutral-900 outline-none resize-none" />
+                <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="저녁 시간대 사용 예정" className="w-full min-h-[96px] rounded-2xl border border-neutral-200 px-4 py-3 text-[15px] text-neutral-900 outline-none resize-none" />
               </label>
 
             <div className="pt-2 border-t border-neutral-100">
@@ -374,14 +398,16 @@ export default function MembershipScreen({
         </BottomSheet>
       )}
 
-      {deletingMembershipId && (
+      {archivingMembershipId && (
         <ConfirmModal
-          title="회원권 삭제"
-          description="선택한 회원권을 목록에서 삭제할까요?"
-          confirmLabel="삭제"
+          title="회원권 보관"
+          description="보관하면 회원권은 목록에서 숨겨지지만 이용 기록과 기존 내역은 계속 보관됩니다."
+          confirmLabel="보관"
+          pendingLabel="보관 중"
           confirmTone="danger"
-          onClose={() => setDeletingMembershipId(null)}
-          onConfirm={handleDeleteMembership}
+          isPending={isArchiving}
+          onClose={() => setArchivingMembershipId(null)}
+          onConfirm={handleArchiveMembership}
         />
       )}
     </div>

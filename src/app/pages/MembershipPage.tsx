@@ -27,7 +27,7 @@ export default function MembershipPage() {
       onClose={navigateBack}
       onAddMembership={addMembership}
       onUpdateMembership={updateMembership}
-      onDeleteMembership={deleteMembership}
+      onArchiveMembership={deleteMembership}
     />
   );
 }
