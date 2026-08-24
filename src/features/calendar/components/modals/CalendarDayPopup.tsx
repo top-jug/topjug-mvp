@@ -32,12 +32,12 @@ export default function CalendarDayPopup({ mode, year, month, day, gyms, calenda
       <div className="flex-1 overflow-y-auto p-3">
         {entries ? (
           entries.map((entry, idx) => {
-            const gymInfo = gyms.find((gym) => gym.name === entry.gym);
+            const gymInfo = gyms.find((gym) => gym.id === entry.gymId) ?? gyms.find((gym) => gym.name === entry.gym);
             if (!gymInfo) return null;
             return (
               <button
                 type="button"
-                key={`${entry.gym}-${idx}`}
+                key={entry.recordId ?? `${entry.gym}-${idx}`}
                 onClick={() => mode === 'setting' ? onOpenGym(gymInfo.id) : entry.recordId && onOpenRecord(entry.recordId)}
                 disabled={mode === 'record' && !entry.recordId}
                 className="w-full border border-neutral-200 rounded-xl p-3 mb-2 text-left transition-colors hover:border-neutral-300 disabled:cursor-default"

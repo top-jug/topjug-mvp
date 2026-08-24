@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import BottomTabBar from '../../app/components/layout/BottomTabBar';
+import { useAuth } from '../auth/AuthProvider';
 import { ActiveGyms, CalendarData, CalendarGym } from '../../entities/calendar/types';
-import { CALENDAR_GYMS, CALENDAR_RECORD_ENTRIES, CALENDAR_WEEKDAYS } from '../../mocks/calendar';
+import { CALENDAR_GYMS, CALENDAR_WEEKDAYS } from '../../mocks/calendar';
 import CalendarDetailSection from './components/CalendarDetailSection';
 import CalendarFilterBar from './components/CalendarFilterBar';
 import CalendarMonthGrid, { CalendarGridCell } from './components/CalendarMonthGrid';
@@ -10,6 +11,13 @@ import CalendarTopBar from './components/CalendarTopBar';
 import CalendarDayPopup from './components/modals/CalendarDayPopup';
 import CalendarPeriodModal from './components/modals/CalendarPeriodModal';
 import { buildSettingCalendarData, SettingEvent } from './setting-calendar';
+import {
+  buildMonthCells,
+  getCalendarMonthRange,
+  getLocalCalendarDate,
+  shiftCalendarMonth,
+} from './calendar-month';
+import { loadRecordCalendarMonth, type RecordCalendarSnapshot, resolveRecordCalendarSnapshot } from './record-calendar';
 
 interface CalendarScreenProps {
   viewMode: CalendarViewMode;
@@ -57,49 +65,11 @@ function getDaysInMonth(year: number, month: number) {
   return new Date(year, month, 0).getDate();
 }
 
-function getMonthOffset(year: number, month: number) {
-  return (new Date(year, month - 1, 1).getDay() + 6) % 7;
-}
-
-function buildMonthCells(year: number, month: number): CalendarGridCell[] {
-  const daysInMonth = getDaysInMonth(year, month);
-  const startOffset = getMonthOffset(year, month);
-  const cells: CalendarGridCell[] = [];
-
-  for (let index = 0; index < startOffset; index += 1) {
-    cells.push({ key: `blank-start-${year}-${month}-${index}`, day: null, year, month });
-  }
-
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    cells.push({ key: `day-${year}-${month}-${day}`, day, year, month });
-  }
-
-  while (cells.length % 7 !== 0) {
-    cells.push({ key: `blank-end-${year}-${month}-${cells.length}`, day: null, year, month });
-  }
-
-  return cells;
-}
-
-function shiftMonth(year: number, month: number, delta: number) {
-  const shiftedDate = new Date(year, month - 1 + delta, 1);
-  return { year: shiftedDate.getFullYear(), month: shiftedDate.getMonth() + 1 };
-}
-
-function isMockMonth(year: number, month: number) {
-  return year === 2026 && month === 4;
-}
-
-function getMonthRange(year: number, month: number) {
-  return {
-    from: new Date(year, month - 1, 1, 0, 0, 0, 0).toISOString(),
-    to: new Date(year, month, 0, 23, 59, 59, 999).toISOString(),
-  };
-}
-
 export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate, onOpenGym, onOpenRecord }: CalendarScreenProps) {
-  const [selectedDate, setSelectedDate] = useState<number | null>(12);
-  const [currentMonth, setCurrentMonth] = useState({ year: 2026, month: 4 });
+  const { status: authStatus, user, retry: retryAuth } = useAuth();
+  const initialDate = useMemo(() => getLocalCalendarDate(), []);
+  const [selectedDate, setSelectedDate] = useState<number | null>(initialDate.day);
+  const [currentMonth, setCurrentMonth] = useState({ year: initialDate.year, month: initialDate.month });
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showPeriodModal, setShowPeriodModal] = useState(false);
   const [showDayPopup, setShowDayPopup] = useState(false);
@@ -111,8 +81,11 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
   const [isSettingLoading, setIsSettingLoading] = useState(false);
   const [settingError, setSettingError] = useState<string | null>(null);
   const [settingRequestKey, setSettingRequestKey] = useState(0);
+  const [recordSnapshot, setRecordSnapshot] = useState<RecordCalendarSnapshot | null>(null);
+  const [recordRequestKey, setRecordRequestKey] = useState(0);
 
-  const currentCalendarData = viewMode === 'record' ? CALENDAR_RECORD_ENTRIES : settingCalendarData;
+  const recordView = resolveRecordCalendarSnapshot(recordSnapshot, currentMonth.year, currentMonth.month);
+  const currentCalendarData = viewMode === 'record' ? recordView.data : settingCalendarData;
 
   useEffect(() => {
     const nextGyms = getModeGyms(currentCalendarData);
@@ -125,7 +98,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
     if (viewMode !== 'setting') return;
 
     const controller = new AbortController();
-    const { from, to } = getMonthRange(currentMonth.year, currentMonth.month);
+    const { from, to } = getCalendarMonthRange(currentMonth.year, currentMonth.month);
     const query = new URLSearchParams({ from, to });
 
     setIsSettingLoading(true);
@@ -156,6 +129,40 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
     return () => controller.abort();
   }, [currentMonth.month, currentMonth.year, settingRequestKey, viewMode]);
 
+  useEffect(() => {
+    if (viewMode !== 'record') return;
+    if (authStatus !== 'authenticated') {
+      setRecordSnapshot({
+        year: currentMonth.year,
+        month: currentMonth.month,
+        data: {},
+        error: authStatus === 'error' ? '로그인 상태를 확인하지 못했어요.' : null,
+        isLoading: authStatus === 'loading',
+      });
+      return;
+    }
+
+    const controller = new AbortController();
+    setRecordSnapshot({ year: currentMonth.year, month: currentMonth.month, data: {}, error: null, isLoading: true });
+
+    loadRecordCalendarMonth(currentMonth.year, currentMonth.month, controller.signal)
+      .then((data) => {
+        setRecordSnapshot({ year: currentMonth.year, month: currentMonth.month, data, error: null, isLoading: false });
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setRecordSnapshot({
+          year: currentMonth.year,
+          month: currentMonth.month,
+          data: {},
+          error: error instanceof Error ? error.message : '기록을 불러오지 못했어요.',
+          isLoading: false,
+        });
+      });
+
+    return () => controller.abort();
+  }, [authStatus, currentMonth.month, currentMonth.year, recordRequestKey, user?.id, viewMode]);
+
   const filteredCalendarData = useMemo<CalendarData>(() => {
     return Object.fromEntries(
       Object.entries(currentCalendarData).map(([day, entries]) => [
@@ -169,13 +176,12 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
   }, [currentCalendarData, activeGyms, filterGyms]);
 
   const visibleCalendarData = useMemo<CalendarData>(() => {
-    if (viewMode === 'setting') return filteredCalendarData;
-    return isMockMonth(currentMonth.year, currentMonth.month) ? filteredCalendarData : {};
-  }, [currentMonth.month, currentMonth.year, filteredCalendarData, viewMode]);
+    return filteredCalendarData;
+  }, [filteredCalendarData]);
 
   const periodPages = useMemo(() => {
     return [-1, 0, 1].map((delta) => {
-      const target = shiftMonth(currentMonth.year, currentMonth.month, delta);
+      const target = shiftCalendarMonth(currentMonth.year, currentMonth.month, delta);
       return buildMonthCells(target.year, target.month);
     });
   }, [currentMonth.month, currentMonth.year]);
@@ -183,6 +189,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
   const periodLabel = `${currentMonth.year}년 ${currentMonth.month}월`;
 
   const selectedEntries = selectedDate ? visibleCalendarData[selectedDate] ?? [] : [];
+  const recordState = recordView.state;
 
   useEffect(() => {
     if (selectedEntries.length === 0 || activeSlide >= selectedEntries.length) {
@@ -235,7 +242,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
       if (cell.year !== currentMonth.year || cell.month !== currentMonth.month) return null;
       return filteredCalendarData[cell.day] ?? null;
     }
-    if (!isMockMonth(cell.year, cell.month)) return null;
+    if (cell.year !== currentMonth.year || cell.month !== currentMonth.month) return null;
     return filteredCalendarData[cell.day] ?? null;
   };
 
@@ -281,6 +288,25 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
         </div>
       )}
 
+      {viewMode === 'record' && recordState !== 'ready' && (
+        <div className={`mx-5 mt-3 rounded-xl px-4 py-3 text-center text-[13px] ${recordState === 'error' ? 'bg-red-50 text-red-600' : 'bg-neutral-50 text-neutral-500'}`}>
+          {recordState === 'loading' && '기록을 불러오는 중입니다.'}
+          {recordState === 'empty' && '이 달에 완료된 기록이 없습니다.'}
+          {recordState === 'error' && (
+            <>
+              <div>{recordView.error}</div>
+              <button
+                type="button"
+                onClick={() => authStatus === 'error' ? void retryAuth() : setRecordRequestKey((key) => key + 1)}
+                className="mt-2 font-semibold text-red-700"
+              >
+                다시 시도
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {showSearchModal && (
         <CalendarSearchMenu
           gyms={filterGyms}
@@ -309,7 +335,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
           weekdays={CALENDAR_WEEKDAYS}
           pages={periodPages}
           getEntriesForCell={getEntriesForCell}
-          selectedDate={selectedDate}
+          selectedDate={viewMode === 'record' && (recordState === 'loading' || recordState === 'error') ? null : selectedDate}
           selectedMonth={currentMonth.month}
           selectedYear={currentMonth.year}
           onSelectDate={handleSelectFullDate}
@@ -324,7 +350,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
           mode={viewMode}
           year={currentMonth.year}
           month={currentMonth.month}
-          selectedDate={selectedDate}
+          selectedDate={viewMode === 'record' && (recordState === 'loading' || recordState === 'error') ? null : selectedDate}
           activeSlide={activeSlide}
           gyms={filterGyms}
           calendarData={visibleCalendarData}
