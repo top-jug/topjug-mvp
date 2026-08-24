@@ -100,13 +100,31 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
         sessionType: 'training',
         counts: [{ gymGradeId: grade.id, gymSectorId: sector.id, attempts: 4, sends: 2 }],
       });
-      const [updatedMembership] = await database.select({ remainingUses: memberships.remainingUses })
+      const [updatedMembership] = await database.select({ remainingUses: memberships.remainingUses, updatedAt: memberships.updatedAt })
         .from(memberships).where(eq(memberships.id, membership.id));
       const [usage] = await database.select().from(membershipUsages)
         .where(eq(membershipUsages.recordId, membershipRecord.id));
       assert.equal(updatedMembership.remainingUses, 1);
+      assert.ok(updatedMembership.updatedAt > new Date(membership.updatedAt));
       assert.equal(usage.delta, -1);
       assert.equal(usage.balanceAfter, 1);
+      await assert.rejects(
+        () => replaceMembership(first.user.id, membership.id, {
+          name: membership.name,
+          type: 'count',
+          gymIds: [gym.id],
+          totalUses: 2,
+          remainingUses: 2,
+          validFrom: membership.validFrom.toISOString(),
+          validUntil: membership.validUntil.toISOString(),
+          homeFavorite: false,
+          expectedUpdatedAt: membership.updatedAt.toISOString(),
+        }),
+        (error: unknown) => error instanceof ApiError && error.code === 'MEMBERSHIP_CHANGED',
+      );
+      const [membershipAfterStaleReplacement] = await database.select({ remainingUses: memberships.remainingUses })
+        .from(memberships).where(eq(memberships.id, membership.id));
+      assert.equal(membershipAfterStaleReplacement.remainingUses, 1);
       await assert.rejects(
         () => replaceMembership(first.user.id, membership.id, {
           name: membership.name,
@@ -115,6 +133,7 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
           validFrom: membership.validFrom.toISOString(),
           validUntil: membership.validUntil.toISOString(),
           homeFavorite: false,
+          expectedUpdatedAt: updatedMembership.updatedAt.toISOString(),
         }),
         (error: unknown) => error instanceof ApiError && error.code === 'MEMBERSHIP_TYPE_LOCKED',
       );
@@ -128,6 +147,7 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
           validFrom: membership.validFrom.toISOString(),
           validUntil: membership.validUntil.toISOString(),
           homeFavorite: false,
+          expectedUpdatedAt: updatedMembership.updatedAt.toISOString(),
         }),
         (error: unknown) => error instanceof ApiError && error.code === 'MEMBERSHIP_GYM_LOCKED',
       );
@@ -149,6 +169,7 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
         validFrom: '2026-08-01T00:00:00+09:00',
         validUntil: '2026-12-31T23:59:59+09:00',
         homeFavorite: false,
+        expectedUpdatedAt: unusedMembership.updatedAt.toISOString(),
       });
       assert.equal(changedMembership.type, 'period');
       assert.equal(changedMembership.remainingUses, null);

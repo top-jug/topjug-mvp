@@ -10,10 +10,22 @@ export interface MembershipItem {
   darkText: string;
   startDate: string;
   endDate: string;
-  note: string;
+  validFrom?: string;
+  validUntil?: string;
+  updatedAt?: string;
+  note: string | null;
   isFavorite?: boolean;
   homeOrder?: number | null;
   eligibilityStatus?: 'active' | 'unassigned' | 'not_started' | 'expired' | 'exhausted';
+}
+
+export function firstUnusedHomeOrder(memberships: MembershipItem[]) {
+  const usedOrders = new Set(memberships.filter((membership) => membership.isFavorite).map((membership) => membership.homeOrder));
+  return [0, 1, 2].find((order) => !usedOrders.has(order)) ?? null;
+}
+
+export function compareHomeOrder(left: MembershipItem, right: MembershipItem) {
+  return (left.homeOrder ?? 3) - (right.homeOrder ?? 3);
 }
 
 export const MEMBERSHIPS: MembershipItem[] = [

@@ -197,6 +197,7 @@ export class ApiClient {
         headers,
       });
     } catch (cause) {
+      if (cause instanceof DOMException && cause.name === 'AbortError') throw cause;
       throw new ApiClientError('서버에 연결할 수 없습니다.', 0, 'NETWORK_ERROR', null, null, { cause });
     }
 

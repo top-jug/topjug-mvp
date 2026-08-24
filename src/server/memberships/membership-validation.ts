@@ -33,3 +33,9 @@ export const membershipInputSchema = z.object({
 });
 
 export type MembershipInput = z.infer<typeof membershipInputSchema>;
+
+export const membershipUpdateInputSchema = membershipInputSchema.safeExtend({
+  expectedUpdatedAt: dateTimeSchema,
+});
+
+export type MembershipUpdateInput = z.infer<typeof membershipUpdateInputSchema>;

@@ -1,5 +1,6 @@
 import { HomeSectionShell } from './HomeSectionShell';
 import { useMemberships } from '../../../app/providers/MembershipProvider';
+import { compareHomeOrder } from '../../../mocks/memberships';
 
 interface HomeMembershipProps {
   onOpen: () => void;
@@ -7,8 +8,11 @@ interface HomeMembershipProps {
 
 export function HomeMembership({ onOpen }: HomeMembershipProps) {
   const { memberships } = useMemberships();
-  const visibleMemberships = memberships.filter(m => m.isFavorite).slice(0, 3);
-  const hiddenCount = memberships.filter(m => m.isFavorite).length - visibleMemberships.length;
+  const favoriteMemberships = memberships
+    .filter((membership) => membership.isFavorite)
+    .sort(compareHomeOrder);
+  const visibleMemberships = favoriteMemberships.slice(0, 3);
+  const hiddenCount = favoriteMemberships.length - visibleMemberships.length;
 
   return (
     <HomeSectionShell title="회원권" onAction={onOpen} actionLabel="회원권 수정">

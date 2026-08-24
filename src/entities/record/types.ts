@@ -50,7 +50,7 @@ export interface ClimbingRecord {
   date: string;
   duration: string;
   passLabel: string;
-  rating: number;
+  rating: number | null;
   mode: 'easy' | 'normal';
   routeCounts: RouteCounts;
   apiCounts?: RecordRouteDetail[];

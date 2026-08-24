@@ -11,7 +11,7 @@ TopJug MVP backend runs in the existing Next.js application. Route Handlers only
 - Gym search/detail, saved-gym, setting-calendar, membership, record, and public-share APIs under `/api/v1`
 - Shared API error boundary and Zod request validation
 - Screen-complete schema for regions, gym provenance, S3 media metadata, prices, hours, tags, walls, sectors, setting events, memberships and usage ledgers, records, pauses, and shares
-- No frontend provider consumes these APIs yet
+- Frontend auth, gym, saved-gym, membership, calendar, record, and share flows consume these APIs through the shared client in `src/lib/api`.
 
 ## Local setup
 
@@ -20,7 +20,7 @@ TopJug MVP backend runs in the existing Next.js application. Route Handlers only
 3. Apply migrations with `npm run db:migrate:local`.
 4. Validate the researched gym archive with `npm run db:import:gyms:check`.
 5. Import the 31 selected gyms and their S3 logos with `npm run db:import:gyms:local`. The researched `더클라임 신사` row is intentionally excluded. Users are created through `/api/v1/auth/register`.
-6. Seed grades, walls, and sectors used by record requests, then start the application with `npm run dev:local`.
+6. Start the application with `npm run dev:local`. Integration and HTTP tests create their own grade, wall, and sector fixtures; local manual record testing requires equivalent rows for the selected gym.
 
 The `local` profile uses PostgreSQL and MinIO from `compose.yaml`; the Next.js process remains on the host for fast reloads. MinIO creates a public `topjug-media` bucket for the initial S3-compatible logo import. Stop local infrastructure with `npm run local:down`. `DATABASE_URL` is read lazily on the first API request, so a missing local database does not prevent the existing frontend from rendering.
 
@@ -36,10 +36,55 @@ The `local` profile uses PostgreSQL and MinIO from `compose.yaml`; the Next.js p
 - Daily admission is `accessType=day_pass`; membership admission requires an eligible `membershipId`; unclassified admission is `other`.
 - Share tokens are returned once, stored only as SHA-256 hashes, and can be revoked independently from their S3 image.
 
+## API contract conventions
+
+- Run `npm run lint:openapi` after changing `docs/backend/openapi.yaml`; CI runs the same pinned Redocly CLI.
+- Successful `/api/v1` JSON responses use a `data` envelope. List pagination metadata is returned separately in `meta` where applicable; `/api/health` and `/api/ready` are unenveloped probes.
+- Every response produced by a documented API handler has `x-request-id` and `Cache-Control: no-store`. Framework-generated responses for unknown routes or unsupported methods are outside this guarantee. Authentication responses can also set or clear `topjug_refresh`; 401 errors have `WWW-Authenticate`, and 429 errors have `Retry-After`.
+- Error `code` values are stable machine-readable identifiers. Error `message` values are user-facing and may change or be localized; clients must branch on `code`, not `message`.
+- A property documented as nullable is returned as JSON `null` when the service includes it without a value. Optional request properties may be omitted. Response properties not marked required may be omitted; clients must distinguish omission from an explicit `null`.
+- Record pages contain completed records only and are ordered by `createdAt` descending, then `id` descending. Their `sends` and `attempts` are aggregate totals over count rows, and `nextCursor` is an opaque continuation for that ordering.
+- Record detail may expose `in_progress`, `completed`, or `cancelled` records. Pause, resume, complete, count replacement, and cancel operations narrow that lifecycle further as documented by each operation.
+- Expired active shares are classified virtually at read time. Listing reports them as `expired`, public resolution returns structured `410 SHARE_EXPIRED`, and the persisted status can remain `active`.
+
+### Stable domain errors
+
+| Domain | Stable codes clients commonly handle |
+| --- | --- |
+| Authentication | `ACCOUNT_UNAVAILABLE`, `INVALID_CREDENTIALS`, `MISSING_ACCESS_TOKEN`, `INVALID_ACCESS_TOKEN`, `MISSING_REFRESH_TOKEN`, `INVALID_REFRESH_TOKEN`, `REFRESH_TOKEN_REUSED`, `LOGIN_EMAIL_RATE_LIMITED`, `LOGIN_ADDRESS_RATE_LIMITED`, `REGISTER_ADDRESS_RATE_LIMITED`, `REGISTER_GLOBAL_RATE_LIMITED`, `REFRESH_RATE_LIMITED` |
+| Gym | `GYM_NOT_FOUND` |
+| Membership | `INVALID_MEMBERSHIP_GYMS`, `MEMBERSHIP_NOT_FOUND`, `MEMBERSHIP_CHANGED`, `HOME_MEMBERSHIP_LIMIT`, `HOME_MEMBERSHIP_ORDER_OCCUPIED`, `MEMBERSHIP_TYPE_LOCKED`, `MEMBERSHIP_GYM_LOCKED`, `MEMBERSHIP_IN_USE` |
+| Record | `ACTIVE_RECORD_EXISTS`, `ACTIVE_RECORD_NOT_FOUND`, `RECORD_NOT_FOUND`, `RECORD_ALREADY_PAUSED`, `RECORD_NOT_PAUSED`, `INVALID_PAUSE_TIME`, `INVALID_RESUME_TIME`, `INVALID_END_TIME`, `INVALID_PAUSE_RANGE`, `INVALID_ACTIVE_DURATION`, `INVALID_CANCEL_TIME`, `MEMBERSHIP_ARCHIVED`, `MEMBERSHIP_GYM_MISMATCH`, `MEMBERSHIP_NOT_ACTIVE`, `MEMBERSHIP_EXHAUSTED`, `GRADE_GYM_MISMATCH`, `SECTOR_GYM_MISMATCH`, `INVALID_CURSOR` |
+| Share | `INVALID_SHARE_MEDIA`, `INVALID_SHARE_MEDIA_TYPE`, `SHARE_NOT_FOUND`, `SHARE_EXPIRED`, `SHARE_MEDIA_NOT_FOUND` |
+| Service | `INVALID_REQUEST`, `INVALID_JSON`, `REQUEST_TOO_LARGE`, `DATABASE_NOT_CONFIGURED`, `AUTH_NOT_CONFIGURED`, `SERVICE_NOT_READY`, `INTERNAL_SERVER_ERROR` |
+
+### Record lifecycle
+
+| Current state | Operation | Result | Conflict or invalid transition |
+| --- | --- | --- | --- |
+| No active record | Start | `in_progress` | `ACTIVE_RECORD_EXISTS` if one already exists |
+| `in_progress`, running | Pause | `in_progress`, paused | `RECORD_ALREADY_PAUSED` |
+| `in_progress`, paused | Resume | `in_progress`, running | `RECORD_NOT_PAUSED` |
+| `in_progress` | Replace counts | `in_progress` | Grade/sector mismatch codes |
+| `in_progress` | Complete | `completed` | Invalid time/range or `MEMBERSHIP_EXHAUSTED` |
+| `in_progress` | Cancel | `cancelled` | Invalid cancellation time |
+
+After completion or cancellation, active-session transitions return `ACTIVE_RECORD_NOT_FOUND`. Completion consumes a count membership atomically; cancellation does not.
+
+## Known API limitations
+
+- Gym search returns at most 100 gyms and has no cursor or total count. Filtering uses stored free-form region, facility, and tag codes; there is no region-catalog endpoint.
+- Record-list `sends` and `attempts` are per-record aggregates computed in the page query; the API does not expose cross-page totals.
+- Membership validity is represented as timezone-aware instants, not local calendar dates. Updates are full replacements and require the last observed `updatedAt` as `expectedUpdatedAt`; stale updates return `409 MEMBERSHIP_CHANGED`.
+- Memberships can reference multiple gyms, while the current frontend editor exposes one gym selection. API clients that manage multi-gym memberships must preserve the full `gymIds` array.
+- The API exposes media metadata and references but no media upload endpoint.
+- Easy-mode clients assume one logical sector selection even though the API still requires a real `gymSectorId`; the server does not infer a sector.
+- Frontend transport types are currently maintained by hand and responses are not runtime-validated against OpenAPI. Required fields must not be defaulted when adapting responses.
+
 ## Authentication boundary
 
 - Access JWTs expire after 15 minutes and are returned for in-memory use as Bearer tokens.
-- Refresh JWTs expire after 30 days and only use an HttpOnly, Secure, SameSite=Strict cookie.
+- Refresh JWTs expire after 30 days and use an HttpOnly, SameSite=Strict cookie that is Secure in production.
 - Every refresh rotates the token. Reusing a revoked token revokes the whole token family.
 - PostgreSQL stores refresh token SHA-256 hashes, never raw tokens.
 - Passwords use Argon2id with OWASP-aligned memory and iteration settings.
@@ -83,6 +128,7 @@ npm run db:import:gyms:local
 npm run dev:local
 npm run test:integration:local
 npm run test:http:local
+npm run lint:openapi
 npm run typecheck
 npm test
 npm run build

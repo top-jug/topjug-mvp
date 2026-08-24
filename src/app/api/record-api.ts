@@ -306,7 +306,7 @@ function mapApiRecordBase(
     date: formatDate(record.startedAt),
     duration: formatDuration(record.activeDurationSeconds, record.startedAt, record.endedAt),
     passLabel: formatAccess(record.accessType, record.membership),
-    rating: record.rating ?? 0,
+    rating: record.rating,
     mode: record.mode,
     routeCounts,
     apiCounts,

@@ -24,10 +24,10 @@ export default function MyRecordsPage() {
       <main className="space-y-5 px-5 py-5">
         <section className="overflow-hidden rounded-[28px] bg-neutral-950 p-5 text-white">
           <div className="text-[13px] text-white/60">나의 클라이밍 로그</div>
-          <div className="mt-2 text-[30px] font-bold tracking-[-0.04em]">{records.length}번의 움직임</div>
+          <div className="mt-2 text-[30px] font-bold tracking-[-0.04em]">불러온 기록 {records.length}개</div>
           <div className="mt-5 grid grid-cols-2 gap-3">
             <div className="rounded-2xl bg-white/10 px-4 py-3">
-              <div className="text-[12px] text-white/60">누적 완등</div>
+              <div className="text-[12px] text-white/60">불러온 기록의 완등</div>
               <div className="mt-1 text-[22px] font-bold">{totalSuccess}</div>
             </div>
             <div className="rounded-2xl bg-[#A7F432] px-4 py-3 text-neutral-950">
@@ -86,7 +86,7 @@ export default function MyRecordsPage() {
                         <div className="mt-3 flex gap-2">
                           <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-700">완등 {totals.success}</span>
                           <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-700">시도 {totals.attempt}</span>
-                          <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-700">★ {record.rating}</span>
+                          <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-700">{record.rating === null ? '미평가' : `★ ${record.rating}`}</span>
                         </div>
                       </div>
                     </div>
