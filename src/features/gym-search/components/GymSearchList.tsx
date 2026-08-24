@@ -1,5 +1,6 @@
 import GymSearchCard from './GymSearchCard';
 import { ApiGymSummary } from '../../../app/api/gym-api';
+import type { SavedGymActionError } from '../saved-gym-action-state';
 
 interface GymSearchListProps {
   gyms: ApiGymSummary[];
@@ -16,9 +17,11 @@ interface GymSearchListProps {
   onRetry?: () => void;
   hasMore?: boolean;
   onLoadMore?: () => void;
+  getActionError?: (gymId: string) => SavedGymActionError | null;
+  onDismissActionError?: (gymId: string) => void;
 }
 
-export default function GymSearchList({ gyms, onSelectGym, title, isSavedGym, onToggleSavedGym, isSavingGym, countOverride, countLabel, isLoading = false, error = null, emptyMessage = '조건에 맞는 암장이 없어요.', onRetry, hasMore = false, onLoadMore }: GymSearchListProps) {
+export default function GymSearchList({ gyms, onSelectGym, title, isSavedGym, onToggleSavedGym, isSavingGym, countOverride, countLabel, isLoading = false, error = null, emptyMessage = '조건에 맞는 암장이 없어요.', onRetry, hasMore = false, onLoadMore, getActionError, onDismissActionError }: GymSearchListProps) {
   return (
     <div className="pb-24 min-h-screen">
       <div className="px-5 py-3">
@@ -37,16 +40,26 @@ export default function GymSearchList({ gyms, onSelectGym, title, isSavedGym, on
           <div className="rounded-3xl border border-dashed border-neutral-300 bg-white px-6 py-12 text-center text-[14px] text-neutral-500">{emptyMessage}</div>
         ) : (
           <div className="space-y-3">
-            {gyms.map((gym) => (
-            <GymSearchCard
-              key={gym.id}
-              gym={gym}
-              onClick={() => onSelectGym(gym)}
-              isSaved={isSavedGym(gym.id)}
-              onToggleSaved={() => onToggleSavedGym(gym)}
-              isSaving={isSavingGym?.(gym.id)}
-            />
-            ))}
+            {gyms.map((gym) => {
+              const actionError = getActionError?.(gym.id);
+              return (
+                <div key={gym.id}>
+                  <GymSearchCard
+                    gym={gym}
+                    onClick={() => onSelectGym(gym)}
+                    isSaved={isSavedGym(gym.id)}
+                    onToggleSaved={() => onToggleSavedGym(gym)}
+                    isSaving={isSavingGym?.(gym.id)}
+                  />
+                  {actionError && (
+                    <div className="mt-2 flex items-start justify-between gap-3 rounded-2xl bg-red-50 px-4 py-3 text-[13px] font-medium text-red-700" role="status">
+                      <span>{actionError.message}</span>
+                      <button type="button" onClick={() => onDismissActionError?.(gym.id)} className="min-h-6 flex-shrink-0 font-bold">닫기</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             {hasMore && onLoadMore && (
               <button onClick={onLoadMore} className="h-12 w-full rounded-2xl border border-neutral-200 bg-white text-[14px] font-semibold text-neutral-700">더 보기</button>
             )}

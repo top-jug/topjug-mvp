@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router';
 import { ClimbingRecord } from '../../entities/record/types';
 import { getRecordTotals } from '../../features/record/record-summary';
+import { classifyRecordFetchFailure, RecordFetchFailure } from '../../features/record/record-async-state';
 import { RECORD_DIFFICULTIES } from '../../mocks/record';
 import { getRecord as fetchRecord, mapApiRecordDetail } from '../api/record-api';
 import { useNavigateBack } from '../navigation';
@@ -66,33 +67,32 @@ export default function RecordResultPage() {
   const { recordId } = useParams();
   const [record, setRecord] = useState<ClimbingRecord | undefined>();
   const [isLoading, setIsLoading] = useState(Boolean(recordId));
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<RecordFetchFailure | null>(null);
+  const [requestVersion, setRequestVersion] = useState(0);
 
   useEffect(() => {
     if (!recordId) return;
 
-    let isActive = true;
+    const controller = new AbortController();
     setRecord(undefined);
     setIsLoading(true);
-    setError(null);
+    setFailure(null);
 
-    fetchRecord(recordId)
+    fetchRecord(recordId, controller.signal)
       .then((payload) => {
-        if (!isActive) return;
+        if (controller.signal.aborted) return;
         setRecord(mapApiRecordDetail(payload.data));
       })
       .catch((fetchError) => {
-        if (!isActive) return;
-        setError(fetchError instanceof Error ? fetchError.message : '기록을 불러오지 못했어요.');
+        if (controller.signal.aborted) return;
+        setFailure(classifyRecordFetchFailure(fetchError, '기록을 불러오지 못했어요.'));
       })
       .finally(() => {
-        if (isActive) setIsLoading(false);
+        if (!controller.signal.aborted) setIsLoading(false);
       });
 
-    return () => {
-      isActive = false;
-    };
-  }, [recordId]);
+    return () => controller.abort();
+  }, [recordId, requestVersion]);
 
   if (!recordId) return <Navigate to="/records" replace />;
 
@@ -116,12 +116,23 @@ export default function RecordResultPage() {
     );
   }
 
-  if (error && !record) {
+  if (failure && !record) {
+    const isTransient = failure.kind === 'transient';
+    const title = failure.kind === 'not-found'
+      ? '기록을 찾을 수 없어요'
+      : failure.kind === 'authorization'
+        ? '이 기록을 볼 권한이 없어요'
+        : '기록을 불러오지 못했어요';
     return (
       <div className="min-h-screen bg-[#F7F8FA] px-5 pb-10 pt-24 text-center text-neutral-950">
-        <div className="text-[18px] font-bold">기록을 찾을 수 없어요</div>
-        <div className="mt-2 text-[13px] text-neutral-500">{error}</div>
-        <button onClick={() => navigate('/records', { replace: true })} className="mt-6 h-12 rounded-2xl bg-neutral-950 px-5 text-[14px] font-bold text-white">
+        <div className="text-[18px] font-bold">{title}</div>
+        <div className="mt-2 text-[13px] text-neutral-500">{failure.message}</div>
+        {isTransient && (
+          <button onClick={() => setRequestVersion((version) => version + 1)} className="mt-6 h-12 rounded-2xl bg-blue-600 px-5 text-[14px] font-bold text-white">
+            다시 시도
+          </button>
+        )}
+        <button onClick={() => navigate('/records', { replace: true })} className={`${isTransient ? 'mt-3' : 'mt-6'} h-12 rounded-2xl bg-neutral-950 px-5 text-[14px] font-bold text-white`}>
           목록으로 돌아가기
         </button>
       </div>

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createRecordShareRouteGuard,
+  createRecordShareRevokeGuard,
+  createRecordShareDeliveryGuard,
   deliverRecordShare,
   getInFlightRecordShareCreation,
   getRecordShareCreationState,
@@ -11,6 +13,7 @@ import {
   mergeRecordShareListSnapshot,
   readCachedRecordShare,
   reconcileCachedRecordShare,
+  reconcileRecordShareAfterRevoke,
   removeCachedRecordShare,
   settleRecordShareCreation,
   writeCachedRecordShare,
@@ -155,6 +158,11 @@ test('list-error unknown state requires duplicate-risk confirmation', () => {
   assert.equal(getRecordShareCreationState(share, [], false, false), 'managed');
 });
 
+test('managed token state remains authoritative while the share list is unknown', () => {
+  assert.equal(getRecordShareCreationState(share, [], false, false), 'managed');
+  assert.equal(getRecordShareCreationState(null, [], false, false), 'unknown');
+});
+
 test('A to B to A reuses one creation and prevents out-of-order cache overwrite', async () => {
   const storage = createStorage();
   const guard = createRecordShareRouteGuard();
@@ -210,6 +218,67 @@ test('a stale list snapshot preserves same-route create and revoke mutations', (
     { id: 'older-share', status: 'active' },
   ]);
   assert.equal(mergeRecordShareListSnapshot([], staleIncoming, 2, 2), staleIncoming);
+});
+
+test('ambiguous revoke reconciliation keeps one coherent authoritative state', () => {
+  const activeSummary = { ...share };
+  const revokedSummary = { ...share, status: 'revoked' as const, revokedAt: '2026-08-24T01:00:00.000Z' };
+
+  const active = reconcileRecordShareAfterRevoke(share, [activeSummary], share.id);
+  assert.equal(active.targetState, 'active');
+  assert.equal(active.managedShare, share);
+  assert.equal(active.shares[0].status, 'active');
+
+  const revoked = reconcileRecordShareAfterRevoke(share, [revokedSummary], share.id);
+  assert.equal(revoked.targetState, 'inactive');
+  assert.equal(revoked.managedShare, null);
+  assert.equal(revoked.shares[0].status, 'revoked');
+
+  const missing = reconcileRecordShareAfterRevoke(share, [], share.id);
+  assert.deepEqual(missing, { shares: [], managedShare: null, targetState: 'inactive' });
+});
+
+test('revoke operation blocks creation and rejects a later managed-share interleaving', () => {
+  const guard = createRecordShareRevokeGuard();
+  const operation = guard.begin(1, 'record-1', share.id, share.id);
+  assert.ok(operation);
+  assert.equal(guard.isBlocked(), true);
+  assert.equal(guard.begin(1, 'record-1', 'share-2', share.id), null);
+  assert.equal(guard.canApply(operation, 'newly-created-share'), false);
+  assert.equal(guard.finish(operation), true);
+  assert.equal(guard.isBlocked(), false);
+});
+
+test('double revoke failure keeps the operation blocked until reconciliation succeeds', () => {
+  const guard = createRecordShareRevokeGuard();
+  const operation = guard.begin(1, 'record-1', share.id, share.id);
+  assert.ok(operation);
+
+  assert.equal(operation.status, 'revoking');
+  assert.equal(guard.markReconciling(operation), true);
+  assert.equal(operation.status, 'reconciling');
+  assert.equal(guard.markUnknown(operation), true);
+  assert.equal(operation.status, 'unknown');
+  assert.equal(guard.isBlocked(), true);
+  assert.equal(guard.canApply(operation, share.id), true);
+
+  assert.equal(guard.finish(operation), true);
+  assert.equal(guard.isBlocked(), false);
+});
+
+test('A to B delivery keeps B pending when stale A finally settles', () => {
+  const guard = createRecordShareDeliveryGuard();
+  const operationA = guard.begin(1, 'copy');
+  assert.ok(operationA);
+
+  guard.reset();
+  const operationB = guard.begin(2, 'native-share');
+  assert.ok(operationB);
+  assert.equal(guard.finish(operationA), false);
+  assert.equal(guard.isCurrent(operationB), true);
+  assert.equal(guard.isPending(), true);
+  assert.equal(guard.finish(operationB), true);
+  assert.equal(guard.isPending(), false);
 });
 
 test('native cancellation is reported without revoking the managed share', async () => {

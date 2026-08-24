@@ -93,6 +93,96 @@ export function reconcileCachedRecordShare(cached: ApiCreatedShare | null, share
   return shares.some((share) => share.id === cached.id && share.status === 'active') ? cached : null;
 }
 
+export function reconcileRecordShareAfterRevoke(
+  managedShare: ApiCreatedShare | null,
+  authoritativeShares: ApiShareSummary[],
+  revokedShareId: string,
+) {
+  const target = authoritativeShares.find((share) => share.id === revokedShareId);
+  return {
+    shares: authoritativeShares,
+    managedShare: reconcileCachedRecordShare(managedShare, authoritativeShares),
+    targetState: target?.status === 'active' ? 'active' as const : 'inactive' as const,
+  };
+}
+
+export function createRecordShareRevokeGuard() {
+  let sequence = 0;
+  let active: {
+    sequence: number;
+    routeGeneration: number;
+    recordId: string;
+    shareId: string;
+    managedShareId: string | null;
+    status: 'revoking' | 'reconciling' | 'unknown';
+  } | null = null;
+
+  return {
+    begin(routeGeneration: number, recordId: string, shareId: string, managedShareId: string | null) {
+      if (active) return null;
+      active = { sequence: ++sequence, routeGeneration, recordId, shareId, managedShareId, status: 'revoking' };
+      return active;
+    },
+    current() {
+      return active;
+    },
+    isCurrent(operation: { sequence: number }) {
+      return active?.sequence === operation.sequence;
+    },
+    canApply(operation: { sequence: number; managedShareId: string | null }, currentManagedShareId: string | null) {
+      return active?.sequence === operation.sequence && operation.managedShareId === currentManagedShareId;
+    },
+    markReconciling(operation: { sequence: number }) {
+      if (active?.sequence !== operation.sequence) return false;
+      active.status = 'reconciling';
+      return true;
+    },
+    markUnknown(operation: { sequence: number }) {
+      if (active?.sequence !== operation.sequence) return false;
+      active.status = 'unknown';
+      return true;
+    },
+    finish(operation: { sequence: number }) {
+      if (active?.sequence !== operation.sequence) return false;
+      active = null;
+      return true;
+    },
+    reset() {
+      active = null;
+    },
+    isBlocked() {
+      return active !== null;
+    },
+  };
+}
+
+export function createRecordShareDeliveryGuard() {
+  let sequence = 0;
+  let active: { sequence: number; routeGeneration: number; kind: 'copy' | 'native-share' } | null = null;
+
+  return {
+    begin(routeGeneration: number, kind: 'copy' | 'native-share') {
+      if (active) return null;
+      active = { sequence: ++sequence, routeGeneration, kind };
+      return active;
+    },
+    isCurrent(operation: { sequence: number; routeGeneration: number }) {
+      return active?.sequence === operation.sequence && active.routeGeneration === operation.routeGeneration;
+    },
+    finish(operation: { sequence: number; routeGeneration: number }) {
+      if (active?.sequence !== operation.sequence || active.routeGeneration !== operation.routeGeneration) return false;
+      active = null;
+      return true;
+    },
+    reset() {
+      active = null;
+    },
+    isPending() {
+      return active !== null;
+    },
+  };
+}
+
 export function getRecordShareCreationState(
   managedShare: ApiCreatedShare | null,
   shares: ApiShareSummary[],
