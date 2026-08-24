@@ -183,8 +183,8 @@ export function listRecords(params: RecordListParams = {}) {
   );
 }
 
-export function getRecord(recordId: string) {
-  return apiRequest<{ data: ApiRecordDetail }>(`/api/v1/records/${recordId}`);
+export function getRecord(recordId: string, signal?: AbortSignal) {
+  return apiRequest<{ data: ApiRecordDetail }>(`/api/v1/records/${recordId}`, { signal });
 }
 
 export function getActiveRecordSession(signal?: AbortSignal) {
@@ -234,8 +234,8 @@ export function cancelRecordSession(recordId: string, at = new Date().toISOStrin
   });
 }
 
-export function listRecordShares(recordId: string) {
-  return apiRequest<{ data: ApiShareSummary[] }>(`/api/v1/records/${recordId}/shares`);
+export function listRecordShares(recordId: string, signal?: AbortSignal) {
+  return apiRequest<{ data: ApiShareSummary[] }>(`/api/v1/records/${recordId}/shares`, { signal });
 }
 
 export function createRecordShare(recordId: string, input: { mediaAssetId?: string | null; expiresAt?: string | null } = {}) {
@@ -245,8 +245,8 @@ export function createRecordShare(recordId: string, input: { mediaAssetId?: stri
   });
 }
 
-export function revokeRecordShare(recordId: string, shareId: string) {
-  return apiRequest<void>(`/api/v1/records/${recordId}/shares/${shareId}`, { method: 'DELETE' });
+export function revokeRecordShare(recordId: string, shareId: string, signal?: AbortSignal) {
+  return apiRequest<void>(`/api/v1/records/${recordId}/shares/${shareId}`, { method: 'DELETE', signal });
 }
 
 export function getPublicShare(token: string) {
