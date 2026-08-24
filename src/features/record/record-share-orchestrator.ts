@@ -2,6 +2,7 @@ import type { ApiCreatedShare, ApiShareSummary } from '../../app/api/record-api'
 
 const CACHE_VERSION = 1;
 const CACHE_PREFIX = 'topjug:record-share:';
+const inFlightCreations = new Map<string, Promise<ApiCreatedShare>>();
 
 interface ShareStorage {
   getItem(key: string): string | null;
@@ -9,7 +10,7 @@ interface ShareStorage {
   removeItem(key: string): void;
 }
 
-export type RecordShareCreationState = 'managed' | 'create' | 'tokenless-active' | 'confirm-additional';
+export type RecordShareCreationState = 'managed' | 'create' | 'tokenless-active' | 'unknown' | 'confirm-additional';
 
 export interface RecordShareRouteScope {
   recordId: string;
@@ -96,8 +97,10 @@ export function getRecordShareCreationState(
   managedShare: ApiCreatedShare | null,
   shares: ApiShareSummary[],
   isConfirmingAdditional: boolean,
+  isShareListKnown: boolean,
 ): RecordShareCreationState {
   if (managedShare) return 'managed';
+  if (!isShareListKnown) return isConfirmingAdditional ? 'confirm-additional' : 'unknown';
   if (!shares.some((share) => share.status === 'active')) return 'create';
   return isConfirmingAdditional ? 'confirm-additional' : 'tokenless-active';
 }
@@ -119,10 +122,28 @@ export async function settleRecordShareCreation(
   isOriginCurrent: () => boolean,
   getStorage: () => ShareStorage | null = () => getRecordShareSessionStorage(),
 ) {
-  const share = await createShare();
-  const storage = getStorage();
-  if (storage) writeCachedRecordShare(storage, recordId, share);
+  let creation = inFlightCreations.get(recordId);
+  if (!creation) {
+    creation = Promise.resolve()
+      .then(createShare)
+      .then((share) => {
+        const storage = getStorage();
+        if (storage) writeCachedRecordShare(storage, recordId, share);
+        return share;
+      });
+    inFlightCreations.set(recordId, creation);
+    const registeredCreation = creation;
+    void creation.then(
+      () => clearInFlightCreation(recordId, registeredCreation),
+      () => clearInFlightCreation(recordId, registeredCreation),
+    );
+  }
+  const share = await creation;
   return { share, isOriginCurrent: isOriginCurrent() };
+}
+
+export function getInFlightRecordShareCreation(recordId: string) {
+  return inFlightCreations.get(recordId) ?? null;
 }
 
 export async function getOrCreateRecordShare<T>(existing: T | null, createShare: () => Promise<T>) {
@@ -146,6 +167,10 @@ export function isShareNotFoundError(error: unknown) {
 
 function recordShareCacheKey(recordId: string) {
   return `${CACHE_PREFIX}${recordId}`;
+}
+
+function clearInFlightCreation(recordId: string, creation: Promise<ApiCreatedShare>) {
+  if (inFlightCreations.get(recordId) === creation) inFlightCreations.delete(recordId);
 }
 
 function safelyRemove(storage: ShareStorage, key: string) {

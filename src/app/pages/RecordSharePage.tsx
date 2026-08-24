@@ -12,6 +12,7 @@ import {
 import {
   createRecordShareRouteGuard,
   deliverRecordShare,
+  getInFlightRecordShareCreation,
   getRecordShareCreationState,
   getRecordShareSessionStorage,
   isShareNotFoundError,
@@ -81,6 +82,31 @@ export default function RecordSharePage() {
     setIsLoading(true);
     setError(null);
     setShareListError(null);
+
+    const inFlightCreation = getInFlightRecordShareCreation(recordId);
+    if (inFlightCreation) {
+      mutationSequence.current.version += 1;
+      createPending.current = route.generation;
+      setIsCreatingLink(true);
+      void inFlightCreation
+        .then((share) => {
+          if (!routeGuard.current.isCurrent(route)) return;
+          setManagedShare(share);
+          setIsConfirmingAdditionalLink(false);
+          setShares((current) => [share, ...current.filter((item) => item.id !== share.id)]);
+          setStatus('진행 중이던 공개 링크 생성을 완료했어요.');
+        })
+        .catch((createError) => {
+          if (routeGuard.current.isCurrent(route)) {
+            setStatus(createError instanceof Error ? createError.message : '공유 링크를 만들지 못했어요.');
+          }
+        })
+        .finally(() => {
+          if (!routeGuard.current.isCurrent(route)) return;
+          createPending.current = null;
+          setIsCreatingLink(false);
+        });
+    }
 
     fetchRecord(recordId, route.signal)
       .then((recordPayload) => {
@@ -206,7 +232,12 @@ export default function RecordSharePage() {
   if (!record || !shareModel) return <Navigate to="/records" replace />;
 
   const supportsNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
-  const shareCreationState = getRecordShareCreationState(managedShare, shares, isConfirmingAdditionalLink);
+  const shareCreationState = getRecordShareCreationState(
+    managedShare,
+    shares,
+    isConfirmingAdditionalLink,
+    shareListError === null,
+  );
 
   const toggleDifficulty = (difficultyIndex: number) => {
     setSelectedDifficultyIndexes((current) => {
@@ -459,8 +490,16 @@ export default function RecordSharePage() {
             </button>
           ) : (
             <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-              <div className="text-[13px] font-bold text-amber-900">이미 활성 링크가 있지만 이 탭에는 주소 정보가 없어요.</div>
-              <p className="mt-1 text-[12px] leading-5 text-amber-800">기존 링크는 아래 목록에서 폐기할 수 있습니다. 새 링크를 추가하면 활성 링크가 하나 더 생깁니다.</p>
+              <div className="text-[13px] font-bold text-amber-900">
+                {shareListError
+                  ? '기존 공유 링크 상태를 확인하지 못했어요.'
+                  : '이미 활성 링크가 있지만 이 탭에는 주소 정보가 없어요.'}
+              </div>
+              <p className="mt-1 text-[12px] leading-5 text-amber-800">
+                {shareListError
+                  ? '새 링크를 만들면 기존 링크와 중복될 수 있습니다. 계속하려면 위험을 확인해주세요.'
+                  : '기존 링크는 아래 목록에서 폐기할 수 있습니다. 새 링크를 추가하면 활성 링크가 하나 더 생깁니다.'}
+              </p>
               {shareCreationState === 'confirm-additional' ? (
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button

@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   createRecordShareRouteGuard,
   deliverRecordShare,
+  getInFlightRecordShareCreation,
   getRecordShareCreationState,
   getRecordShareSessionStorage,
   getOrCreateRecordShare,
@@ -142,10 +143,56 @@ test('tokenless active summaries require explicit additional-link confirmation',
     createdAt: share.createdAt,
   };
 
-  assert.equal(getRecordShareCreationState(null, [], false), 'create');
-  assert.equal(getRecordShareCreationState(null, [activeSummary], false), 'tokenless-active');
-  assert.equal(getRecordShareCreationState(null, [activeSummary], true), 'confirm-additional');
-  assert.equal(getRecordShareCreationState(share, [activeSummary], false), 'managed');
+  assert.equal(getRecordShareCreationState(null, [], false, true), 'create');
+  assert.equal(getRecordShareCreationState(null, [activeSummary], false, true), 'tokenless-active');
+  assert.equal(getRecordShareCreationState(null, [activeSummary], true, true), 'confirm-additional');
+  assert.equal(getRecordShareCreationState(share, [activeSummary], false, true), 'managed');
+});
+
+test('list-error unknown state requires duplicate-risk confirmation', () => {
+  assert.equal(getRecordShareCreationState(null, [], false, false), 'unknown');
+  assert.equal(getRecordShareCreationState(null, [], true, false), 'confirm-additional');
+  assert.equal(getRecordShareCreationState(share, [], false, false), 'managed');
+});
+
+test('A to B to A reuses one creation and prevents out-of-order cache overwrite', async () => {
+  const storage = createStorage();
+  const guard = createRecordShareRouteGuard();
+  const firstA = guard.begin('record-race');
+  let createCalls = 0;
+  let resolveFirst: ((value: ApiCreatedShare) => void) | undefined;
+  const firstResponse = new Promise<ApiCreatedShare>((resolve) => { resolveFirst = resolve; });
+  const first = settleRecordShareCreation(
+    'record-race',
+    () => {
+      createCalls += 1;
+      return firstResponse;
+    },
+    () => guard.isCurrent(firstA),
+    () => storage,
+  );
+
+  guard.begin('record-b');
+  const currentA = guard.begin('record-race');
+  const second = settleRecordShareCreation(
+    'record-race',
+    async () => {
+      createCalls += 1;
+      return { ...share, id: 'out-of-order-share', token: 'out-of-order-token' };
+    },
+    () => guard.isCurrent(currentA),
+    () => storage,
+  );
+
+  resolveFirst?.(share);
+  const [firstResult, secondResult] = await Promise.all([first, second]);
+
+  assert.equal(createCalls, 1);
+  assert.equal(firstResult.isOriginCurrent, false);
+  assert.equal(secondResult.isOriginCurrent, true);
+  assert.deepEqual(secondResult.share, share);
+  assert.deepEqual(readCachedRecordShare(storage, 'record-race', Date.parse('2026-08-25T00:00:00Z')), share);
+  assert.equal(getInFlightRecordShareCreation('record-race'), null);
 });
 
 test('a stale list snapshot preserves same-route create and revoke mutations', () => {
