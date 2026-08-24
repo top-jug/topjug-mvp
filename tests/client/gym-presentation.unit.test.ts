@@ -2,6 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { GymOperatingHourOverride, GymSettingEvent } from '../../src/app/api/gym-api';
 import {
+  buildGymMapLink,
+  carouselNavigationAvailability,
+  carouselSlideForKey,
+  clampCarouselSlide,
+  gymDetailSlideLabel,
+  isHorizontalArrowKey,
+  shouldSyncCarouselScroll,
+  shouldTransferCarouselFocus,
+} from '../../src/features/gym-detail/gym-detail-controls';
+import {
   buildGymSettingCalendar,
   GYM_TIME_ZONE,
   OPERATION_STATUS_PRESENTATION,
@@ -32,6 +42,55 @@ test('all gym lifecycle statuses use non-real-time presentation labels', () => {
       opening_soon: '오픈 예정',
     },
   );
+});
+
+test('gym detail carousel clamps every navigation path to hard boundaries', () => {
+  assert.equal(clampCarouselSlide(-2, 3), 0);
+  assert.equal(clampCarouselSlide(8, 3), 2);
+  assert.equal(clampCarouselSlide(1, 0), 0);
+  assert.equal(carouselSlideForKey('ArrowLeft', 0, 3), 0);
+  assert.equal(carouselSlideForKey('ArrowRight', 2, 3), 2);
+  assert.deepEqual(carouselNavigationAvailability(0, 3), { hasPrevious: false, hasNext: true });
+  assert.deepEqual(carouselNavigationAvailability(1, 3), { hasPrevious: true, hasNext: true });
+  assert.deepEqual(carouselNavigationAvailability(2, 3), { hasPrevious: true, hasNext: false });
+});
+
+test('gym detail carousel maps navigation keys and exposes numbered labels', () => {
+  assert.equal(carouselSlideForKey('ArrowLeft', 1, 3), 0);
+  assert.equal(carouselSlideForKey('ArrowRight', 1, 3), 2);
+  assert.equal(carouselSlideForKey('Home', 2, 3), 0);
+  assert.equal(carouselSlideForKey('End', 0, 3), 2);
+  assert.equal(carouselSlideForKey('Enter', 1, 3), null);
+  assert.equal(gymDetailSlideLabel(0), '암장 캘린더, 1/3');
+  assert.equal(gymDetailSlideLabel(2), '지도, 3/3');
+});
+
+test('programmatic carousel scroll ignores transient slides until its target is observed', () => {
+  assert.equal(shouldSyncCarouselScroll(1, 2), false);
+  assert.equal(shouldSyncCarouselScroll(2, 2), true);
+  assert.equal(shouldSyncCarouselScroll(1, null), true);
+});
+
+test('carousel focus transfers only when an active focused slide is deactivated', () => {
+  assert.equal(shouldTransferCarouselFocus(0, 1, true), true);
+  assert.equal(shouldTransferCarouselFocus(0, 0, true), false);
+  assert.equal(shouldTransferCarouselFocus(0, 1, false), false);
+});
+
+test('calendar controls consume only horizontal arrow keys from outer carousel movement', () => {
+  assert.equal(isHorizontalArrowKey('ArrowLeft'), true);
+  assert.equal(isHorizontalArrowKey('ArrowRight'), true);
+  assert.equal(isHorizontalArrowKey('Enter'), false);
+  assert.equal(isHorizontalArrowKey(' '), false);
+});
+
+test('gym map links are offered only for complete valid coordinates', () => {
+  assert.equal(buildGymMapLink(37.5665, 126.978), 'https://www.google.com/maps/search/?api=1&query=37.5665%2C126.978');
+  assert.equal(buildGymMapLink(null, 126.978), null);
+  assert.equal(buildGymMapLink(37.5665, null), null);
+  assert.equal(buildGymMapLink(Number.NaN, 126.978), null);
+  assert.equal(buildGymMapLink(91, 126.978), null);
+  assert.equal(buildGymMapLink(37.5665, -181), null);
 });
 
 test('special-date hours group open ranges and make closure precedence explicit', () => {
