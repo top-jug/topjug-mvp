@@ -81,8 +81,8 @@ export default function RecordScreen({
   const visibleSectors = mode === 'easy' ? sectors.slice(0, 1) : sectors;
 
   return (
-    <div className="h-screen bg-white flex flex-col overflow-hidden">
-      <div className="px-5 pt-5 pb-4 flex items-center justify-between border-b border-neutral-100">
+    <div className="mobile-viewport-height bg-white flex flex-col overflow-hidden">
+      <div className="mobile-safe-top px-5 pb-4 flex items-center justify-between border-b border-neutral-100">
         <button onClick={() => { if (actionAvailability.canCancel) setShowExitConfirm(true); else if (actionAvailability.canSafeExit) void handleSafeExit(); }} disabled={!actionAvailability.canCancel && !actionAvailability.canSafeExit} className="h-11 w-6 flex items-center justify-start" aria-label={actionAvailability.canCancel ? '기록 나가기' : '안전하게 나가기'}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
         </button>
@@ -114,7 +114,7 @@ export default function RecordScreen({
         </div>
       </div>
 
-      <div className="px-5 flex-1 min-h-0 overflow-y-auto pb-8">
+      <div className="px-5 flex-1 min-h-0 overflow-y-auto" style={{ paddingBottom: 'calc(2rem + var(--mobile-safe-bottom))' }}>
         {error && <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700"><span>{error}</span><div className="flex shrink-0 gap-3"><button onClick={() => void retryHydrate()} className="font-semibold">다시 시도</button>{!isHydrated && <button onClick={() => void handleSafeExit()} className="font-semibold">안전하게 나가기</button>}</div></div>}
         {saveError && <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-amber-50 px-4 py-3 text-[13px] text-amber-800"><span>카운트를 저장하지 못했어요. {saveError}</span><button onClick={retrySave} className="shrink-0 font-semibold">재시도</button></div>}
 

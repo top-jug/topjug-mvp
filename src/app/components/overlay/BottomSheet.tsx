@@ -29,7 +29,7 @@ export default function BottomSheet(props: BottomSheetProps) {
     initialFocusRef,
     headerLeft,
     headerRight,
-    maxHeightClassName = 'max-h-[80vh]',
+    maxHeightClassName = 'mobile-bottom-sheet-max-h-80',
     bodyClassName = 'p-6',
     panelClassName = '',
     zIndexClassName = 'z-[70]',
@@ -66,7 +66,7 @@ export default function BottomSheet(props: BottomSheetProps) {
             event.preventDefault();
             restoreFocusRef.current?.focus();
           }}
-          className={`fixed inset-x-0 bottom-0 overflow-hidden rounded-t-[28px] border-t border-neutral-200 bg-white outline-none flex flex-col ${maxHeightClassName} ${zIndexClassName} ${panelClassName}`}
+          className={`mobile-bottom-sheet fixed inset-x-0 bottom-0 flex flex-col overflow-hidden rounded-t-[28px] border-t border-neutral-200 bg-white outline-none ${maxHeightClassName} ${zIndexClassName} ${panelClassName}`}
         >
           <div className="px-6 py-5 border-b border-neutral-100 grid grid-cols-[auto_1fr_auto] items-center gap-3 flex-shrink-0">
             <div>{headerLeft}</div>

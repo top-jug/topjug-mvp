@@ -10,8 +10,8 @@ export default function MyRecordsPage() {
   const totalSuccess = records.reduce((total, record) => total + getRecordTotals(record).success, 0);
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] pb-10">
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-100 bg-white px-5 py-4">
+    <div className="mobile-screen bg-[#F7F8FA] pb-10">
+      <header className="mobile-safe-top sticky top-0 z-10 flex items-center justify-between border-b border-neutral-100 bg-white px-5 pb-4">
         <button onClick={navigateBack} className="flex h-11 w-8 items-center" aria-label="뒤로가기">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m15 18-6-6 6-6" />

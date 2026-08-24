@@ -13,7 +13,7 @@ export default function CalendarGearMenu({ gyms, activeGyms, onSelectAll, onTogg
   const allSelected = gyms.length > 0 && gyms.every((gym) => activeGyms[gym.id]);
 
   return (
-    <BottomSheet onClose={onClose} title="암장 필터" description="캘린더에 표시할 암장을 선택합니다." maxHeightClassName="max-h-[70vh]">
+    <BottomSheet onClose={onClose} title="암장 필터" description="캘린더에 표시할 암장을 선택합니다." maxHeightClassName="mobile-bottom-sheet-max-h-70">
           <button
             onClick={onSelectAll}
             aria-pressed={allSelected}
