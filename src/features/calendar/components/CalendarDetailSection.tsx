@@ -21,6 +21,7 @@ export default function CalendarDetailSection({ mode, selectedDate, activeSlide,
   const entries = selectedDate ? calendarData[selectedDate] : undefined;
   const visibleEntries = entries ?? [];
   const emptyLabel = mode === 'record' ? '이 날짜에 등록된 기록이 없습니다.' : '이 날짜에 등록된 세팅 정보가 없습니다.';
+  const sessionLabels = { free: '자유 세션', training: '집중 훈련', project: '프로젝트' } as const;
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const container = event.currentTarget;
@@ -50,11 +51,11 @@ export default function CalendarDetailSection({ mode, selectedDate, activeSlide,
         <>
           <div ref={carouselRef} onScroll={handleScroll} className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar gap-4">
             {visibleEntries.map((entry, idx) => {
-              const gymInfo = gyms.find((gym) => gym.name === entry.gym);
+              const gymInfo = gyms.find((gym) => gym.id === entry.gymId) ?? gyms.find((gym) => gym.name === entry.gym);
               if (!gymInfo) return null;
 
               return (
-                <div key={`${entry.gym}-${idx}`} className="w-full flex-shrink-0 snap-center">
+                <div key={entry.recordId ?? `${entry.gym}-${idx}`} className="w-full flex-shrink-0 snap-center">
                   {mode === 'setting' ? (
                     <button
                       type="button"
@@ -108,11 +109,11 @@ export default function CalendarDetailSection({ mode, selectedDate, activeSlide,
                         </div>
                         <div className="rounded-xl bg-white border border-neutral-200 px-3 py-2">
                           <div className="text-[12px] text-neutral-500 mb-1">세션 상태</div>
-                          <div className="text-[14px] font-medium text-neutral-900">집중 훈련</div>
+                          <div className="text-[14px] font-medium text-neutral-900">{entry.sessionType ? sessionLabels[entry.sessionType] : '운동 완료'}</div>
                         </div>
                       </div>
                       <div className="rounded-xl border border-neutral-200 px-3 py-3 text-[13px] text-neutral-600 leading-6">
-                        {entry.gym}에서 남긴 운동 기록입니다. 상세 기록 수정은 작성 화면에서 이어집니다.
+                        {entry.rating === null || entry.rating === undefined ? '평가 없음' : `평점 ${entry.rating}`} · {entry.startsAt ? new Date(entry.startsAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '시간 정보 없음'}
                       </div>
                     </button>
                   )}

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { CalendarEntry } from '../../../entities/calendar/types';
+import { getCalendarWeekdayKind } from '../calendar-month';
 import CalendarEntryStack from './CalendarEntryStack';
 
 export interface CalendarGridCell {
@@ -47,6 +48,7 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
   } = props;
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const scrollTimeoutRef = useRef<number | null>(null);
+  const today = new Date();
 
   useEffect(() => {
     const node = scrollerRef.current;
@@ -81,7 +83,7 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
     <div className={containerClassName}>
       <div className="grid grid-cols-7 gap-px mb-1 border-b border-neutral-200 pb-2">
         {weekdays.map((day, index) => (
-          <div key={day} className={`text-center text-[12px] py-1 ${index === 5 ? 'text-[#185FA5]' : index === 6 ? 'text-[#E24B4A]' : 'text-neutral-500'}`}>
+          <div key={day} className={`text-center text-[12px] py-1 ${getCalendarWeekdayKind(index) === 'sunday' ? 'text-[#E24B4A]' : getCalendarWeekdayKind(index) === 'saturday' ? 'text-[#185FA5]' : 'text-neutral-500'}`}>
             {day}
           </div>
         ))}
@@ -97,9 +99,8 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
                     const dayData = typeof date.day === 'number' ? getEntriesForCell(date) : null;
                     const visibleEntries = dayData ?? [];
                     const isSelected = date.day === selectedDate && date.month === selectedMonth && date.year === selectedYear;
-                    const isToday = date.day === 12 && date.month === 4 && date.year === 2026;
-                    const isSaturday = index % 7 === 5;
-                    const isSunday = index % 7 === 6;
+                    const isToday = date.day === today.getDate() && date.month === today.getMonth() + 1 && date.year === today.getFullYear();
+                    const weekdayKind = getCalendarWeekdayKind(index % 7);
 
                     return (
                       <button
@@ -118,9 +119,9 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
                               className={`text-[13px] ${
                                 isToday
                                   ? 'w-6 h-6 rounded-full bg-[#185FA5] text-white flex items-center justify-center font-medium'
-                                  : isSaturday
+                                  : weekdayKind === 'saturday'
                                     ? 'text-[#185FA5]'
-                                    : isSunday
+                                    : weekdayKind === 'sunday'
                                       ? 'text-[#E24B4A]'
                                       : 'text-neutral-900'
                              }`}

@@ -123,6 +123,7 @@ export interface RecordListParams {
   gymId?: string;
   cursor?: string | null;
   limit?: number;
+  signal?: AbortSignal;
 }
 
 export interface ApiShareSummary {
@@ -178,6 +179,7 @@ export function listRecords(params: RecordListParams = {}) {
       cursor: params.cursor,
       limit: params.limit ?? 20,
     })}`,
+    { signal: params.signal },
   );
 }
 
@@ -185,8 +187,8 @@ export function getRecord(recordId: string) {
   return apiRequest<{ data: ApiRecordDetail }>(`/api/v1/records/${recordId}`);
 }
 
-export function getActiveRecordSession() {
-  return apiRequest<{ data: ApiActiveRecordSession | null }>('/api/v1/records/sessions');
+export function getActiveRecordSession(signal?: AbortSignal) {
+  return apiRequest<{ data: ApiActiveRecordSession | null }>('/api/v1/records/sessions', { signal });
 }
 
 export function startRecordSession(input: StartRecordSessionInput) {
@@ -196,10 +198,11 @@ export function startRecordSession(input: StartRecordSessionInput) {
   });
 }
 
-export function replaceRecordSessionCounts(recordId: string, counts: ApiRecordCountInput[]) {
+export function replaceRecordSessionCounts(recordId: string, counts: ApiRecordCountInput[], signal?: AbortSignal) {
   return apiRequest<{ data: ApiRecordDetail }>(`/api/v1/records/${recordId}/counts`, {
     method: 'PUT',
     body: { counts },
+    signal,
   });
 }
 

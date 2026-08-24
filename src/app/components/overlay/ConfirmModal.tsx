@@ -8,12 +8,24 @@ interface ConfirmModalProps {
   isPending?: boolean;
   pendingLabel?: string;
   error?: string;
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }
 
 export default function ConfirmModal(props: ConfirmModalProps) {
-  const { title, description, confirmLabel, confirmTone = 'primary', isPending = false, pendingLabel = confirmLabel, error, onConfirm, onClose } = props;
+  const {
+    title,
+    description,
+    confirmLabel,
+    confirmTone = 'primary',
+    isPending = false,
+    pendingLabel = confirmLabel,
+    error,
+    confirmDisabled = false,
+    onConfirm,
+    onClose,
+  } = props;
   const handleClose = () => {
     if (!isPending) onClose();
   };
@@ -39,7 +51,7 @@ export default function ConfirmModal(props: ConfirmModalProps) {
         <button onClick={handleClose} disabled={isPending} className="flex-1 py-2.5 bg-neutral-100 text-neutral-700 rounded-xl font-medium disabled:text-neutral-400">
           취소
         </button>
-        <button disabled={isPending} onClick={onConfirm} className={`flex-1 py-2.5 rounded-xl font-medium text-white disabled:bg-neutral-300 ${confirmTone === 'danger' ? 'bg-red-500' : 'bg-blue-500'}`}>
+        <button disabled={isPending || confirmDisabled} onClick={onConfirm} className={`flex-1 py-2.5 rounded-xl font-medium text-white disabled:bg-neutral-300 ${confirmTone === 'danger' ? 'bg-red-500' : 'bg-blue-500'}`}>
           {isPending ? pendingLabel : confirmLabel}
         </button>
       </div>

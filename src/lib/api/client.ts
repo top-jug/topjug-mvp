@@ -1,4 +1,5 @@
 import { ApiClientError } from './error';
+import { runWithAuthSessionLock, type SessionLockManager } from './session-lock';
 import type { ApiErrorResponse, ApiRequestOptions } from './types';
 
 type Fetch = typeof globalThis.fetch;
@@ -43,6 +44,7 @@ export class ApiClient {
   constructor(
     private readonly fetchImplementation: Fetch = (...args) => globalThis.fetch(...args),
     private readonly createRequestId: () => string = () => crypto.randomUUID(),
+    private readonly sessionLockManager?: SessionLockManager,
   ) {}
 
   subscribeUnauthorized(listener: UnauthorizedListener) {
@@ -53,6 +55,12 @@ export class ApiClient {
   beginAuthentication() {
     this.clearSession();
     return this.sessionGeneration;
+  }
+
+  beginSessionRestoration() {
+    this.sessionGeneration += 1;
+    this.accessToken = null;
+    this.refreshBlocked = false;
   }
 
   setAccessToken(accessToken: string, expectedGeneration?: number) {
@@ -93,18 +101,18 @@ export class ApiClient {
     return result;
   }
 
-  async refreshSession() {
-    return this.refreshAccessToken();
+  async refreshSession(signal?: AbortSignal) {
+    return this.refreshAccessToken(signal);
   }
 
-  async logout(expectedGeneration?: number) {
+  async logout(expectedGeneration?: number, signal?: AbortSignal) {
     if (expectedGeneration !== undefined && expectedGeneration !== this.sessionGeneration) return;
     this.clearSession();
-    await this.clearRefreshSession();
+    await this.clearRefreshSession(signal);
   }
 
-  async clearRefreshSession() {
-    await this.send<void>('/auth/logout', { method: 'POST', auth: 'none' }, null);
+  async clearRefreshSession(signal?: AbortSignal) {
+    await this.send<void>('/auth/logout', { method: 'POST', auth: 'none', signal }, null);
   }
 
   async request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
@@ -137,12 +145,33 @@ export class ApiClient {
     }
   }
 
-  private async refreshAccessToken() {
+  async requestCurrentSession<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+    const token = this.accessToken;
+    const generation = this.sessionGeneration;
+    if (!token) throw new ApiClientError('로그인이 필요합니다.', 401, 'AUTH_REQUIRED');
+    try {
+      const response = await this.send<T>(path, options, token);
+      this.assertCurrentSession('required', token, generation);
+      return response;
+    } catch (error) {
+      this.assertCurrentSession('required', token, generation);
+      throw error;
+    }
+  }
+
+  private async refreshAccessToken(externalSignal?: AbortSignal) {
     if (this.refreshPromise) return this.refreshPromise;
     if (this.refreshBlocked) throw new ApiClientError('로그인이 필요합니다.', 401, 'AUTH_REQUIRED');
 
     const generation = this.sessionGeneration;
-    this.refreshPromise = this.send<TokenResponse>('/auth/refresh', { method: 'POST', auth: 'none' }, null)
+    this.refreshPromise = runWithAuthSessionLock(
+      (lockSignal) => this.send<TokenResponse>('/auth/refresh', {
+        method: 'POST',
+        auth: 'none',
+        signal: externalSignal ? AbortSignal.any([externalSignal, lockSignal]) : lockSignal,
+      }, null),
+      this.sessionLockManager,
+    )
       .then((response) => {
         if (generation !== this.sessionGeneration) {
           throw new ApiClientError('인증 상태가 변경되었습니다.', 401, 'AUTH_SESSION_CHANGED');

@@ -4,9 +4,10 @@ interface RecordCountButtonProps {
   value: number;
   colorClassName: string;
   onChange: (delta: number) => void;
+  disabled?: boolean;
 }
 
-export default function RecordCountButton({ value, colorClassName, onChange }: RecordCountButtonProps) {
+export default function RecordCountButton({ value, colorClassName, onChange, disabled = false }: RecordCountButtonProps) {
   const clearTimer = (button: HTMLButtonElement) => {
     const timer = button.dataset.timer;
     if (timer) {
@@ -60,7 +61,8 @@ export default function RecordCountButton({ value, colorClassName, onChange }: R
       onPointerCancel={handlePointerCancel}
       onPointerLeave={handlePointerCancel}
       onContextMenu={(event) => event.preventDefault()}
-      className={`min-w-[60px] h-10 rounded-lg text-white text-[18px] font-bold transition-colors touch-manipulation select-none ${colorClassName}`}
+      disabled={disabled}
+      className={`min-w-[60px] h-10 rounded-lg text-white text-[18px] font-bold transition-colors touch-manipulation select-none disabled:opacity-50 ${colorClassName}`}
     >
       {value}
     </button>
