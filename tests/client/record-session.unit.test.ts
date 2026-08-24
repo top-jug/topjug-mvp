@@ -15,11 +15,14 @@ import {
 import {
   calculateActiveDurationSeconds,
   canUseRecordActions,
+  createRecordHydrationGuard,
   difficultyOptionsFromGym,
+  getRecordActionAvailability,
   recordCountKey,
   routeCountsFromApi,
   routeCountsToApi,
   sectorOptionsFromGym,
+  shouldAutosaveRecordCounts,
 } from '../../src/features/record/record-session-model';
 import { shiftRecordMonth } from '../../src/features/record/record-date';
 import { createRecordHistoryGuard } from '../../src/features/record/record-history-guard';
@@ -133,6 +136,34 @@ test('record actions stay gated until hydration succeeds', () => {
   assert.equal(canUseRecordActions(false, false), false);
   assert.equal(canUseRecordActions(true, true), false);
   assert.equal(canUseRecordActions(true, false), true);
+});
+
+test('safe exit remains available while hydration gates destructive actions', () => {
+  assert.deepEqual(getRecordActionAvailability(false, true), { canMutate: false, canCancel: false, canSafeExit: true });
+  assert.deepEqual(getRecordActionAvailability(false, false), { canMutate: false, canCancel: false, canSafeExit: true });
+  assert.deepEqual(getRecordActionAvailability(true, false), { canMutate: true, canCancel: true, canSafeExit: true });
+});
+
+test('only the latest hydration request may apply results', () => {
+  const guard = createRecordHydrationGuard();
+  const initial = guard.begin();
+  const retry = guard.begin();
+
+  assert.equal(initial.signal.aborted, true);
+  assert.equal(guard.isCurrent(initial), false);
+  assert.equal(guard.isCurrent(retry), true);
+
+  guard.cancel();
+  assert.equal(retry.signal.aborted, true);
+  assert.equal(guard.isCurrent(retry), false);
+});
+
+test('hydrated snapshots and gated edits do not trigger autosave', () => {
+  const hydratedCounts = { route: { success: 1, attempt: 2 } };
+
+  assert.equal(shouldAutosaveRecordCounts(hydratedCounts, hydratedCounts, true), false);
+  assert.equal(shouldAutosaveRecordCounts({ ...hydratedCounts }, hydratedCounts, false), false);
+  assert.equal(shouldAutosaveRecordCounts({ ...hydratedCounts }, hydratedCounts, true), true);
 });
 
 test('record history guard confirms Back and releases its duplicate before exit', async () => {

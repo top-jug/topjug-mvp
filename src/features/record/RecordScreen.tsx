@@ -9,6 +9,7 @@ import RecordRouteList from './components/RecordRouteList';
 import RecordSectorPanel from './components/RecordSectorPanel';
 import { useRecordScreen } from './hooks/useRecordScreen';
 import { createRecordHistoryGuard } from './record-history-guard';
+import { getRecordActionAvailability } from './record-session-model';
 
 const SESSION_LABELS = { free: '자유', training: '훈련', project: '프로젝트' } as const;
 
@@ -76,12 +77,13 @@ export default function RecordScreen({
     return guard.dispose;
   }, []);
 
+  const actionAvailability = getRecordActionAvailability(isHydrated, isLoading);
   const visibleSectors = mode === 'easy' ? sectors.slice(0, 1) : sectors;
 
   return (
     <div className="h-screen bg-white flex flex-col overflow-hidden">
       <div className="px-5 pt-5 pb-4 flex items-center justify-between border-b border-neutral-100">
-        <button onClick={() => setShowExitConfirm(true)} disabled={!isHydrated} className="h-11 w-6 flex items-center justify-start disabled:opacity-50" aria-label="기록 나가기">
+        <button onClick={() => { if (actionAvailability.canCancel) setShowExitConfirm(true); else if (actionAvailability.canSafeExit) void handleSafeExit(); }} disabled={!actionAvailability.canCancel && !actionAvailability.canSafeExit} className="h-11 w-6 flex items-center justify-start" aria-label={actionAvailability.canCancel ? '기록 나가기' : '안전하게 나가기'}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
         </button>
         <h1 className="text-[22px] font-bold">기록</h1>
@@ -105,7 +107,7 @@ export default function RecordScreen({
             <svg width="18" height="18" viewBox="0 0 24 24" fill={isRecording ? 'rgb(239 68 68)' : 'rgb(212 212 212)'} className={isRecording ? 'animate-pulse' : ''}><circle cx="12" cy="12" r="8" /></svg>
             <span className="text-neutral-700 text-[16px] font-medium">{duration}</span>
           </div>
-          <button type="button" onClick={() => void handleRecordingToggle()} disabled={isTransitioning || !isHydrated} aria-label={isRecording ? '일시정지' : '재개'} className="min-h-11 flex items-center gap-1.5 rounded-full px-2.5 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50">
+          <button type="button" onClick={() => void handleRecordingToggle()} disabled={isTransitioning || !actionAvailability.canMutate} aria-label={isRecording ? '일시정지' : '재개'} className="min-h-11 flex items-center gap-1.5 rounded-full px-2.5 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50">
             {isRecording ? <Pause size={18} className="text-blue-500" /> : <Play size={18} className="text-blue-500" />}
             <span className="text-[15px] font-medium">{isRecording ? '일시정지' : '재개'}</span>
           </button>
@@ -129,7 +131,7 @@ export default function RecordScreen({
 
         {showSubmitConfirm && <SubmitConfirmModal selectedGym={selectedGym} date={date} duration={duration} selectedPassType={selectedPassType} selectedPass={selectedPass} rating={rating} onClose={() => setShowSubmitConfirm(false)} onSubmit={() => void handleSubmitConfirm()} />}
         {showRatingWarning && <WarningModal type="rating" onClose={() => setShowRatingWarning(false)} onConfirm={() => { setShowRatingWarning(false); document.querySelector('.rating-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }} />}
-        {showExitConfirm && <ConfirmActionModal title="기록을 취소하시겠어요?" description={'취소하면 서버에 저장된 진행 기록도 종료됩니다.\n계속 진행할까요?'} confirmLabel={isTransitioning ? '취소하는 중…' : '기록 취소하기'} confirmDisabled={!isHydrated || isTransitioning} onClose={() => setShowExitConfirm(false)} onConfirm={() => void handleCancel()} />}
+        {showExitConfirm && <ConfirmActionModal title="기록을 취소하시겠어요?" description={'취소하면 서버에 저장된 진행 기록도 종료됩니다.\n계속 진행할까요?'} confirmLabel={isTransitioning ? '취소하는 중…' : '기록 취소하기'} confirmDisabled={!actionAvailability.canCancel || isTransitioning} onClose={() => setShowExitConfirm(false)} onConfirm={() => void handleCancel()} />}
 
         <div className="py-4 border-b border-neutral-100">
           <div className="flex items-center justify-between mb-4">
@@ -144,17 +146,17 @@ export default function RecordScreen({
           ) : mode === 'easy' ? (
             <div className="bg-neutral-50 rounded-2xl p-4">
               <p className="mb-3 text-[12px] text-neutral-500">이지 모드는 전체 카운트를 {visibleSectors[0].name} 섹터 기준으로 저장해요.</p>
-              <RecordRouteList difficulties={difficulties} sectorId={visibleSectors[0].id} routeCounts={routeCounts} onCountChange={handleCountChange} disabled={!isHydrated} />
+              <RecordRouteList difficulties={difficulties} sectorId={visibleSectors[0].id} routeCounts={routeCounts} onCountChange={handleCountChange} disabled={!actionAvailability.canMutate} />
             </div>
           ) : (
             <div className="space-y-3">
-              {visibleSectors.map((sector) => <RecordSectorPanel key={sector.id} title={`${sector.name} (${sector.wallName})`} sectorId={sector.id} expanded={Boolean(expandedSectors[sector.id])} onToggle={() => setExpandedSectors({ ...expandedSectors, [sector.id]: !expandedSectors[sector.id] })} difficulties={difficulties} routeCounts={routeCounts} onCountChange={handleCountChange} disabled={!isHydrated} />)}
+              {visibleSectors.map((sector) => <RecordSectorPanel key={sector.id} title={`${sector.name} (${sector.wallName})`} sectorId={sector.id} expanded={Boolean(expandedSectors[sector.id])} onToggle={() => setExpandedSectors({ ...expandedSectors, [sector.id]: !expandedSectors[sector.id] })} difficulties={difficulties} routeCounts={routeCounts} onCountChange={handleCountChange} disabled={!actionAvailability.canMutate} />)}
             </div>
           )}
         </div>
 
-        <RecordRatingCard rating={rating} onChange={setRating} disabled={!isHydrated} />
-        <div className="py-6 pb-8"><button onClick={handleSubmitClick} disabled={isTransitioning || !isHydrated} className="w-full py-4 bg-blue-500 text-white rounded-xl text-[16px] font-bold shadow-lg hover:bg-blue-600 disabled:bg-neutral-300 disabled:shadow-none">{isTransitioning ? '처리 중…' : '제출하기'}</button></div>
+        <RecordRatingCard rating={rating} onChange={setRating} disabled={!actionAvailability.canMutate} />
+        <div className="py-6 pb-8"><button onClick={handleSubmitClick} disabled={isTransitioning || !actionAvailability.canMutate} className="w-full py-4 bg-blue-500 text-white rounded-xl text-[16px] font-bold shadow-lg hover:bg-blue-600 disabled:bg-neutral-300 disabled:shadow-none">{isTransitioning ? '처리 중…' : '제출하기'}</button></div>
       </div>
     </div>
   );

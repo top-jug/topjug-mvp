@@ -15,14 +15,17 @@ import { RecordDraft } from '../../../app/providers/RecordDraftProvider';
 import { ClimbingRecord, DifficultyOption, RecordCountType, RecordSectorId, RouteCounts } from '../../../entities/record/types';
 import {
   RecordSectorOption,
+  RecordHydrationRequest,
   calculateActiveDurationSeconds,
   canUseRecordActions,
+  createRecordHydrationGuard,
   difficultyOptionsFromGym,
   formatElapsedTime,
   recordCountKey,
   routeCountsFromApi,
   routeCountsToApi,
   sectorOptionsFromGym,
+  shouldAutosaveRecordCounts,
 } from '../record-session-model';
 
 interface UseRecordScreenOptions {
@@ -63,12 +66,23 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pendingSavesRef = useRef(0);
   const latestCountsRef = useRef<RouteCounts>({});
+  const hydratedCountsRef = useRef<RouteCounts | null>(null);
+  const hydrationGuardRef = useRef<ReturnType<typeof createRecordHydrationGuard> | null>(null);
+  const activeHydrationRef = useRef<RecordHydrationRequest | null>(null);
+  if (!hydrationGuardRef.current) hydrationGuardRef.current = createRecordHydrationGuard();
 
   const updateElapsed = useCallback((nextPauses = pauses) => {
     setElapsedSeconds(calculateActiveDurationSeconds(initialDraft.startedAt, nextPauses));
   }, [initialDraft.startedAt, pauses]);
 
   const hydrate = useCallback(async () => {
+    const hydrationGuard = hydrationGuardRef.current!;
+    const request = hydrationGuard.begin();
+    activeHydrationRef.current = request;
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
     setIsLoading(true);
     setError(null);
     setIsHydrated(false);
@@ -76,9 +90,10 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
 
     try {
       const [activeResponse, gymResponse] = await Promise.all([
-        getActiveRecordSession(),
-        getGym(initialDraft.selectedGymId),
+        getActiveRecordSession(request.signal),
+        getGym(initialDraft.selectedGymId, request.signal),
       ]);
+      if (!hydrationGuard.isCurrent(request)) return;
       const active = activeResponse.data;
       if (!active || active.id !== initialDraft.recordId) {
         throw new Error('진행 중인 기록을 찾지 못했어요. 기록 시작 화면에서 다시 확인해주세요.');
@@ -93,20 +108,23 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
       setDifficulties(difficultyOptionsFromGym(gymResponse.data));
       setSectors(nextSectors);
       setExpandedSectors(nextSectors[0] ? { [nextSectors[0].id]: true } : {});
+      hydratedCountsRef.current = nextCounts;
       setRouteCounts(nextCounts);
       latestCountsRef.current = nextCounts;
       setRating(active.rating);
       hydratedRef.current = true;
       setIsHydrated(true);
     } catch (hydrateError) {
+      if (!hydrationGuard.isCurrent(request)) return;
       setError(messageForRecordError(hydrateError));
     } finally {
-      setIsLoading(false);
+      if (hydrationGuard.isCurrent(request)) setIsLoading(false);
     }
   }, [initialDraft.recordId, initialDraft.selectedGymId]);
 
   useEffect(() => {
     void hydrate();
+    return () => hydrationGuardRef.current?.cancel();
   }, [hydrate]);
 
   useEffect(() => {
@@ -123,18 +141,20 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [updateElapsed]);
 
-  const saveCounts = useCallback((counts: RouteCounts) => {
-    if (!hydratedRef.current) return;
+  const saveCounts = useCallback((counts: RouteCounts, request = activeHydrationRef.current) => {
+    const hydrationGuard = hydrationGuardRef.current!;
+    if (!request || !hydratedRef.current || !hydrationGuard.isCurrent(request)) return;
     pendingSavesRef.current += 1;
     setIsSaving(true);
     setSaveError(null);
     saveQueueRef.current = saveQueueRef.current
       .catch(() => undefined)
       .then(async () => {
-        await replaceRecordSessionCounts(initialDraft.recordId, routeCountsToApi(counts));
+        if (!hydratedRef.current || !hydrationGuard.isCurrent(request)) return;
+        await replaceRecordSessionCounts(initialDraft.recordId, routeCountsToApi(counts), request.signal);
       })
       .catch((saveFailure) => {
-        setSaveError(messageForRecordError(saveFailure));
+        if (hydrationGuard.isCurrent(request)) setSaveError(messageForRecordError(saveFailure));
       })
       .finally(() => {
         pendingSavesRef.current = Math.max(0, pendingSavesRef.current - 1);
@@ -144,9 +164,13 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
 
   useEffect(() => {
     latestCountsRef.current = routeCounts;
-    if (!hydratedRef.current) return;
-    if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = window.setTimeout(() => saveCounts(routeCounts), 500);
+    if (!shouldAutosaveRecordCounts(routeCounts, hydratedCountsRef.current, hydratedRef.current)) return;
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const request = activeHydrationRef.current;
+    saveTimerRef.current = window.setTimeout(() => saveCounts(routeCounts, request), 500);
     return () => {
       if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
     };
@@ -239,6 +263,15 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
     }
   };
 
+  const handleSafeExit = async () => {
+    hydratedRef.current = false;
+    setIsHydrated(false);
+    hydrationGuardRef.current?.cancel();
+    activeHydrationRef.current = null;
+    if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+    await onClose();
+  };
+
   return {
     state: {
       isRecording,
@@ -275,7 +308,7 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
       handleSubmitClick,
       handleSubmitConfirm,
       handleCancel,
-      handleSafeExit: onClose,
+      handleSafeExit,
       retryHydrate: hydrate,
       retrySave: () => saveCounts(latestCountsRef.current),
     },
