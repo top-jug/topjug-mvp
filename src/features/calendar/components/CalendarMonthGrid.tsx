@@ -104,22 +104,26 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
                     const isToday = date.day === today.getDate() && date.month === today.getMonth() + 1 && date.year === today.getFullYear();
                     const weekdayKind = getCalendarWeekdayKind(index % 7);
 
+                    if (typeof date.day !== 'number') {
+                      return <div key={date.key} className="min-h-[48px] rounded-md p-1" aria-hidden="true" />;
+                    }
+                    const day = date.day;
+
                     return (
                       <button
                         key={date.key}
-                        onClick={() => typeof date.day === 'number' && onSelectDate(date.year, date.month, date.day)}
-                        aria-label={typeof date.day === 'number' ? `${date.year}년 ${date.month}월 ${date.day}일` : undefined}
-                        aria-pressed={typeof date.day === 'number' ? isSelected : undefined}
+                        onClick={() => onSelectDate(date.year, date.month, day)}
+                        aria-label={`${date.year}년 ${date.month}월 ${day}일`}
+                        aria-pressed={isSelected}
                         aria-current={isToday ? 'date' : undefined}
                         onContextMenu={(event) => {
                           event.preventDefault();
-                          if (typeof date.day === 'number') onOpenDateMenu(date.year, date.month, date.day);
+                          onOpenDateMenu(date.year, date.month, day);
                         }}
                         className={`min-h-[48px] rounded-md p-1 flex flex-col justify-between transition-colors ${isSelected ? 'bg-[#E6F1FB]' : 'hover:bg-white'}`}
-                        disabled={typeof date.day !== 'number' || !isDateInteractionEnabled}
+                        disabled={!isDateInteractionEnabled}
                       >
-                        {typeof date.day === 'number' && (
-                          <div className="flex flex-col items-center gap-0.5">
+                        <div className="flex flex-col items-center gap-0.5">
 <div
                               className={`text-[13px] ${
                                 isToday
@@ -131,7 +135,7 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
                                       : 'text-neutral-900'
                              }`}
                             >
-                              {date.day}
+                              {day}
                             </div>
                             <CalendarEntryStack
                               entries={visibleEntries}
@@ -139,8 +143,7 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
                               logoClassName="h-5 w-5"
                               hiddenCountClassName="rounded bg-neutral-100 px-1 py-0.5 text-[9px] font-medium text-neutral-500"
                             />
-                          </div>
-                        )}
+                        </div>
                       </button>
                     );
                   })}

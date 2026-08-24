@@ -28,7 +28,7 @@ export default function DatePickerModal(props: DatePickerModalProps) {
   } = props;
 
   return (
-    <RecordModalShell onClose={onClose} title="운동 날짜 선택">
+    <RecordModalShell onClose={onClose} title="운동 날짜 선택" description="달력을 이동해 운동한 날짜를 선택합니다.">
       <div className="flex items-center justify-between mb-6">
         <button onClick={onPrevMonth} className="w-8 h-8 rounded-full hover:bg-neutral-100 flex items-center justify-center" aria-label="이전 달">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

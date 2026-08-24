@@ -8,7 +8,7 @@ interface WarningModalProps {
 
 export default function WarningModal({ type, onClose, onConfirm }: WarningModalProps) {
   return (
-    <RecordModalShell onClose={onClose} title={type === 'pass' ? '회원권 선택 필요' : '난이도 평가 필요'} role="alertdialog">
+    <RecordModalShell onClose={onClose} title={type === 'pass' ? '회원권 선택 필요' : '난이도 평가 필요'} description={type === 'pass' ? '기록을 계속하려면 회원권을 선택해야 합니다.' : '기록을 계속하려면 암장 난이도를 평가해야 합니다.'} role="alertdialog">
       <div className="flex items-center gap-2 mb-4">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(239 68 68)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />

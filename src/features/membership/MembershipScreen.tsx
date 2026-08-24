@@ -341,7 +341,7 @@ export default function MembershipScreen({
       </div>
 
       {showAddSheet && (
-        <BottomSheet onClose={closeSheet} title={editingMembershipId ? '회원권 편집' : '회원권 추가'} dismissible={!isSaving} bodyClassName="px-6 py-5 space-y-4">
+        <BottomSheet onClose={closeSheet} title={editingMembershipId ? '회원권 편집' : '회원권 추가'} description={editingMembershipId ? '선택한 회원권 정보를 수정합니다.' : '새 회원권 정보를 입력합니다.'} dismissible={!isSaving} bodyClassName="px-6 py-5 space-y-4">
               <label className="block">
                 <div className="text-[13px] font-semibold text-neutral-700 mb-2">암장</div>
                 <select value={gymName} onChange={(event) => setGymName(event.target.value)} disabled={isGymOptionsLoading} className="w-full h-12 rounded-2xl border border-neutral-200 px-4 bg-white text-[15px] text-neutral-900 outline-none disabled:bg-neutral-100">

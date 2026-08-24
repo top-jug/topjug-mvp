@@ -11,7 +11,7 @@ export default function WallInfoModal({ wallId, onClose }: WallInfoModalProps) {
   const isMainWall = wallId === 'sector1';
 
   return (
-    <RecordModalShell onClose={onClose} title={isMainWall ? '1 Sector Main Wall 정보' : '2 Sector Cave 정보'} panelClassName="bg-white rounded-3xl p-6 w-[340px] max-h-[600px] overflow-y-auto shadow-2xl">
+    <RecordModalShell onClose={onClose} title={isMainWall ? '1 Sector Main Wall 정보' : '2 Sector Cave 정보'} description="선택한 섹터의 벽 유형, 높이, 각도와 특징을 확인합니다." maxHeightClassName="max-h-[min(600px,calc(100dvh-2rem))]" panelClassName="max-w-[340px] bg-white rounded-3xl p-6 shadow-2xl">
       <h3 className="text-lg font-bold mb-4">{isMainWall ? '1 Sector (Main Wall) 정보' : '2 Sector (Cave) 정보'}</h3>
 
       <div className="mb-4 bg-neutral-800 rounded-xl overflow-hidden">

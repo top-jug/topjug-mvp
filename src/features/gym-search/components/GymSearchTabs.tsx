@@ -15,7 +15,7 @@ export default function GymSearchTabs({ selectedTabs, tabs, regionLabel, onSelec
         onClick={() => onSelectTab('전체')}
         aria-pressed={isAllSelected}
         className={`px-4 py-1.5 rounded-full text-[14px] font-medium transition-colors flex-shrink-0 ${
-          isAllSelected ? 'bg-blue-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
+          isAllSelected ? 'bg-blue-700 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
         }`}
       >
         전체
@@ -33,7 +33,7 @@ export default function GymSearchTabs({ selectedTabs, tabs, regionLabel, onSelec
           onClick={() => onSelectTab(tab)}
           aria-pressed={selectedTabs.includes(tab)}
           className={`px-4 py-1.5 rounded-full text-[14px] font-medium transition-colors flex-shrink-0 ${
-            selectedTabs.includes(tab) ? 'bg-blue-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
+            selectedTabs.includes(tab) ? 'bg-blue-700 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
           }`}
         >
           {tab}

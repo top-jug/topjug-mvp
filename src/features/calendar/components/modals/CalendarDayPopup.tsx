@@ -19,7 +19,7 @@ export default function CalendarDayPopup({ mode, year, month, day, gyms, calenda
   const emptyLabel = mode === 'record' ? '이 날짜에 등록된 기록이 없습니다.' : '이 날짜에 등록된 세팅 정보가 없습니다.';
 
   return (
-    <RecordModalShell onClose={onClose} title={`${year}년 ${month}월 ${day}일 ${mode === 'record' ? '기록' : '일정'}`} panelClassName="bg-white rounded-2xl w-full max-w-[350px] max-h-[460px] flex flex-col">
+    <RecordModalShell onClose={onClose} title={`${year}년 ${month}월 ${day}일 ${mode === 'record' ? '기록' : '일정'}`} description={`선택한 날짜의 ${mode === 'record' ? '운동 기록' : '세팅 일정'}을 확인합니다.`} maxHeightClassName="max-h-[min(460px,calc(100dvh-2rem))]" panelClassName="max-w-[350px] bg-white rounded-2xl flex flex-col">
       <div className="flex items-center justify-between p-4 border-b border-neutral-200">
         <span className="text-[15px] font-medium">{year}년 {month}월 {day}일</span>
         <button onClick={onClose} className="w-6 h-6 flex items-center justify-center bg-neutral-100 rounded-full border border-neutral-200" aria-label="날짜 상세 닫기">

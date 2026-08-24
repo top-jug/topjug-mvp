@@ -91,12 +91,13 @@ export default function CalendarPeriodModal({ currentYear, currentMonth, onSelec
     <BottomSheet
       onClose={onClose}
       title="날짜 선택"
+      description="캘린더에 표시할 연도와 월을 선택합니다."
       bodyClassName="px-6 pb-8 pt-5"
       headerRight={
         <button
           type="button"
           onClick={() => onSelectPeriod(year, month)}
-          className="h-10 rounded-full px-4 text-[15px] font-semibold text-blue-500"
+          className="h-10 rounded-full px-4 text-[15px] font-semibold text-blue-700"
         >
           완료
         </button>

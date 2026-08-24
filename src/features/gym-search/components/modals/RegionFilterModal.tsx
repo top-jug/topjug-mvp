@@ -11,7 +11,7 @@ export default function RegionFilterModal(props: RegionFilterModalProps) {
   const { selectedRegion, regions, onClose, onSelectRegion } = props;
 
   return (
-    <RecordModalShell onClose={onClose} title="지역 선택" panelClassName="bg-white rounded-3xl w-[340px] shadow-2xl">
+    <RecordModalShell onClose={onClose} title="지역 선택" description="암장 검색 결과를 필터링할 지역을 선택합니다." panelClassName="max-w-[340px] bg-white rounded-3xl shadow-2xl">
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-bold">지역 선택</h3>
@@ -32,7 +32,7 @@ export default function RegionFilterModal(props: RegionFilterModalProps) {
                 onClick={() => onSelectRegion(region)}
                 aria-pressed={selectedRegion === region}
                 className={`px-4 py-2 rounded-full text-[13px] font-medium transition-colors ${
-                  selectedRegion === region ? 'bg-blue-500 text-white' : 'bg-neutral-100 text-neutral-700'
+                  selectedRegion === region ? 'bg-blue-700 text-white' : 'bg-neutral-100 text-neutral-700'
                 }`}
               >
                 {region}

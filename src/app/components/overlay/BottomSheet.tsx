@@ -1,10 +1,11 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { PropsWithChildren, ReactNode, RefObject, useEffect, useRef } from 'react';
-import { handleOverlayOpenChange, shouldPreventOverlayDismiss } from './overlay-behavior';
+import { handleOverlayOpenChange, shouldPreventOverlayDismiss, shouldRestoreOverlayFocus } from './overlay-behavior';
 
 interface BottomSheetProps extends PropsWithChildren {
   onClose: () => void;
   title: ReactNode;
+  description: string;
   accessibleTitle?: string;
   role?: 'dialog' | 'alertdialog';
   dismissible?: boolean;
@@ -21,6 +22,7 @@ export default function BottomSheet(props: BottomSheetProps) {
   const {
     onClose,
     title,
+    description,
     accessibleTitle,
     role = 'dialog',
     dismissible = true,
@@ -40,7 +42,9 @@ export default function BottomSheet(props: BottomSheetProps) {
     return () => {
       isMountedRef.current = false;
       const restoreTarget = restoreFocusRef.current;
-      queueMicrotask(() => { if (!isMountedRef.current && restoreTarget?.isConnected) restoreTarget.focus(); });
+      queueMicrotask(() => {
+        if (shouldRestoreOverlayFocus(isMountedRef.current, Boolean(restoreTarget?.isConnected))) restoreTarget?.focus();
+      });
     };
   }, []);
 
@@ -69,6 +73,7 @@ export default function BottomSheet(props: BottomSheetProps) {
             <Dialog.Title className="text-center text-[18px] font-bold" aria-label={accessibleTitle}>
               {title}
             </Dialog.Title>
+            <Dialog.Description className="sr-only">{description}</Dialog.Description>
             <div className="justify-self-end">
               {headerRight ?? (
                 <button type="button" onClick={onClose} disabled={!dismissible} className="w-12 h-12 rounded-full bg-neutral-100 flex items-center justify-center disabled:cursor-not-allowed disabled:text-neutral-400" aria-label="닫기">
