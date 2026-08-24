@@ -1,4 +1,5 @@
 export const AUTH_SESSION_EVENT_KEY = 'topjug.auth-session-event';
+const STORAGE_PROBE_KEY = 'topjug.auth-storage-probe';
 
 type StorageWriter = Pick<Storage, 'setItem'>;
 type SessionEvent = Pick<StorageEvent, 'key' | 'newValue'>;
@@ -33,6 +34,22 @@ export function readSessionStateEvent(storage?: Pick<Storage, 'getItem'>) {
   } catch {
     return null;
   }
+}
+
+export function canUseSessionStorage(storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>) {
+  try {
+    const target = storage ?? window.localStorage;
+    target.setItem(STORAGE_PROBE_KEY, '1');
+    const available = target.getItem(STORAGE_PROBE_KEY) === '1';
+    target.removeItem(STORAGE_PROBE_KEY);
+    return available;
+  } catch {
+    return false;
+  }
+}
+
+export function shouldForceActivationReconciliation(storageAvailable: boolean, webLocksAvailable: boolean) {
+  return !storageAvailable && webLocksAvailable;
 }
 
 export function isSessionStateEvent(event: SessionEvent) {
@@ -89,6 +106,11 @@ export function createSessionReconciler(reconcile: () => Promise<void>, canRecon
     },
     reconcileBootstrap() {
       return run(true);
+    },
+    forceReconciliation() {
+      dirty = true;
+      if (active) followUp = true;
+      return run(false);
     },
   };
 }

@@ -3,14 +3,18 @@ import test from 'node:test';
 import { toRegisterInput, validateRegistrationPasswords } from '../../src/features/auth/registration';
 import {
   AUTH_SESSION_EVENT_KEY,
+  canUseSessionStorage,
   createSessionReconciler,
   isSessionStateEvent,
   publishAuthenticatedSession,
+  shouldForceActivationReconciliation,
 } from '../../src/features/auth/session-events';
 import {
   acquireStorageLease,
+  AUTH_SESSION_LEASE_MS,
   AUTH_SESSION_LEASE_PREFIX,
   AuthSessionLockError,
+  AUTH_SESSION_TIMEOUT_MS,
   runWithAuthSessionLock,
   type SessionLockManager,
 } from '../../src/lib/api/session-lock';
@@ -146,6 +150,30 @@ test('clean activation is a no-op after bootstrap', async () => {
   assert.equal(calls, 1);
 });
 
+test('forced reconciliation retries after a clean bootstrap failure', async () => {
+  let calls = 0;
+  const reconciler = createSessionReconciler(async () => {
+    calls += 1;
+    if (calls === 1) throw new Error('bootstrap failed');
+  });
+
+  await assert.rejects(reconciler.reconcileBootstrap(), /bootstrap failed/);
+  await reconciler.forceReconciliation();
+  assert.equal(calls, 2);
+});
+
+test('storage-unavailable activation is forced only when Web Locks can serialize it', () => {
+  const unavailable = {
+    getItem: () => { throw new Error('denied'); },
+    setItem: () => { throw new Error('denied'); },
+    removeItem: () => { throw new Error('denied'); },
+  };
+  assert.equal(canUseSessionStorage(unavailable), false);
+  assert.equal(shouldForceActivationReconciliation(false, true), true);
+  assert.equal(shouldForceActivationReconciliation(false, false), false);
+  assert.equal(shouldForceActivationReconciliation(true, true), false);
+});
+
 test('local session work can defer activation without clearing dirty state', async () => {
   let localOperation = true;
   let calls = 0;
@@ -200,7 +228,7 @@ test('storage leases enforce contention and release ownership', async () => {
   const storage = new MemoryStorage();
   const waiter = controlledWait();
   const signal = new AbortController().signal;
-  const releaseFirst = await acquireStorageLease({ storage, owner: 'first', now: () => 0, wait: waiter.wait }, signal);
+  const firstLease = await acquireStorageLease({ storage, owner: 'first', now: () => 0, wait: waiter.wait }, signal);
   let secondAcquired = false;
   const second = acquireStorageLease({ storage, owner: 'second', now: () => 0, wait: waiter.wait }, signal).then((release) => {
     secondAcquired = true;
@@ -209,27 +237,27 @@ test('storage leases enforce contention and release ownership', async () => {
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(secondAcquired, false);
 
-  releaseFirst();
+  firstLease.release();
   waiter.wake();
-  const releaseSecond = await second;
+  const secondLease = await second;
   assert.equal(secondAcquired, true);
-  releaseSecond();
+  secondLease.release();
   assert.equal(storage.length, 0);
 });
 
 test('storage leases ignore expired contenders and verify ownership', async () => {
   const storage = new MemoryStorage();
   storage.setItem(`${AUTH_SESSION_LEASE_PREFIX}expired`, JSON.stringify({ owner: 'expired', choosing: false, ticket: 1, expiresAt: 10 }));
-  const release = await acquireStorageLease({ storage, owner: 'current', now: () => 20 }, new AbortController().signal);
+  const lease = await acquireStorageLease({ storage, owner: 'current', now: () => 20 }, new AbortController().signal);
   assert.equal(storage.getItem(`${AUTH_SESSION_LEASE_PREFIX}expired`), null);
-  release();
+  lease.release();
 
   const waiter = controlledWait();
-  const releaseBlocker = await acquireStorageLease({ storage, owner: 'blocker', now: () => 20, wait: waiter.wait }, new AbortController().signal);
+  const blockerLease = await acquireStorageLease({ storage, owner: 'blocker', now: () => 20, wait: waiter.wait }, new AbortController().signal);
   const contender = acquireStorageLease({ storage, owner: 'contender', now: () => 20, wait: waiter.wait }, new AbortController().signal);
   await new Promise((resolve) => setTimeout(resolve, 0));
   storage.setItem(`${AUTH_SESSION_LEASE_PREFIX}contender`, JSON.stringify({ owner: 'other', choosing: false, ticket: 99, expiresAt: 100 }));
-  releaseBlocker();
+  blockerLease.release();
   waiter.wake();
   await assert.rejects(contender, AuthSessionLockError);
 });
@@ -255,4 +283,91 @@ test('timed out fallback operations abort and release their lease', async () => 
   );
   assert.equal(aborted, true);
   assert.equal(storage.length, 0);
+});
+
+test('fallback heartbeat renews the lease beyond the request timeout and stops cleanly', async () => {
+  assert.ok(AUTH_SESSION_LEASE_MS > AUTH_SESSION_TIMEOUT_MS * 2);
+  const storage = new MemoryStorage();
+  const failingManager: SessionLockManager = { request: async () => { throw new Error('unavailable'); } };
+  let now = 0;
+  let heartbeat: (() => void) | undefined;
+  let stopped = false;
+  let finish: (() => void) | undefined;
+  const operation = runWithAuthSessionLock(
+    async () => new Promise<void>((resolve) => { finish = resolve; }),
+    failingManager,
+    {
+      storage,
+      owner: 'renew-owner',
+      now: () => now,
+      leaseMs: 100,
+      scheduleHeartbeat: (callback) => {
+        heartbeat = callback;
+        return () => { stopped = true; };
+      },
+    },
+    1_000,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const key = `${AUTH_SESSION_LEASE_PREFIX}renew-owner`;
+  assert.equal(JSON.parse(storage.getItem(key) ?? '{}').expiresAt, 100);
+
+  now = 40;
+  heartbeat?.();
+  assert.equal(JSON.parse(storage.getItem(key) ?? '{}').expiresAt, 140);
+  finish?.();
+  await operation;
+  assert.equal(stopped, true);
+  assert.equal(storage.length, 0);
+});
+
+test('fallback heartbeat aborts on ownership loss without deleting the new owner', async () => {
+  const storage = new MemoryStorage();
+  const failingManager: SessionLockManager = { request: async () => { throw new Error('unavailable'); } };
+  let heartbeat: (() => void) | undefined;
+  let stopped = false;
+  let aborted = false;
+  const operation = runWithAuthSessionLock(
+    (signal) => new Promise<void>((_resolve, reject) => signal.addEventListener('abort', () => {
+      aborted = true;
+      reject(signal.reason);
+    }, { once: true })),
+    failingManager,
+    {
+      storage,
+      owner: 'lost-owner',
+      now: () => 0,
+      leaseMs: 100,
+      scheduleHeartbeat: (callback) => {
+        heartbeat = callback;
+        return () => { stopped = true; };
+      },
+    },
+    1_000,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const key = `${AUTH_SESSION_LEASE_PREFIX}lost-owner`;
+  storage.setItem(key, JSON.stringify({ owner: 'replacement', choosing: false, ticket: 99, expiresAt: 100 }));
+  heartbeat?.();
+
+  await assert.rejects(operation, AuthSessionLockError);
+  assert.equal(aborted, true);
+  assert.equal(stopped, true);
+  assert.equal(JSON.parse(storage.getItem(key) ?? '{}').owner, 'replacement');
+});
+
+test('browser fallback fails closed when storage cannot provide a lease', async () => {
+  const storage = {
+    get length(): number { throw new Error('denied'); },
+    key: () => null,
+    getItem: () => null,
+    setItem: () => { throw new Error('denied'); },
+    removeItem: () => undefined,
+  };
+  let ran = false;
+  await assert.rejects(
+    runWithAuthSessionLock(async () => { ran = true; }, undefined, { storage, owner: 'blocked' }, 10),
+    AuthSessionLockError,
+  );
+  assert.equal(ran, false);
 });

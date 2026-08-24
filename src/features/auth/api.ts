@@ -12,7 +12,7 @@ type AuthResponse = ApiDataResponse<{
   accessTokenExpiresIn: number;
 }>;
 
-function hasPendingLogout() {
+export function hasPendingLogout() {
   try {
     return typeof window !== 'undefined' && window.localStorage.getItem(LOGOUT_PENDING_KEY) === 'true';
   } catch {

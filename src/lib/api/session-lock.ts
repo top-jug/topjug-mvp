@@ -1,6 +1,7 @@
 const AUTH_SESSION_LOCK = 'topjug.auth-session';
 export const AUTH_SESSION_LEASE_PREFIX = `${AUTH_SESSION_LOCK}.contender.`;
 export const AUTH_SESSION_TIMEOUT_MS = 15_000;
+export const AUTH_SESSION_LEASE_MS = AUTH_SESSION_TIMEOUT_MS * 2 + 5_000;
 
 export type SessionLockManager = {
   request<T>(name: string, options: { signal: AbortSignal }, callback: () => Promise<T>): Promise<T>;
@@ -14,6 +15,7 @@ export type StorageLeaseOptions = {
   now?: () => number;
   wait?: (signal: AbortSignal) => Promise<void>;
   leaseMs?: number;
+  scheduleHeartbeat?: (callback: () => void, intervalMs: number) => () => void;
 };
 
 type LeaseRecord = {
@@ -87,7 +89,7 @@ function defaultWait(signal: AbortSignal) {
 export async function acquireStorageLease(options: StorageLeaseOptions, signal: AbortSignal) {
   const now = options.now ?? Date.now;
   const wait = options.wait ?? defaultWait;
-  const leaseMs = options.leaseMs ?? AUTH_SESSION_TIMEOUT_MS + 1_000;
+  const leaseMs = options.leaseMs ?? AUTH_SESSION_LEASE_MS;
   const key = `${AUTH_SESSION_LEASE_PREFIX}${options.owner}`;
   const expiresAt = now() + leaseMs;
   const write = (choosing: boolean, ticket: number) => {
@@ -114,9 +116,17 @@ export async function acquireStorageLease(options: StorageLeaseOptions, signal: 
       await wait(signal);
     }
 
-    return () => {
-      const lease = parseLease(options.storage.getItem(key));
-      if (lease?.owner === options.owner && lease.ticket === ticket) options.storage.removeItem(key);
+    return {
+      renew() {
+        const lease = parseLease(options.storage.getItem(key));
+        if (!lease || lease.owner !== options.owner || lease.ticket !== ticket || lease.expiresAt <= now()) return false;
+        options.storage.setItem(key, JSON.stringify({ ...lease, expiresAt: now() + leaseMs }));
+        return true;
+      },
+      release() {
+        const lease = parseLease(options.storage.getItem(key));
+        if (lease?.owner === options.owner && lease.ticket === ticket) options.storage.removeItem(key);
+      },
     };
   } catch (error) {
     const lease = parseLease(options.storage.getItem(key));
@@ -131,6 +141,11 @@ function runWithProcessLock<T>(operation: () => Promise<T>) {
   const result = processLock.then(operation);
   processLock = result.then(() => undefined, () => undefined);
   return result;
+}
+
+function defaultScheduleHeartbeat(callback: () => void, intervalMs: number) {
+  const timer = setInterval(callback, intervalMs);
+  return () => clearInterval(timer);
 }
 
 export async function runWithAuthSessionLock<T>(
@@ -170,11 +185,29 @@ export async function runWithAuthSessionLock<T>(
       storage: window.localStorage,
       owner: crypto.randomUUID(),
     };
-    const release = await acquireStorageLease(options, controller.signal);
+    const lease = await acquireStorageLease(options, controller.signal);
+    const leaseMs = options.leaseMs ?? AUTH_SESSION_LEASE_MS;
+    let stopHeartbeat: () => void = () => {};
     try {
+      stopHeartbeat = (options.scheduleHeartbeat ?? defaultScheduleHeartbeat)(() => {
+        try {
+          if (!lease.renew()) controller.abort(new AuthSessionLockError('Auth session lease ownership was lost.'));
+        } catch (error) {
+          controller.abort(new AuthSessionLockError('Unable to renew the auth session lease.', { cause: error }));
+        }
+      }, Math.max(1, Math.floor(leaseMs / 3)));
       return await run();
     } finally {
-      release();
+      try {
+        stopHeartbeat();
+      } catch {
+        // The bounded lease still expires if timer cleanup fails.
+      }
+      try {
+        lease.release();
+      } catch {
+        // Preserve the protected operation result; ownership expires if storage failed.
+      }
     }
   } catch (error) {
     if (operationStarted) throw error;

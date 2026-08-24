@@ -1,8 +1,8 @@
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ApiClientError } from '../../lib/api/error';
 import { apiClient } from '../../lib/api/client';
-import { getCurrentUser, LOGOUT_PENDING_KEY, login as loginRequest, logout as logoutRequest, register as registerRequest, restoreSession } from './api';
-import { createSessionReconciler, isSessionStateEvent, publishAuthenticatedSession, publishLoggedOutSession, readSessionStateEvent } from './session-events';
+import { getCurrentUser, hasPendingLogout, LOGOUT_PENDING_KEY, login as loginRequest, logout as logoutRequest, register as registerRequest, restoreSession } from './api';
+import { canUseSessionStorage, createSessionReconciler, isSessionStateEvent, publishAuthenticatedSession, publishLoggedOutSession, readSessionStateEvent, shouldForceActivationReconciliation } from './session-events';
 import type { AuthStatus, AuthUser, LoginInput, RegisterInput } from './types';
 
 export type AuthContextValue = {
@@ -85,9 +85,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
     sessionReconciler.current = reconciler;
     const handleActivation = () => {
       if (document.visibilityState !== 'visible') return;
-      const storedEvent = readSessionStateEvent();
-      if (storedEvent !== sessionEventSnapshot.current) {
-        sessionEventSnapshot.current = storedEvent;
+      if (hasPendingLogout()) reconciler.markDirty();
+      const storageAvailable = canUseSessionStorage();
+      if (storageAvailable) {
+        const storedEvent = readSessionStateEvent();
+        if (storedEvent !== sessionEventSnapshot.current) {
+          sessionEventSnapshot.current = storedEvent;
+          reconciler.markDirty();
+        }
+      } else if (shouldForceActivationReconciliation(storageAvailable, typeof navigator !== 'undefined' && Boolean(navigator.locks))) {
         reconciler.markDirty();
       }
       void reconciler.reconcileOnActivation();
@@ -192,7 +198,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   async function retry() {
-    if (sessionReconciler.current) await sessionReconciler.current.reconcileOnActivation();
+    if (sessionReconciler.current) await sessionReconciler.current.forceReconciliation();
     else await initialize();
   }
 
