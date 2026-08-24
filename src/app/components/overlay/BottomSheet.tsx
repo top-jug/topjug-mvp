@@ -17,7 +17,7 @@ export default function BottomSheet(props: BottomSheetProps) {
     title,
     headerLeft,
     headerRight,
-    maxHeightClassName = 'max-h-[80vh]',
+    maxHeightClassName = 'max-h-[80dvh]',
     bodyClassName = 'p-6',
     panelClassName = '',
     zIndexClassName = 'z-[70]',
@@ -27,7 +27,7 @@ export default function BottomSheet(props: BottomSheetProps) {
   return (
     <>
       <div className="fixed inset-0 bg-black/20 z-[60]" onClick={onClose}></div>
-      <div className={`fixed inset-x-0 bottom-0 bg-white rounded-t-[28px] border-t border-neutral-200 overflow-hidden flex flex-col ${maxHeightClassName} ${zIndexClassName} ${panelClassName}`}>
+      <div className={`mobile-bottom-sheet fixed inset-x-0 bottom-0 flex flex-col overflow-hidden rounded-t-[28px] border-t border-neutral-200 bg-white ${maxHeightClassName} ${zIndexClassName} ${panelClassName}`}>
         {(title || headerLeft || headerRight) && (
           <div className="px-6 py-5 border-b border-neutral-100 grid grid-cols-[auto_1fr_auto] items-center gap-3 flex-shrink-0">
             <div>{headerLeft}</div>

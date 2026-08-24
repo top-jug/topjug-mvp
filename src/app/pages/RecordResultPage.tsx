@@ -98,8 +98,8 @@ export default function RecordResultPage() {
 
   if ((isLoading && !record) || (record && record.id !== recordId)) {
     return (
-      <div className="min-h-screen bg-[#F7F8FA] pb-10 text-neutral-950">
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-100 bg-white px-5 py-3">
+      <div className="mobile-screen bg-[#F7F8FA] pb-10 text-neutral-950">
+        <header className="mobile-safe-top sticky top-0 z-10 flex items-center justify-between border-b border-neutral-100 bg-white px-5 pb-3">
           <button onClick={navigateBack} className="flex h-11 w-9 items-center" aria-label="뒤로가기">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m15 18-6-6 6-6" />
@@ -146,8 +146,8 @@ export default function RecordResultPage() {
   const completionRate = Math.round((totals.success / Math.max(1, totals.attempt)) * 100);
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] pb-10 text-neutral-950">
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-100 bg-white px-5 py-3">
+    <div className="mobile-screen bg-[#F7F8FA] pb-10 text-neutral-950">
+      <header className="mobile-safe-top sticky top-0 z-10 flex items-center justify-between border-b border-neutral-100 bg-white px-5 pb-3">
         <button onClick={navigateBack} className="flex h-11 w-9 items-center" aria-label="뒤로가기">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m15 18-6-6 6-6" />
