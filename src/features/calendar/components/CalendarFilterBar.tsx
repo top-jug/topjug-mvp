@@ -3,12 +3,12 @@ import { ActiveGyms, CalendarGym } from '../../../entities/calendar/types';
 interface CalendarFilterBarProps {
   gyms: CalendarGym[];
   activeGyms: ActiveGyms;
-  onToggleGym: (gymName: string) => void;
+  onToggleGym: (gymId: string) => void;
   onToggleAll: () => void;
 }
 
 export default function CalendarFilterBar({ gyms, activeGyms, onToggleGym, onToggleAll }: CalendarFilterBarProps) {
-  const allSelected = gyms.length > 0 && gyms.every((gym) => activeGyms[gym.name]);
+  const allSelected = gyms.length > 0 && gyms.every((gym) => activeGyms[gym.id]);
 
   return (
     <div className="px-5 pb-3 pt-2 bg-white">
@@ -23,13 +23,13 @@ export default function CalendarFilterBar({ gyms, activeGyms, onToggleGym, onTog
           전체
         </button>
         {gyms.map((gym) => {
-          const isActive = activeGyms[gym.name];
+          const isActive = activeGyms[gym.id];
 
           return (
             <button
               type="button"
-              key={gym.name}
-              onClick={() => onToggleGym(gym.name)}
+              key={gym.id}
+              onClick={() => onToggleGym(gym.id)}
               className={`px-2 py-1.5 rounded-full text-[14px] font-medium transition-colors flex items-center gap-1.5 flex-shrink-0 ${
                 isActive ? 'bg-blue-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
               }`}

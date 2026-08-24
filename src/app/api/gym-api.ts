@@ -103,21 +103,21 @@ export interface ListGymsInput {
   signal?: AbortSignal;
 }
 
-function normalizeGymSummary(gym: Partial<ApiGymSummary> & Pick<ApiGymSummary, 'id' | 'name' | 'address'>): ApiGymSummary {
+function normalizeGymSummary(gym: ApiGymSummary): ApiGymSummary {
   return {
     id: gym.id,
     name: gym.name,
-    branchName: gym.branchName ?? null,
+    branchName: gym.branchName,
     address: gym.address,
-    regionCode: gym.regionCode ?? null,
+    regionCode: gym.regionCode,
     latitude: gym.latitude ?? null,
     longitude: gym.longitude ?? null,
-    operationStatus: gym.operationStatus ?? 'active',
-    facilities: gym.facilities ?? [],
+    operationStatus: gym.operationStatus,
+    facilities: gym.facilities,
     calendarColor: gym.calendarColor ?? null,
     calendarTextColor: gym.calendarTextColor ?? null,
     brand: gym.brand?.id && gym.brand.name ? gym.brand : null,
-    cover: gym.cover ?? null,
+    cover: gym.cover,
     tags: gym.tags ?? [],
     dayPassPrice: gym.dayPassPrice ?? null,
   };

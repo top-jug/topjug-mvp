@@ -9,12 +9,21 @@ test('gym display name does not duplicate an included branch name', () => {
   assert.equal(displayGymName({ name: '더클라임', branchName: '강남' }), '더클라임 강남');
 });
 
-test('gym list query uses the API and normalizes optional summary fields', async () => {
+test('gym list query preserves required contract fields and normalizes optional summary fields', async () => {
   let requestedUrl = '';
   mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
     requestedUrl = String(input);
     return new Response(JSON.stringify({
-      data: [{ id: 'gym-1', name: '테스트 암장', address: '서울 강남구' }],
+      data: [{
+        id: 'gym-1',
+        name: '테스트 암장',
+        branchName: null,
+        address: '서울 강남구',
+        regionCode: null,
+        operationStatus: 'temporarily_closed',
+        facilities: ['parking'],
+        cover: null,
+      }],
     }), { status: 200, headers: { 'content-type': 'application/json' } });
   });
 
@@ -24,6 +33,7 @@ test('gym list query uses the API and normalizes optional summary fields', async
   assert.match(requestedUrl, /q=%ED%85%8C%EC%8A%A4%ED%8A%B8\+%EC%95%94%EC%9E%A5/);
   assert.match(requestedUrl, /limit=10/);
   assert.deepEqual(response.data[0].tags, []);
-  assert.deepEqual(response.data[0].facilities, []);
+  assert.equal(response.data[0].operationStatus, 'temporarily_closed');
+  assert.deepEqual(response.data[0].facilities, ['parking']);
   assert.equal(response.data[0].cover, null);
 });

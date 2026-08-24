@@ -6,6 +6,7 @@ import type { AuthUser, LoginInput, RegisterInput } from './types';
 export const LOGOUT_PENDING_KEY = 'topjug.logout-pending';
 
 type AuthResponse = ApiDataResponse<{
+  user: Pick<AuthUser, 'id' | 'email' | 'displayName' | 'homeRegionCode' | 'emailVerifiedAt' | 'createdAt'>;
   accessToken: string;
   accessTokenExpiresIn: number;
 }>;

@@ -4,8 +4,6 @@ import { MembershipItem } from '../../mocks/memberships';
 import { ApiClientError } from '../api/api-client';
 import {
   ApiGymSummary,
-  ApiMembership,
-  MembershipInput,
   archiveMembership,
   createMembership,
   listGyms,
@@ -13,6 +11,13 @@ import {
   replaceMembership,
 } from '../api/membership-api';
 import { useAuth } from '../../features/auth/AuthProvider';
+import {
+  apiMembershipToItem,
+  buildMembershipInput,
+  formatMembershipGymName,
+  membershipColorsForIndex,
+  parseMembershipCounts,
+} from '../../features/membership/membership-contract';
 
 interface MembershipContextValue {
   memberships: MembershipItem[];
@@ -37,64 +42,11 @@ function parseKoreanDate(value: string) {
   return new Date(year, month - 1, day);
 }
 
-function parseDisplayDate(value: string) {
-  const [year, month, day] = value.split(/[.-]/).map(Number);
-  return new Date(year, month - 1, day, 0, 0, 0, 0).toISOString();
-}
-
-function formatDisplayDate(value: string) {
-  const date = new Date(value);
-  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
-}
-
-function formatGymName(gym: { name: string; branchName: string | null }) {
-  if (!gym.branchName || gym.name.includes(gym.branchName)) return gym.name;
-  return `${gym.name} ${gym.branchName}`;
-}
-
-function colorsForIndex(index: number) {
-  const colors = [
-    { lightBg: '#E6F1FB', darkText: '#0C447C' },
-    { lightBg: '#F7E8D7', darkText: '#6A3F0A' },
-    { lightBg: '#F0E8FA', darkText: '#5A2D84' },
-    { lightBg: '#EAF3DE', darkText: '#27500A' },
-  ];
-  return colors[index % colors.length];
-}
-
 function messageForError(error: unknown) {
   if (error instanceof ApiClientError && error.status === 401) return '로그인이 필요합니다.';
   if (error instanceof ApiClientError && error.status === 409) return error.message;
   if (error instanceof Error) return error.message;
   return '회원권 요청을 처리하지 못했습니다.';
-}
-
-function apiMembershipToItem(membership: ApiMembership, gymOptions: Array<{ gymName: string; gymId: string; lightBg: string; darkText: string }>): MembershipItem {
-  const gymNames = membership.gyms.map(formatGymName);
-  const primaryGymName = gymNames[0] ?? '';
-  const colors = gymOptions.find((option) => option.gymId === membership.gymIds[0]) ?? colorsForIndex(0);
-  const validUntil = new Date(membership.validUntil);
-  const daysLeft = Math.max(0, Math.ceil((validUntil.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-
-  return {
-    id: membership.id,
-    gymIds: membership.gymIds,
-    gymName: gymNames.length > 1 ? `${primaryGymName} 외 ${gymNames.length - 1}` : primaryGymName,
-    passName: membership.name,
-    passType: membership.type,
-    remainingLabel: membership.type === 'count' ? '남은 횟수' : '남은 기간',
-    remainingValue: membership.type === 'count'
-      ? `${membership.remainingUses ?? 0} / ${membership.totalUses ?? 0}회`
-      : `${daysLeft}일 남음`,
-    lightBg: colors.lightBg,
-    darkText: colors.darkText,
-    startDate: formatDisplayDate(membership.validFrom),
-    endDate: formatDisplayDate(membership.validUntil),
-    note: membership.note ?? '메모 없음',
-    isFavorite: membership.homeFavorite,
-    homeOrder: membership.homeOrder,
-    eligibilityStatus: membership.eligibilityStatus,
-  };
 }
 
 function buildRecordPasses(memberships: MembershipItem[]) {
@@ -105,14 +57,14 @@ function buildRecordPasses(memberships: MembershipItem[]) {
     if (membership.eligibilityStatus !== 'active') return;
 
     if (membership.passType === 'count') {
-      const [remainingPart, totalPart] = membership.remainingValue.replace('회', '').split('/').map((part) => Number(part.trim()));
+      const { remainingUses, totalUses } = parseMembershipCounts(membership.remainingValue);
       countPasses.push({
         id: membership.id,
         name: membership.passName,
         gym: membership.gymName || '암장 미선택',
         gymIds: membership.gymIds ?? [],
-        remaining: remainingPart || 0,
-        total: totalPart || 0,
+        remaining: remainingUses,
+        total: totalUses,
       });
       return;
     }
@@ -131,30 +83,6 @@ function buildRecordPasses(memberships: MembershipItem[]) {
   });
 
   return { countPasses, periodPasses };
-}
-
-function buildInput(membership: MembershipItem, gymOptions: MembershipContextValue['gymOptions'], memberships: MembershipItem[]): MembershipInput {
-  const gymIds = membership.gymIds && membership.gymIds.length > 0
-    ? membership.gymIds
-    : gymOptions.filter((option) => option.gymName === membership.gymName).map((option) => option.gymId);
-  const [remainingPart, totalPart] = membership.remainingValue.replace('회', '').split('/').map((value) => Number(value.trim()));
-  const favoriteMemberships = memberships.filter((item) => item.isFavorite && item.id !== membership.id);
-  const homeOrder = membership.isFavorite
-    ? membership.homeOrder ?? favoriteMemberships.length
-    : null;
-
-  return {
-    name: membership.passName,
-    type: membership.passType,
-    gymIds,
-    totalUses: membership.passType === 'count' ? totalPart || remainingPart || 0 : null,
-    remainingUses: membership.passType === 'count' ? remainingPart || 0 : null,
-    validFrom: parseDisplayDate(membership.startDate),
-    validUntil: parseDisplayDate(membership.endDate),
-    note: membership.note || null,
-    homeFavorite: Boolean(membership.isFavorite),
-    homeOrder,
-  };
 }
 
 export function MembershipProvider({ children }: PropsWithChildren) {
@@ -182,8 +110,8 @@ export function MembershipProvider({ children }: PropsWithChildren) {
       if (account !== accountGeneration.current || version !== refreshVersion.current) return;
       const nextGymOptions = gymsResponse.data.map((gym: ApiGymSummary, index) => ({
         gymId: gym.id,
-        gymName: formatGymName(gym),
-        ...colorsForIndex(index),
+        gymName: formatMembershipGymName(gym),
+        ...membershipColorsForIndex(index),
       }));
 
       setGymOptions(nextGymOptions);
@@ -228,7 +156,7 @@ export function MembershipProvider({ children }: PropsWithChildren) {
         setIsLoading(false);
         setActionError(null);
         try {
-          const response = await createMembership(buildInput(membership, gymOptions, memberships));
+          const response = await createMembership(buildMembershipInput(membership, gymOptions, memberships));
           if (account !== accountGeneration.current) return;
           refreshVersion.current += 1;
           setMemberships((prev) => [apiMembershipToItem(response.data, gymOptions), ...prev]);
@@ -245,13 +173,20 @@ export function MembershipProvider({ children }: PropsWithChildren) {
         setIsLoading(false);
         setActionError(null);
         try {
-          const response = await replaceMembership(membership.id, buildInput(membership, gymOptions, memberships));
+          if (!membership.updatedAt) throw new Error('회원권의 최신 수정 시각이 없습니다. 다시 불러온 뒤 시도해주세요.');
+          const response = await replaceMembership(membership.id, {
+            ...buildMembershipInput(membership, gymOptions, memberships),
+            expectedUpdatedAt: membership.updatedAt,
+          });
           if (account !== accountGeneration.current) return;
           refreshVersion.current += 1;
           const nextMembership = apiMembershipToItem(response.data, gymOptions);
           setMemberships((prev) => prev.map((item) => (item.id === membership.id ? nextMembership : item)));
         } catch (requestError) {
           if (account !== accountGeneration.current) throw requestError;
+          if (requestError instanceof ApiClientError && requestError.code === 'MEMBERSHIP_CHANGED') {
+            await refreshMemberships();
+          }
           const message = messageForError(requestError);
           setActionError(message);
           throw new Error(message);

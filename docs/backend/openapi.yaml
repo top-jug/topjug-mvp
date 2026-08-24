@@ -2,13 +2,52 @@ openapi: 3.1.0
 info:
   title: TopJug API
   version: 0.1.0
-  description: Initial API contract for the TopJug MVP backend.
+  description: |
+    Runtime-aligned API contract for the TopJug MVP backend. Every response includes
+    `x-request-id` and `Cache-Control: no-store` for responses produced by documented handlers. Error `code` values are stable client
+    identifiers; localized `message` text is not stable. Nullable response fields are
+    emitted as JSON null when present, while non-required fields may be omitted.
   license:
     name: UNLICENSED
     identifier: UNLICENSED
 servers:
   - url: /api/v1
 paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Check that the application process is serving requests
+      servers:
+        - url: /api
+      security: []
+      responses:
+        '200':
+          description: Process is healthy
+          headers:
+            x-request-id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/CacheControl' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /ready:
+    get:
+      operationId: getReadiness
+      summary: Check required configuration and the runtime database connection
+      servers:
+        - url: /api
+      security: []
+      responses:
+        '200':
+          description: Service is ready
+          headers:
+            x-request-id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/CacheControl' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReadinessResponse' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /auth/register:
     post:
       operationId: register
@@ -23,6 +62,10 @@ paths:
       responses:
         '201':
           description: Account and access token; refresh JWT is set as an HttpOnly cookie
+          headers:
+            x-request-id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/CacheControl' }
+            Set-Cookie: { $ref: '#/components/headers/RefreshCookie' }
           content:
             application/json:
               schema:
@@ -37,6 +80,8 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /auth/login:
     post:
       operationId: login
@@ -51,6 +96,10 @@ paths:
       responses:
         '200':
           description: User and access token; refresh JWT is set as an HttpOnly cookie
+          headers:
+            x-request-id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/CacheControl' }
+            Set-Cookie: { $ref: '#/components/headers/RefreshCookie' }
           content:
             application/json:
               schema:
@@ -65,6 +114,8 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /auth/refresh:
     post:
       operationId: refresh
@@ -74,6 +125,10 @@ paths:
       responses:
         '200':
           description: New access token; rotated refresh JWT is set as an HttpOnly cookie
+          headers:
+            x-request-id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/CacheControl' }
+            Set-Cookie: { $ref: '#/components/headers/RefreshCookie' }
           content:
             application/json:
               schema:
@@ -84,6 +139,8 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /auth/logout:
     post:
       operationId: logout
@@ -92,10 +149,16 @@ paths:
       responses:
         '204':
           description: Logged out or already logged out
+          headers:
+            x-request-id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/CacheControl' }
+            Set-Cookie: { $ref: '#/components/headers/RefreshCookie' }
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /me:
     get:
       operationId: getCurrentUser
@@ -105,6 +168,9 @@ paths:
       responses:
         '200':
           description: Current user
+          headers: &standardResponseHeaders
+            x-request-id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/CacheControl' }
           content:
             application/json:
               schema:
@@ -115,8 +181,12 @@ paths:
                     $ref: '#/components/schemas/User'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /gyms:
     get:
       operationId: listGyms
@@ -124,9 +194,9 @@ paths:
       security: []
       parameters:
         - { name: q, in: query, schema: { type: string, maxLength: 100 } }
-        - { name: regionCode, in: query, schema: { type: string } }
-        - { name: facility, in: query, schema: { type: string } }
-        - { name: tag, in: query, schema: { type: string } }
+        - { name: regionCode, in: query, schema: { type: string, maxLength: 40 } }
+        - { name: facility, in: query, schema: { type: string, maxLength: 40 } }
+        - { name: tag, in: query, schema: { type: string, maxLength: 40 } }
         - name: operationStatus
           in: query
           schema: { type: string, enum: [active, temporarily_closed, closed, opening_soon], default: active }
@@ -135,7 +205,8 @@ paths:
           schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
       responses:
         '200':
-          description: Gym search results
+          description: Up to `limit` gyms ordered by name then branch name; no cursor or total is available
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -144,6 +215,7 @@ paths:
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/GymSummary' } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /gyms/{gymId}:
     get:
@@ -155,13 +227,16 @@ paths:
       responses:
         '200':
           description: Gym details, media, hours, grades, walls, sectors, and setting events
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
                 type: object
                 required: [data]
                 properties: { data: { $ref: '#/components/schemas/GymDetail' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /me/saved-gyms:
     get:
@@ -171,13 +246,16 @@ paths:
       responses:
         '200':
           description: Saved gyms
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
                 type: object
                 required: [data]
-                properties: { data: { type: array, items: { $ref: '#/components/schemas/GymSummary' } } }
+                properties: { data: { type: array, items: { $ref: '#/components/schemas/SavedGymSummary' } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /me/saved-gyms/{gymId}:
     parameters:
       - { $ref: '#/components/parameters/GymIdPath' }
@@ -186,16 +264,26 @@ paths:
       summary: Save a gym idempotently
       security: [{ bearerAuth: [] }]
       responses:
-        '204': { description: Gym saved }
+        '204':
+          description: Gym saved
+          headers: *standardResponseHeaders
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     delete:
       operationId: unsaveGym
       summary: Remove a saved gym idempotently
       security: [{ bearerAuth: [] }]
       responses:
-        '204': { description: Gym removed }
+        '204':
+          description: Gym removed
+          headers: *standardResponseHeaders
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /memberships:
     get:
       operationId: listMemberships
@@ -204,6 +292,7 @@ paths:
       responses:
         '200':
           description: Membership list
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -211,6 +300,8 @@ paths:
                 required: [data]
                 properties: { data: { type: array, items: { $ref: '#/components/schemas/Membership' } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       operationId: createMembership
       summary: Create a count or period membership
@@ -221,6 +312,7 @@ paths:
       responses:
         '201':
           description: Membership created
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -231,6 +323,8 @@ paths:
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /memberships/{membershipId}:
     parameters:
       - name: membershipId
@@ -243,10 +337,11 @@ paths:
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/MembershipInput' } } }
+        content: { application/json: { schema: { $ref: '#/components/schemas/MembershipUpdateInput' } } }
       responses:
         '200':
           description: Membership updated
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -258,15 +353,22 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     delete:
       operationId: archiveMembership
       summary: Archive a membership while retaining its usage ledger
       security: [{ bearerAuth: [] }]
       responses:
-        '204': { description: Membership archived }
+        '204':
+          description: Membership archived
+          headers: *standardResponseHeaders
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /setting-events:
     get:
       operationId: listSettingEvents
@@ -280,14 +382,16 @@ paths:
       responses:
         '200':
           description: Setting events with affected walls and sectors
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
                 type: object
                 required: [data]
-                properties: { data: { type: array, items: { $ref: '#/components/schemas/SettingEvent' } } }
+                properties: { data: { type: array, items: { $ref: '#/components/schemas/SettingEventWithGym' } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /records/sessions:
     get:
       operationId: getActiveRecordSession
@@ -296,6 +400,7 @@ paths:
       responses:
         '200':
           description: Active session or null when none exists
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -305,6 +410,8 @@ paths:
                   data:
                     oneOf: [{ $ref: '#/components/schemas/ActiveRecordSession' }, { type: 'null' }]
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       operationId: startRecordSession
       summary: Start a recoverable in-progress climbing session
@@ -315,6 +422,7 @@ paths:
       responses:
         '201':
           description: In-progress session created
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -326,10 +434,13 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /records:
     get:
       operationId: listRecords
-      summary: List the current user's climbing records
+      summary: List the current user's completed climbing records
+      description: Results are ordered by `createdAt` descending and then `id` descending. `sends` and `attempts` are aggregates over each record's count rows.
       security:
         - bearerAuth: []
       parameters:
@@ -341,6 +452,7 @@ paths:
       responses:
         '200':
           description: Record page
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -351,9 +463,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     post:
       operationId: createRecord
       summary: Create a climbing record for the current user
+      description: Creates a record directly in the `completed` state. Use `/records/sessions` for the in-progress lifecycle.
       security:
         - bearerAuth: []
       requestBody:
@@ -365,6 +480,7 @@ paths:
       responses:
         '201':
           description: Created record
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -372,7 +488,7 @@ paths:
                 required: [data]
                 properties:
                   data:
-                    $ref: '#/components/schemas/RecordDetail'
+                    $ref: '#/components/schemas/CompletedRecordDetail'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -381,12 +497,17 @@ paths:
           $ref: '#/components/responses/PayloadTooLarge'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /records/{recordId}:
     get:
       operationId: getRecord
       summary: Get one climbing record owned by the current user
+      description: Returns any persisted lifecycle state (`in_progress`, `completed`, or `cancelled`) and aggregate `sends` and `attempts` calculated from count rows.
       security:
         - bearerAuth: []
       parameters:
@@ -399,6 +520,7 @@ paths:
       responses:
         '200':
           description: Record detail
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -415,6 +537,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /records/{recordId}/shares:
     get:
       operationId: listRecordShares
@@ -425,6 +549,7 @@ paths:
       responses:
         '200':
           description: Share lifecycle metadata
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -433,9 +558,13 @@ paths:
                 properties: { data: { type: array, items: { $ref: '#/components/schemas/ShareSummary' } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       operationId: createRecordShare
       summary: Create a revocable public share token and optionally attach an S3 image asset
+      description: Only completed records can be shared. There is no media upload operation; `mediaAssetId`, when supplied, must already identify a ready image owned by the user.
       security: [{ bearerAuth: [] }]
       parameters:
         - { $ref: '#/components/parameters/RecordIdPath' }
@@ -445,6 +574,7 @@ paths:
       responses:
         '201':
           description: Share token returned once
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -455,6 +585,8 @@ paths:
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /records/{recordId}/counts:
     put:
       operationId: replaceRecordSessionCounts
@@ -474,6 +606,7 @@ paths:
       responses:
         '200':
           description: Draft counts replaced
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -484,6 +617,8 @@ paths:
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /records/{recordId}/shares/{shareId}:
     delete:
       operationId: revokeRecordShare
@@ -496,13 +631,19 @@ paths:
           required: true
           schema: { type: string, format: uuid }
       responses:
-        '204': { description: Share revoked }
+        '204':
+          description: Share revoked
+          headers: *standardResponseHeaders
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /shares/{token}:
     get:
       operationId: getRecordShare
       summary: Resolve an active public record share
+      description: Expiration is evaluated at request time; a persisted active share past `expiresAt` returns `410 SHARE_EXPIRED`.
       security: []
       parameters:
         - name: token
@@ -512,6 +653,7 @@ paths:
       responses:
         '200':
           description: Public record share
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -519,17 +661,22 @@ paths:
                 required: [data]
                 properties: { data: { $ref: '#/components/schemas/PublicShare' } }
         '404': { $ref: '#/components/responses/NotFound' }
-        '410': { description: Share expired }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '410': { $ref: '#/components/responses/Gone' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /records/{recordId}/pause:
     post:
       operationId: pauseRecordSession
       summary: Pause an in-progress record
+      description: Valid only while the owned record is `in_progress` and not already paused.
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/RecordIdPath' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RecordTransitionRequest' } } } }
       responses:
         '200':
           description: Pause interval created
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -541,16 +688,20 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /records/{recordId}/resume:
     post:
       operationId: resumeRecordSession
       summary: Resume a paused record
+      description: Valid only while the owned record is `in_progress` with an open pause interval.
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/RecordIdPath' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RecordTransitionRequest' } } } }
       responses:
         '200':
           description: Pause interval closed
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -562,47 +713,57 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /records/{recordId}/complete:
     post:
       operationId: completeRecordSession
       summary: Complete a record, calculate active time, and consume a count membership atomically
+      description: Valid only for an `in_progress` record. The response is narrowed to `completed`.
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/RecordIdPath' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CompleteRecordSessionRequest' } } } }
       responses:
         '200':
           description: Session completed
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
                 type: object
                 required: [data]
-                properties: { data: { $ref: '#/components/schemas/RecordDetail' } }
+                properties: { data: { $ref: '#/components/schemas/CompletedRecordDetail' } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /records/{recordId}/cancel:
     post:
       operationId: cancelRecordSession
       summary: Cancel an in-progress record without consuming a membership
+      description: Valid only for an `in_progress` record. The response is narrowed to `cancelled`.
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/RecordIdPath' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RecordTransitionRequest' } } } }
       responses:
         '200':
           description: Session cancelled
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
                 type: object
                 required: [data]
-                properties: { data: { $ref: '#/components/schemas/RecordDetail' } }
+                properties: { data: { $ref: '#/components/schemas/CancelledRecordDetail' } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 components:
   securitySchemes:
     bearerAuth:
@@ -613,6 +774,22 @@ components:
       type: apiKey
       in: cookie
       name: topjug_refresh
+  headers:
+    RequestId:
+      description: UUID used to correlate the request with server logs; a valid incoming value is preserved.
+      schema: { type: string, format: uuid }
+    CacheControl:
+      description: API responses are not cacheable.
+      schema: { type: string, const: no-store }
+    RefreshCookie:
+      description: Sets, rotates, or clears the HttpOnly `topjug_refresh` cookie scoped to `/api/v1/auth`.
+      schema: { type: string }
+    WwwAuthenticate:
+      description: Authentication scheme required for protected resources.
+      schema: { type: string, const: Bearer }
+    RetryAfter:
+      description: Seconds to wait before retrying after an authentication rate limit.
+      schema: { type: integer, const: 900 }
   parameters:
     GymIdPath:
       name: gymId
@@ -672,47 +849,107 @@ components:
   responses:
     BadRequest:
       description: Invalid request
+      headers:
+        x-request-id: { $ref: '#/components/headers/RequestId' }
+        Cache-Control: { $ref: '#/components/headers/CacheControl' }
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     NotFound:
       description: Resource not found or not owned by the current user
+      headers:
+        x-request-id: { $ref: '#/components/headers/RequestId' }
+        Cache-Control: { $ref: '#/components/headers/CacheControl' }
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     ServiceUnavailable:
       description: Database or identity configuration is not available
+      headers:
+        x-request-id: { $ref: '#/components/headers/RequestId' }
+        Cache-Control: { $ref: '#/components/headers/CacheControl' }
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     Unauthorized:
       description: Missing, invalid, expired, reused, or revoked token
+      headers:
+        x-request-id: { $ref: '#/components/headers/RequestId' }
+        Cache-Control: { $ref: '#/components/headers/CacheControl' }
+        WWW-Authenticate: { $ref: '#/components/headers/WwwAuthenticate' }
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     Conflict:
-      description: Account cannot be created with the supplied identifier
+      description: The requested change conflicts with current resource state or a uniqueness constraint
+      headers:
+        x-request-id: { $ref: '#/components/headers/RequestId' }
+        Cache-Control: { $ref: '#/components/headers/CacheControl' }
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     TooManyRequests:
       description: Too many failed authentication attempts
+      headers:
+        x-request-id: { $ref: '#/components/headers/RequestId' }
+        Cache-Control: { $ref: '#/components/headers/CacheControl' }
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     PayloadTooLarge:
       description: JSON request body exceeds 64KB
+      headers:
+        x-request-id: { $ref: '#/components/headers/RequestId' }
+        Cache-Control: { $ref: '#/components/headers/CacheControl' }
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Gone:
+      description: The share token exists but has expired
+      headers:
+        x-request-id: { $ref: '#/components/headers/RequestId' }
+        Cache-Control: { $ref: '#/components/headers/CacheControl' }
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: SHARE_EXPIRED
+              message: 공유 링크가 만료되었습니다.
+    InternalServerError:
+      description: Unexpected server failure
+      headers:
+        x-request-id: { $ref: '#/components/headers/RequestId' }
+        Cache-Control: { $ref: '#/components/headers/CacheControl' }
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status, service, timestamp]
+      properties:
+        status: { type: string, const: ok }
+        service: { type: string, const: topjug-mvp }
+        timestamp: { type: string, format: date-time }
+    ReadinessResponse:
+      type: object
+      additionalProperties: false
+      required: [status, service]
+      properties:
+        status: { type: string, const: ready }
+        service: { type: string, const: topjug-mvp }
     RegisterRequest:
       type: object
       additionalProperties: false
@@ -739,8 +976,10 @@ components:
         email:
           type: string
           format: email
+          maxLength: 254
         password:
           type: string
+          minLength: 1
           maxLength: 128
           writeOnly: true
     AuthResponse:
@@ -815,6 +1054,17 @@ components:
         storageKey: { type: string }
         contentType: { type: string }
         url: { type: [string, 'null'], format: uri }
+    GymMediaDetail:
+      type: object
+      required: [id, storageKey, contentType, url, type, altText, sortOrder]
+      properties:
+        id: { type: string, format: uuid }
+        storageKey: { type: string }
+        contentType: { type: string }
+        url: { type: [string, 'null'], format: uri }
+        type: { type: string, enum: [logo, cover, photo, map, sector_map] }
+        altText: { type: [string, 'null'] }
+        sortOrder: { type: integer, minimum: 0 }
     GymSummary:
       type: object
       required: [id, name, branchName, address, regionCode, operationStatus, facilities, cover]
@@ -845,6 +1095,13 @@ components:
           items: { $ref: '#/components/schemas/GymTag' }
         dayPassPrice:
           oneOf: [{ $ref: '#/components/schemas/GymPrice' }, { type: 'null' }]
+    SavedGymSummary:
+      allOf:
+        - $ref: '#/components/schemas/GymSummary'
+        - type: object
+          required: [savedAt]
+          properties:
+            savedAt: { type: string, format: date-time }
     GymTag:
       type: object
       required: [code, label]
@@ -865,7 +1122,7 @@ components:
             parkingInfo: { type: [string, 'null'] }
             media:
               type: array
-              items: { $ref: '#/components/schemas/MediaReference' }
+              items: { $ref: '#/components/schemas/GymMediaDetail' }
             operatingHours:
               type: array
               items: { $ref: '#/components/schemas/OperatingHours' }
@@ -944,6 +1201,22 @@ components:
         name: { type: string }
         sortOrder: { type: integer }
         isActive: { type: boolean }
+        mapMediaAssetId: { type: [string, 'null'], format: uuid }
+        mapMedia:
+          oneOf: [{ $ref: '#/components/schemas/MediaReference' }, { type: 'null' }]
+    SettingEventSector:
+      allOf:
+        - $ref: '#/components/schemas/GymSector'
+        - type: object
+          required: [wall]
+          properties:
+            wall:
+              type: object
+              required: [id, code, name]
+              properties:
+                id: { type: string, format: uuid }
+                code: { type: string }
+                name: { type: string }
     SettingEvent:
       type: object
       required: [id, title, status, startsAt, endsAt, note, sectors]
@@ -967,35 +1240,141 @@ components:
             calendarTextColor: { type: [string, 'null'] }
             logo:
               oneOf: [{ $ref: '#/components/schemas/MediaReference' }, { type: 'null' }]
+    SettingEventWithGym:
+      allOf:
+        - $ref: '#/components/schemas/SettingEvent'
+        - type: object
+          required: [gym, sectors]
+          properties:
+            sectors: { type: array, items: { $ref: '#/components/schemas/SettingEventSector' } }
     MembershipInput:
       type: object
       additionalProperties: false
-      required: [name, type, gymIds, validFrom, validUntil, homeFavorite]
+      description: Membership replacement payload. `validFrom` and `validUntil` are timezone-aware instants, not local calendar dates.
+      required: [name, type, gymIds, validFrom, validUntil]
       properties:
         name: { type: string, minLength: 1, maxLength: 100 }
         type: { type: string, enum: [count, period] }
         gymIds: { type: array, maxItems: 30, uniqueItems: true, items: { type: string, format: uuid } }
         totalUses: { type: [integer, 'null'], minimum: 0 }
+        remainingUses:
+          type: [integer, 'null']
+          minimum: 0
+          description: For count memberships this must not exceed `totalUses`.
+        validFrom: { type: string, format: date-time }
+        validUntil:
+          type: string
+          format: date-time
+          description: Must be the same instant as or later than `validFrom`.
+        note: { type: [string, 'null'], maxLength: 1000 }
+        homeFavorite:
+          type: boolean
+          default: false
+          description: When omitted, the server stores `false`. A true value requires `homeOrder`; false requires `homeOrder` to be omitted or null.
+        homeOrder:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 2
+          description: Required and non-null only when `homeFavorite` is true; the position must be unoccupied and at most three favorites are allowed.
+      allOf:
+        - if:
+            required: [type]
+            properties: { type: { const: count } }
+          then:
+            required: [totalUses, remainingUses]
+            properties:
+              totalUses: { type: integer, minimum: 0 }
+              remainingUses: { type: integer, minimum: 0 }
+          else:
+            properties:
+              totalUses: { type: 'null' }
+              remainingUses: { type: 'null' }
+        - if:
+            required: [homeFavorite]
+            properties: { homeFavorite: { const: true } }
+          then:
+            required: [homeOrder]
+            properties: { homeOrder: { type: integer, minimum: 0, maximum: 2 } }
+          else:
+            properties: { homeOrder: { type: 'null' } }
+    MembershipUpdateInput:
+      type: object
+      additionalProperties: false
+      description: Full membership replacement payload. `expectedUpdatedAt` prevents stale editors from restoring an outdated count balance or metadata.
+      required: [name, type, gymIds, validFrom, validUntil, expectedUpdatedAt]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        type: { type: string, enum: [count, period] }
+        gymIds: { type: array, maxItems: 30, uniqueItems: true, items: { type: string, format: uuid } }
+        totalUses: { type: [integer, 'null'], minimum: 0 }
+        remainingUses:
+          type: [integer, 'null']
+          minimum: 0
+          description: For count memberships this must not exceed `totalUses`.
+        validFrom: { type: string, format: date-time }
+        validUntil:
+          type: string
+          format: date-time
+          description: Must be the same instant as or later than `validFrom`.
+        note: { type: [string, 'null'], maxLength: 1000 }
+        homeFavorite:
+          type: boolean
+          default: false
+          description: A true value requires `homeOrder`; false requires `homeOrder` to be omitted or null.
+        homeOrder:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 2
+          description: Required and non-null only when `homeFavorite` is true.
+        expectedUpdatedAt:
+          type: string
+          format: date-time
+          description: The exact `updatedAt` value from the membership being replaced. A stale value returns `409 MEMBERSHIP_CHANGED`.
+      allOf:
+        - if:
+            required: [type]
+            properties: { type: { const: count } }
+          then:
+            required: [totalUses, remainingUses]
+            properties:
+              totalUses: { type: integer, minimum: 0 }
+              remainingUses: { type: integer, minimum: 0 }
+          else:
+            properties:
+              totalUses: { type: 'null' }
+              remainingUses: { type: 'null' }
+        - if:
+            required: [homeFavorite]
+            properties: { homeFavorite: { const: true } }
+          then:
+            required: [homeOrder]
+            properties: { homeOrder: { type: integer, minimum: 0, maximum: 2 } }
+          else:
+            properties: { homeOrder: { type: 'null' } }
+    Membership:
+      type: object
+      additionalProperties: false
+      required: [id, name, type, gymIds, gyms, totalUses, remainingUses, validFrom, validUntil, note, homeFavorite, homeOrder, createdAt, updatedAt, eligibilityStatus]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        type: { type: string, enum: [count, period] }
+        gymIds: { type: array, items: { type: string, format: uuid } }
+        gyms: { type: array, items: { $ref: '#/components/schemas/GymReference' } }
+        totalUses: { type: [integer, 'null'], minimum: 0 }
         remainingUses: { type: [integer, 'null'], minimum: 0 }
         validFrom: { type: string, format: date-time }
         validUntil: { type: string, format: date-time }
-        note: { type: [string, 'null'], maxLength: 1000 }
+        note: { type: [string, 'null'] }
         homeFavorite: { type: boolean }
         homeOrder: { type: [integer, 'null'], minimum: 0, maximum: 2 }
-    Membership:
-      allOf:
-        - $ref: '#/components/schemas/MembershipInput'
-        - type: object
-          required: [id, gyms, createdAt, updatedAt]
-          properties:
-            id: { type: string, format: uuid }
-            gyms: { type: array, items: { $ref: '#/components/schemas/GymReference' } }
-            createdAt: { type: string, format: date-time }
-            updatedAt: { type: string, format: date-time }
-            eligibilityStatus: { type: string, enum: [active, unassigned, not_started, expired, exhausted] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        eligibilityStatus: { type: string, enum: [active, unassigned, not_started, expired, exhausted] }
     StartRecordSessionRequest:
       type: object
       additionalProperties: false
+      description: A membership access session requires `membershipId`; other access types prohibit it.
       required: [gymId, accessType, startedAt, mode]
       properties:
         gymId: { type: string, format: uuid }
@@ -1005,6 +1384,15 @@ components:
         mode: { type: string, enum: [easy, normal] }
         sessionType: { type: string, enum: [free, training, project], default: free }
         note: { type: [string, 'null'], maxLength: 2000 }
+      allOf:
+        - if:
+            required: [accessType]
+            properties: { accessType: { const: membership } }
+          then:
+            required: [membershipId]
+            properties: { membershipId: { type: string, format: uuid } }
+          else:
+            properties: { membershipId: { type: 'null' } }
     StartedRecordSession:
       type: object
       required: [id, userId, gymId, membershipId, accessType, status, sessionType, startedAt, endedAt, activeDurationSeconds, rating, mode, note, createdAt, updatedAt]
@@ -1043,11 +1431,16 @@ components:
         - type: object
           required: [isPaused, pauses]
           properties:
+            status: { type: string, const: in_progress }
+            endedAt: { type: 'null' }
+            activeDurationSeconds: { type: 'null' }
+            rating: { type: 'null' }
             isPaused: { type: boolean }
             pauses: { type: array, items: { $ref: '#/components/schemas/RecordPause' } }
     CompleteRecordSessionRequest:
       type: object
       additionalProperties: false
+      description: The endedAt instant cannot precede the persisted session start. Count entries must use unique gymGradeId and gymSectorId pairs.
       required: [endedAt, counts]
       properties:
         endedAt: { type: string, format: date-time }
@@ -1059,24 +1452,32 @@ components:
       additionalProperties: false
       properties:
         mediaAssetId: { type: [string, 'null'], format: uuid }
-        expiresAt: { type: [string, 'null'], format: date-time }
+        expiresAt:
+          type: [string, 'null']
+          format: date-time
+          description: When present, this instant must be later than the server's current time.
     CreatedShare:
       type: object
-      required: [id, token, apiPath, publicUrl, status, expiresAt, createdAt]
+      required: [id, token, apiPath, publicUrl, status, mediaAssetId, expiresAt, revokedAt, createdAt]
       properties:
         id: { type: string, format: uuid }
         token: { type: string, readOnly: true }
         apiPath: { type: string }
         publicUrl: { type: [string, 'null'], format: uri }
         status: { type: string, enum: [active] }
+        mediaAssetId: { type: [string, 'null'], format: uuid }
         expiresAt: { type: [string, 'null'], format: date-time }
+        revokedAt: { type: [string, 'null'], format: date-time }
         createdAt: { type: string, format: date-time }
     ShareSummary:
       type: object
       required: [id, status, mediaAssetId, expiresAt, revokedAt, createdAt]
       properties:
         id: { type: string, format: uuid }
-        status: { type: string, enum: [active, revoked, expired] }
+        status:
+          type: string
+          enum: [active, revoked, expired]
+          description: "`expired` is derived at read time when an otherwise active share is past `expiresAt`."
         mediaAssetId: { type: [string, 'null'], format: uuid }
         expiresAt: { type: [string, 'null'], format: date-time }
         revokedAt: { type: [string, 'null'], format: date-time }
@@ -1111,6 +1512,7 @@ components:
     CreateRecordRequest:
       type: object
       additionalProperties: false
+      description: The endedAt instant cannot precede startedAt, and activeDurationSeconds cannot exceed elapsed time. Count entries must use unique gymGradeId and gymSectorId pairs. Membership access requires membershipId; other access types prohibit it.
       required: [gymId, accessType, startedAt, endedAt, mode, counts]
       properties:
         gymId:
@@ -1151,6 +1553,15 @@ components:
           maxItems: 200
           items:
             $ref: '#/components/schemas/CreateRecordCount'
+      allOf:
+        - if:
+            required: [accessType]
+            properties: { accessType: { const: membership } }
+          then:
+            required: [membershipId]
+            properties: { membershipId: { type: string, format: uuid } }
+          else:
+            properties: { membershipId: { type: 'null' } }
     CreateRecordCount:
       type: object
       additionalProperties: false
@@ -1226,6 +1637,29 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/RecordCount'
+    CompletedRecordSummary:
+      allOf:
+        - $ref: '#/components/schemas/RecordSummary'
+        - type: object
+          properties:
+            status: { type: string, const: completed }
+            endedAt: { type: string, format: date-time }
+    CompletedRecordDetail:
+      allOf:
+        - $ref: '#/components/schemas/RecordDetail'
+        - type: object
+          properties:
+            status: { type: string, const: completed }
+            endedAt: { type: string, format: date-time }
+    CancelledRecordDetail:
+      allOf:
+        - $ref: '#/components/schemas/RecordDetail'
+        - type: object
+          properties:
+            status: { type: string, const: cancelled }
+            endedAt: { type: string, format: date-time }
+            activeDurationSeconds: { type: 'null' }
+            rating: { type: 'null' }
     RecordCount:
       type: object
       required: [id, sector, wall, attempts, sends, grade]
@@ -1287,12 +1721,13 @@ components:
           type: integer
     RecordListResponse:
       type: object
+      description: A page containing completed records only, ordered by `createdAt` descending and then `id` descending.
       required: [data, meta]
       properties:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/RecordSummary'
+            $ref: '#/components/schemas/CompletedRecordSummary'
         meta:
           type: object
           required: [nextCursor]
@@ -1310,5 +1745,6 @@ components:
           properties:
             code:
               type: string
+              description: Stable machine-readable identifier. Clients must not branch on `message`.
             message:
               type: string

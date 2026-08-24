@@ -101,7 +101,7 @@ export default function PublicRecordSharePage() {
             <InfoRow label="운동 시간" value={record.duration} />
             <InfoRow label="이용 방식" value={record.passLabel} />
             <InfoRow label="기록 방식" value={record.mode === 'easy' ? '이지 모드' : '섹터별 기록'} />
-            <InfoRow label="난이도 평가" value={record.rating > 0 ? `${record.rating} / 5` : '미평가'} />
+            <InfoRow label="난이도 평가" value={record.rating === null ? '미평가' : `${record.rating} / 5`} />
           </dl>
         </section>
 

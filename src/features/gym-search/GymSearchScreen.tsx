@@ -167,6 +167,7 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
             onSelectGym={(gym) => onNavigate('detail', gym.id)}
             title="암장"
             countOverride={filteredGyms.length}
+            countLabel={`불러온 검색 결과 ${filteredGyms.length}개`}
             isSavedGym={isSavedGym}
             onToggleSavedGym={handleToggleSavedGym}
             isSavingGym={(gymId) => pendingGymIds.includes(gymId)}

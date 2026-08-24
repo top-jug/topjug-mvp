@@ -40,6 +40,10 @@ export interface MembershipInput {
   homeOrder: number | null;
 }
 
+export interface MembershipUpdateInput extends MembershipInput {
+  expectedUpdatedAt: string;
+}
+
 export function listGyms() {
   return apiRequest<{ data: ApiGymSummary[] }>(`/api/v1/gyms${queryString({ limit: 100 })}`, { auth: false });
 }
@@ -52,7 +56,7 @@ export function createMembership(input: MembershipInput) {
   return apiRequest<{ data: ApiMembership }>('/api/v1/memberships', { method: 'POST', body: input });
 }
 
-export function replaceMembership(membershipId: string, input: MembershipInput) {
+export function replaceMembership(membershipId: string, input: MembershipUpdateInput) {
   return apiRequest<{ data: ApiMembership }>(`/api/v1/memberships/${membershipId}`, { method: 'PUT', body: input });
 }
 

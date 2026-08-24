@@ -19,6 +19,15 @@ test('the native fetch implementation is called without a class receiver', async
   await client.request('/public', { auth: 'none' });
 });
 
+test('an aborted request preserves the native AbortError', async () => {
+  const abortError = new DOMException('The operation was aborted.', 'AbortError');
+  const client = new ApiClient((async () => {
+    throw abortError;
+  }) as typeof fetch);
+
+  await assert.rejects(client.request('/public', { auth: 'none' }), (error) => error === abortError);
+});
+
 test('protected concurrent requests share one rotating refresh request', async () => {
   let refreshRequests = 0;
   let releaseRefresh: (() => void) | undefined;

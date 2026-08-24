@@ -153,7 +153,10 @@ export async function createRecord(userId: string, input: CreateRecordInput) {
     if (selectedMembership?.type === 'count') {
       const [updatedMembership] = await transaction
         .update(memberships)
-        .set({ remainingUses: sql`${memberships.remainingUses} - 1`, updatedAt: new Date() })
+        .set({
+          remainingUses: sql`${memberships.remainingUses} - 1`,
+          updatedAt: sql`greatest(clock_timestamp(), ${memberships.updatedAt} + interval '1 millisecond')`,
+        })
         .where(and(eq(memberships.id, selectedMembership.id), gt(memberships.remainingUses, 0)))
         .returning({ remainingUses: memberships.remainingUses });
       if (!updatedMembership || updatedMembership.remainingUses === null) {

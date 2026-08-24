@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { ActiveGyms, CalendarData, CalendarEntry } from '../../../entities/calendar/types';
+import { CalendarEntry } from '../../../entities/calendar/types';
 import CalendarEntryStack from './CalendarEntryStack';
 
 export interface CalendarGridCell {
@@ -12,7 +12,6 @@ export interface CalendarGridCell {
 interface CalendarMonthGridProps {
   weekdays: string[];
   pages: CalendarGridCell[][];
-  activeGyms: ActiveGyms;
   getEntriesForCell: (cell: CalendarGridCell) => CalendarEntry[] | null;
   selectedDate: number | null;
   selectedMonth: number;
@@ -37,7 +36,6 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
   const {
     weekdays,
     pages,
-    activeGyms,
     getEntriesForCell,
     selectedDate,
     selectedMonth,
@@ -97,7 +95,7 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
                 <div key={`month-row-${rowIndex}`} className={`grid grid-cols-7 gap-px ${rowIndex < chunkCells(page, 7).length - 1 ? 'border-b border-neutral-200 pb-1 mb-1' : ''}`}>
                   {row.map((date, index) => {
                     const dayData = typeof date.day === 'number' ? getEntriesForCell(date) : null;
-                    const visibleEntries = dayData?.filter((entry) => activeGyms[entry.gym]) ?? [];
+                    const visibleEntries = dayData ?? [];
                     const isSelected = date.day === selectedDate && date.month === selectedMonth && date.year === selectedYear;
                     const isToday = date.day === 12 && date.month === 4 && date.year === 2026;
                     const isSaturday = index % 7 === 5;

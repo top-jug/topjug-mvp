@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import ConfirmModal from '../../app/components/overlay/ConfirmModal';
 import BottomSheet from '../../app/components/overlay/BottomSheet';
-import { MembershipItem } from '../../mocks/memberships';
+import { parseMembershipCounts } from './membership-contract';
+import { firstUnusedHomeOrder, MembershipItem } from '../../mocks/memberships';
 
 interface MembershipScreenProps {
   memberships: MembershipItem[];
@@ -22,6 +23,15 @@ const UNASSIGNED_GYM = {
   lightBg: '#F5F5F5',
   darkText: '#525252',
 };
+
+function formatFormDate(date: Date) {
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+}
+
+export function defaultMembershipDates(now = new Date()) {
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 30);
+  return { startDate: formatFormDate(now), endDate: formatFormDate(end) };
+}
 
 export default function MembershipScreen({
   memberships,
@@ -45,9 +55,9 @@ export default function MembershipScreen({
   const [passType, setPassType] = useState<'count' | 'period'>('count');
   const [remainingCount, setRemainingCount] = useState('10');
   const [totalCount, setTotalCount] = useState('10');
-  const [remainingDays, setRemainingDays] = useState('30');
-  const [startDate, setStartDate] = useState('2026.04.20');
-  const [endDate, setEndDate] = useState('2026.05.20');
+  const initialDates = defaultMembershipDates();
+  const [startDate, setStartDate] = useState(initialDates.startDate);
+  const [endDate, setEndDate] = useState(initialDates.endDate);
   const [note, setNote] = useState('저녁 시간대 사용 예정');
   const [favoriteMessage, setFavoriteMessage] = useState('');
   const [formMessage, setFormMessage] = useState('');
@@ -59,9 +69,9 @@ export default function MembershipScreen({
     setPassType('count');
     setRemainingCount('10');
     setTotalCount('10');
-    setRemainingDays('30');
-    setStartDate('2026.04.20');
-    setEndDate('2026.05.20');
+    const dates = defaultMembershipDates();
+    setStartDate(dates.startDate);
+    setEndDate(dates.endDate);
     setNote('저녁 시간대 사용 예정');
   };
 
@@ -78,14 +88,12 @@ export default function MembershipScreen({
     setPassType(membership.passType);
     setStartDate(membership.startDate);
     setEndDate(membership.endDate);
-    setNote(membership.note);
+    setNote(membership.note ?? '');
 
     if (membership.passType === 'count') {
       const [remainingPart, totalPart] = membership.remainingValue.replace('회', '').split('/').map((value) => value.trim());
       setRemainingCount(remainingPart || '0');
       setTotalCount(totalPart || '0');
-    } else {
-      setRemainingDays(membership.remainingValue.replace('일 남음', '').trim() || '0');
     }
 
     setShowAddSheet(true);
@@ -112,6 +120,15 @@ export default function MembershipScreen({
     const currentMembership = memberships.find((membership) => membership.id === editingMembershipId);
     const gymIds = gymInfo.gymName ? [gymInfo.gymId] : currentMembership?.gymIds ?? [];
 
+    if (passType === 'count') {
+      try {
+        parseMembershipCounts(`${remainingCount} / ${totalCount}회`);
+      } catch (validationError) {
+        setFormMessage(validationError instanceof Error ? validationError.message : '횟수를 확인해주세요.');
+        return;
+      }
+    }
+
     const nextMembership: MembershipItem = {
       id: editingMembershipId ?? `${gymName || 'unassigned'}-${Date.now()}`,
       gymIds,
@@ -119,11 +136,14 @@ export default function MembershipScreen({
       passName,
       passType,
       remainingLabel: passType === 'count' ? '남은 횟수' : '남은 기간',
-      remainingValue: passType === 'count' ? `${remainingCount} / ${totalCount}회` : `${remainingDays}일 남음`,
+      remainingValue: passType === 'count' ? `${remainingCount} / ${totalCount}회` : currentMembership?.remainingValue ?? '0일 남음',
       lightBg: gymInfo.lightBg,
       darkText: gymInfo.darkText,
       startDate,
       endDate,
+      validFrom: currentMembership?.validFrom,
+      validUntil: currentMembership?.validUntil,
+      updatedAt: currentMembership?.updatedAt,
       note,
       isFavorite: currentMembership?.isFavorite ?? false,
       homeOrder: currentMembership?.homeOrder ?? null,
@@ -148,9 +168,9 @@ export default function MembershipScreen({
   };
 
   const handleToggleFavorite = async (membership: MembershipItem) => {
-    const favoriteCount = memberships.filter((item) => item.isFavorite).length;
+    const favoriteMemberships = memberships.filter((item) => item.isFavorite);
 
-    if (!membership.isFavorite && favoriteCount >= 3) {
+    if (!membership.isFavorite && favoriteMemberships.length >= 3) {
       setFavoriteMessage('홈에 표시할 회원권은 최대 3개까지 선택할 수 있어요.');
       return;
     }
@@ -160,7 +180,9 @@ export default function MembershipScreen({
       await onUpdateMembership({
         ...membership,
         isFavorite: !membership.isFavorite,
-        homeOrder: !membership.isFavorite ? favoriteCount : null,
+        homeOrder: !membership.isFavorite
+          ? firstUnusedHomeOrder(favoriteMemberships)
+          : null,
       });
     } catch (requestError) {
       setFavoriteMessage(requestError instanceof Error ? requestError.message : '홈 표시 상태를 변경하지 못했습니다.');
@@ -275,7 +297,7 @@ export default function MembershipScreen({
                   </div>
 
                   <div className="rounded-2xl bg-neutral-50 px-3 py-3 mt-3 text-[13px] text-neutral-600">
-                    {membership.note}
+                    {membership.note || '메모 없음'}
                   </div>
                 </div>
               </div>
@@ -321,12 +343,7 @@ export default function MembershipScreen({
                     <input value={totalCount} onChange={(event) => setTotalCount(event.target.value)} className="w-full h-12 rounded-2xl border border-neutral-200 px-4 text-[15px] text-neutral-900 outline-none" inputMode="numeric" />
                   </label>
                 </div>
-              ) : (
-                <label className="block">
-                  <div className="text-[13px] font-semibold text-neutral-700 mb-2">남은 기간</div>
-                  <input value={remainingDays} onChange={(event) => setRemainingDays(event.target.value)} className="w-full h-12 rounded-2xl border border-neutral-200 px-4 text-[15px] text-neutral-900 outline-none" inputMode="numeric" />
-                </label>
-              )}
+              ) : null}
 
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">

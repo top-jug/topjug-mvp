@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useAppScreenNavigate, useNavigateBack } from '../navigation';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../features/auth/AuthProvider';
@@ -6,7 +7,11 @@ export default function ProfilePage() {
   const navigateToScreen = useAppScreenNavigate();
   const navigateBack = useNavigateBack('/');
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
+
+  useEffect(() => {
+    void refreshUser().catch(() => undefined);
+  }, [refreshUser]);
 
   if (!user) return null;
 

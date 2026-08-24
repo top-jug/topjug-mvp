@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import BottomTabBar from '../../app/components/layout/BottomTabBar';
-import { ActiveGyms, CalendarData, CalendarEntry, CalendarGym } from '../../entities/calendar/types';
+import { ActiveGyms, CalendarData, CalendarGym } from '../../entities/calendar/types';
 import { CALENDAR_GYMS, CALENDAR_RECORD_ENTRIES, CALENDAR_WEEKDAYS } from '../../mocks/calendar';
 import CalendarDetailSection from './components/CalendarDetailSection';
 import CalendarFilterBar from './components/CalendarFilterBar';
@@ -9,6 +9,7 @@ import CalendarSearchMenu from './components/CalendarSearchMenu';
 import CalendarTopBar from './components/CalendarTopBar';
 import CalendarDayPopup from './components/modals/CalendarDayPopup';
 import CalendarPeriodModal from './components/modals/CalendarPeriodModal';
+import { buildSettingCalendarData, SettingEvent } from './setting-calendar';
 
 interface CalendarScreenProps {
   viewMode: CalendarViewMode;
@@ -21,36 +22,15 @@ interface CalendarScreenProps {
 type CalendarViewMode = 'record' | 'setting';
 
 interface SettingEventResponse {
-  data: Array<{
-    id: string;
-    title: string | null;
-    status: 'scheduled' | 'completed' | 'cancelled';
-    startsAt: string;
-    endsAt: string | null;
-    sectors: Array<{ id: string; name: string }>;
-    gym: {
-      id: string;
-      name: string;
-      branchName: string | null;
-      address: string;
-      calendarColor: string | null;
-      calendarTextColor: string | null;
-    };
-  }>;
+  data: SettingEvent[];
 }
-
-const STATUS_LABELS = {
-  scheduled: '예정',
-  completed: '완료',
-  cancelled: '취소',
-} satisfies Record<NonNullable<CalendarEntry['status']>, string>;
 
 function getModeGyms(calendarData: CalendarData): CalendarGym[] {
   const apiGyms = new Map<string, CalendarGym>();
 
   Object.values(calendarData).flat().forEach((entry) => {
-    if (!entry.gymId || apiGyms.has(entry.gym)) return;
-    apiGyms.set(entry.gym, {
+    if (!entry.gymId || apiGyms.has(entry.gymId)) return;
+    apiGyms.set(entry.gymId, {
       id: entry.gymId,
       name: entry.gym,
       color: entry.color ?? '#185FA5',
@@ -66,11 +46,11 @@ function getModeGyms(calendarData: CalendarData): CalendarGym[] {
 }
 
 function createActiveGyms(gyms: CalendarGym[]): ActiveGyms {
-  return Object.fromEntries(gyms.map((gym) => [gym.name, true]));
+  return Object.fromEntries(gyms.map((gym) => [gym.id, true]));
 }
 
 function createInactiveGyms(gyms: CalendarGym[]): ActiveGyms {
-  return Object.fromEntries(gyms.map((gym) => [gym.name, false]));
+  return Object.fromEntries(gyms.map((gym) => [gym.id, false]));
 }
 
 function getDaysInMonth(year: number, month: number) {
@@ -117,36 +97,6 @@ function getMonthRange(year: number, month: number) {
   };
 }
 
-function buildSettingCalendarData(events: SettingEventResponse['data']) {
-  const nextData: CalendarData = {};
-
-  events.forEach((event) => {
-    const startsAt = new Date(event.startsAt);
-    const day = startsAt.getDate();
-    const gymName = [event.gym.name, event.gym.branchName].filter(Boolean).join(' ');
-    const sectorLabel = event.sectors.map((sector) => sector.name).join(', ');
-    const title = sectorLabel || event.title || '세팅';
-    const color = event.gym.calendarColor ?? '#185FA5';
-
-    nextData[day] = [
-      ...(nextData[day] ?? []),
-      {
-        gym: gymName,
-        gymId: event.gym.id,
-        wall: `${title} · ${STATUS_LABELS[event.status]}`,
-        status: event.status,
-        startsAt: event.startsAt,
-        endsAt: event.endsAt ?? undefined,
-        color,
-        lightBg: `${color}22`,
-        darkText: event.gym.calendarTextColor ?? color,
-      },
-    ];
-  });
-
-  return nextData;
-}
-
 export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate, onOpenGym, onOpenRecord }: CalendarScreenProps) {
   const [selectedDate, setSelectedDate] = useState<number | null>(12);
   const [currentMonth, setCurrentMonth] = useState({ year: 2026, month: 4 });
@@ -179,6 +129,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
     const query = new URLSearchParams({ from, to });
 
     setIsSettingLoading(true);
+    setSettingCalendarData({});
     setSettingError(null);
 
     fetch(`/api/v1/setting-events?${query.toString()}`, { signal: controller.signal })
@@ -191,7 +142,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
         return response.json() as Promise<SettingEventResponse>;
       })
       .then((payload) => {
-        setSettingCalendarData(buildSettingCalendarData(payload.data));
+        setSettingCalendarData(buildSettingCalendarData(payload.data, currentMonth.year, currentMonth.month));
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -209,10 +160,13 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
     return Object.fromEntries(
       Object.entries(currentCalendarData).map(([day, entries]) => [
         Number(day),
-        entries.filter((entry) => activeGyms[entry.gym]),
+        entries.filter((entry) => {
+          const gymId = entry.gymId ?? filterGyms.find((gym) => gym.name === entry.gym)?.id;
+          return gymId ? activeGyms[gymId] : false;
+        }),
       ]),
     );
-  }, [currentCalendarData, activeGyms]);
+  }, [currentCalendarData, activeGyms, filterGyms]);
 
   const visibleCalendarData = useMemo<CalendarData>(() => {
     if (viewMode === 'setting') return filteredCalendarData;
@@ -236,15 +190,15 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
     }
   }, [activeSlide, selectedEntries.length]);
 
-  const toggleGym = (gymName: string) => {
+  const toggleGym = (gymId: string) => {
     setActiveGyms((prev) => {
-      return { ...prev, [gymName]: !prev[gymName] };
+      return { ...prev, [gymId]: !prev[gymId] };
     });
   };
 
   const toggleAllGyms = () => {
     setActiveGyms((prev) => {
-      const allSelected = filterGyms.length > 0 && filterGyms.every((gym) => prev[gym.name]);
+      const allSelected = filterGyms.length > 0 && filterGyms.every((gym) => prev[gym.id]);
       return allSelected ? createInactiveGyms(filterGyms) : createActiveGyms(filterGyms);
     });
   };
@@ -259,7 +213,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
 
     setActiveGyms(
       Object.fromEntries(
-        filterGyms.map((gym) => [gym.name, gym.name.toLowerCase().includes(keyword)]),
+        filterGyms.map((gym) => [gym.id, gym.name.toLowerCase().includes(keyword)]),
       ),
     );
   };
@@ -354,7 +308,6 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
         <CalendarMonthGrid
           weekdays={CALENDAR_WEEKDAYS}
           pages={periodPages}
-          activeGyms={activeGyms}
           getEntriesForCell={getEntriesForCell}
           selectedDate={selectedDate}
           selectedMonth={currentMonth.month}

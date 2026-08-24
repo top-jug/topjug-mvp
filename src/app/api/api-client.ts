@@ -5,7 +5,6 @@ export { ApiClientError } from '../../lib/api/error';
 interface ApiRequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
   auth?: boolean;
-  retryOnUnauthorized?: boolean;
 }
 
 const API_PREFIX = '/api/v1';
@@ -18,7 +17,7 @@ function relativeApiPath(path: string) {
 }
 
 export function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { auth, body, retryOnUnauthorized: _retryOnUnauthorized, ...requestOptions } = options;
+  const { auth, body, ...requestOptions } = options;
   return sharedApiRequest<T>(relativeApiPath(path), {
     ...requestOptions,
     auth: auth === false ? 'none' : 'required',

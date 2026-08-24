@@ -5,7 +5,37 @@ import { getDatabase } from '../db/client';
 import { auditEvents, climbingRecords, gyms, membershipGyms, memberships, membershipUsages } from '../db/schema';
 import { ApiError } from '../http/api-error';
 import { auditEventValues } from '../observability/audit';
-import { MembershipInput } from './membership-validation';
+import { MembershipInput, MembershipUpdateInput } from './membership-validation';
+
+type MembershipRow = typeof memberships.$inferSelect;
+type MembershipGym = { id: string; name: string; branchName: string | null };
+
+function serializeMembership(membership: MembershipRow, eligibleGyms: MembershipGym[]) {
+  const now = new Date();
+  const eligibilityStatus = eligibleGyms.length === 0 ? 'unassigned' as const
+    : now < membership.validFrom ? 'not_started' as const
+      : now > membership.validUntil ? 'expired' as const
+        : membership.type === 'count' && membership.remainingUses === 0 ? 'exhausted' as const
+          : 'active' as const;
+
+  return {
+    id: membership.id,
+    name: membership.name,
+    type: membership.type,
+    gymIds: eligibleGyms.map((gym) => gym.id),
+    totalUses: membership.totalUses,
+    remainingUses: membership.remainingUses,
+    validFrom: membership.validFrom,
+    validUntil: membership.validUntil,
+    note: membership.note,
+    homeFavorite: membership.homeFavorite,
+    homeOrder: membership.homeOrder,
+    gyms: eligibleGyms,
+    createdAt: membership.createdAt,
+    updatedAt: membership.updatedAt,
+    eligibilityStatus,
+  };
+}
 
 async function validateGyms(transaction: Parameters<Parameters<ReturnType<typeof getDatabase>['transaction']>[0]>[0], gymIds: string[]) {
   if (gymIds.length === 0) return [];
@@ -48,15 +78,9 @@ export async function listMemberships(userId: string) {
       id: gym.id, name: gym.name, branchName: gym.branchName,
     }]);
   }
-  const now = new Date();
   return { data: rows.map((row) => {
     const eligible = gymsByMembership.get(row.id) ?? [];
-    const eligibilityStatus = eligible.length === 0 ? 'unassigned'
-      : now < row.validFrom ? 'not_started'
-        : now > row.validUntil ? 'expired'
-          : row.type === 'count' && row.remainingUses === 0 ? 'exhausted'
-            : 'active';
-    return { ...row, gymIds: eligible.map((gym) => gym.id), gyms: eligible, eligibilityStatus };
+    return serializeMembership(row, eligible);
   }) };
 }
 
@@ -79,22 +103,19 @@ export async function createMembership(userId: string, input: MembershipInput) {
       await transaction.insert(membershipGyms).values(input.gymIds.map((gymId) => ({ membershipId: membership.id, gymId })));
     }
     await transaction.insert(auditEvents).values(auditEventValues({ action: 'membership.create', resourceType: 'membership', resourceId: membership.id }));
-    const now = new Date();
-    const eligibilityStatus = input.gymIds.length === 0 ? 'unassigned'
-      : now < membership.validFrom ? 'not_started'
-        : now > membership.validUntil ? 'expired'
-          : membership.type === 'count' && membership.remainingUses === 0 ? 'exhausted'
-            : 'active';
-    return { ...membership, gymIds: input.gymIds, gyms: eligibleGyms, eligibilityStatus };
+    return serializeMembership(membership, eligibleGyms);
   });
 }
 
-export async function replaceMembership(userId: string, membershipId: string, input: MembershipInput) {
+export async function replaceMembership(userId: string, membershipId: string, input: MembershipUpdateInput) {
   return getDatabase().transaction(async (transaction) => {
     const [existing] = await transaction.select().from(memberships)
       .where(and(eq(memberships.id, membershipId), eq(memberships.userId, userId), isNull(memberships.archivedAt)))
       .limit(1).for('update');
     if (!existing) throw new ApiError(404, 'MEMBERSHIP_NOT_FOUND', '회원권을 찾을 수 없습니다.');
+    if (existing.updatedAt.getTime() !== new Date(input.expectedUpdatedAt).getTime()) {
+      throw new ApiError(409, 'MEMBERSHIP_CHANGED', '회원권이 변경되었습니다. 최신 정보를 확인해주세요.');
+    }
     const [[usageCount], [recordCount]] = await Promise.all([
       transaction.select({ total: count() }).from(membershipUsages).where(eq(membershipUsages.membershipId, membershipId)),
       transaction.select({ total: count() }).from(climbingRecords).where(eq(climbingRecords.membershipId, membershipId)),
@@ -124,7 +145,7 @@ export async function replaceMembership(userId: string, membershipId: string, in
       note: input.note ?? null,
       homeFavorite: input.homeFavorite,
       homeOrder: input.homeOrder ?? null,
-      updatedAt: new Date(),
+      updatedAt: sql`greatest(clock_timestamp(), ${memberships.updatedAt} + interval '1 millisecond')`,
     }).where(eq(memberships.id, membershipId)).returning();
     if (input.gymIds.length > 0) {
       await transaction.insert(membershipGyms).values(input.gymIds.map((gymId) => ({ membershipId, gymId }))).onConflictDoNothing();
@@ -145,20 +166,15 @@ export async function replaceMembership(userId: string, membershipId: string, in
       });
     }
     await transaction.insert(auditEvents).values(auditEventValues({ action: 'membership.update', resourceType: 'membership', resourceId: membershipId }));
-    const now = new Date();
-    const eligibilityStatus = input.gymIds.length === 0 ? 'unassigned'
-      : now < membership.validFrom ? 'not_started'
-        : now > membership.validUntil ? 'expired'
-          : membership.type === 'count' && membership.remainingUses === 0 ? 'exhausted'
-            : 'active';
-    return { ...membership, gymIds: input.gymIds, gyms: eligibleGyms, eligibilityStatus };
+    return serializeMembership(membership, eligibleGyms);
   });
 }
 
 export async function archiveMembership(userId: string, membershipId: string) {
   await getDatabase().transaction(async (transaction) => {
     const [membership] = await transaction.update(memberships).set({
-      archivedAt: new Date(), homeFavorite: false, homeOrder: null, updatedAt: new Date(),
+      archivedAt: new Date(), homeFavorite: false, homeOrder: null,
+      updatedAt: sql`greatest(clock_timestamp(), ${memberships.updatedAt} + interval '1 millisecond')`,
     }).where(and(eq(memberships.id, membershipId), eq(memberships.userId, userId), isNull(memberships.archivedAt))).returning({ id: memberships.id });
     if (!membership) throw new ApiError(404, 'MEMBERSHIP_NOT_FOUND', '회원권을 찾을 수 없습니다.');
     const [activeRecord] = await transaction.select({ id: climbingRecords.id }).from(climbingRecords)

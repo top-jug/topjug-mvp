@@ -177,7 +177,10 @@ export async function completeRecordSession(userId: string, recordId: string, in
     })));
     if (membership?.type === 'count') {
       const [updated] = await transaction.update(memberships)
-        .set({ remainingUses: sql`${memberships.remainingUses} - 1`, updatedAt: new Date() })
+        .set({
+          remainingUses: sql`${memberships.remainingUses} - 1`,
+          updatedAt: sql`greatest(clock_timestamp(), ${memberships.updatedAt} + interval '1 millisecond')`,
+        })
         .where(and(eq(memberships.id, membership.id), gt(memberships.remainingUses, 0)))
         .returning({ remainingUses: memberships.remainingUses });
       if (!updated?.remainingUses && updated?.remainingUses !== 0) throw new ApiError(409, 'MEMBERSHIP_EXHAUSTED', '회원권 잔여 횟수가 변경되었습니다.');

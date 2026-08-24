@@ -5,7 +5,6 @@ import { ClimbingRecord } from '../../entities/record/types';
 import { getRecordTotals } from '../../features/record/record-summary';
 import { RECORD_DIFFICULTIES } from '../../mocks/record';
 import { getRecord as fetchRecord, mapApiRecordDetail } from '../api/record-api';
-import { useRecordHistory } from '../providers/RecordHistoryProvider';
 import { useNavigateBack } from '../navigation';
 
 const SECTOR_LABELS: Record<string, string> = {
@@ -65,8 +64,7 @@ export default function RecordResultPage() {
   const navigate = useNavigate();
   const navigateBack = useNavigateBack('/records');
   const { recordId } = useParams();
-  const { getRecord } = useRecordHistory();
-  const [record, setRecord] = useState<ClimbingRecord | undefined>(() => recordId ? getRecord(recordId) : undefined);
+  const [record, setRecord] = useState<ClimbingRecord | undefined>();
   const [isLoading, setIsLoading] = useState(Boolean(recordId));
   const [error, setError] = useState<string | null>(null);
 
@@ -74,6 +72,7 @@ export default function RecordResultPage() {
     if (!recordId) return;
 
     let isActive = true;
+    setRecord(undefined);
     setIsLoading(true);
     setError(null);
 
@@ -97,7 +96,7 @@ export default function RecordResultPage() {
 
   if (!recordId) return <Navigate to="/records" replace />;
 
-  if (isLoading && !record) {
+  if ((isLoading && !record) || (record && record.id !== recordId)) {
     return (
       <div className="min-h-screen bg-[#F7F8FA] pb-10 text-neutral-950">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-100 bg-white px-5 py-3">
@@ -175,9 +174,9 @@ export default function RecordResultPage() {
             <InfoRow label="운동 날짜" value={record.date} />
             <InfoRow label="운동 시간" value={record.duration} />
             <InfoRow label="사용 회원권" value={record.passLabel} />
-            <InfoRow label="난이도 평가" value={`${record.rating} / 5`} />
+            <InfoRow label="난이도 평가" value={record.rating === null ? '미평가' : `${record.rating} / 5`} />
             <InfoRow label="기록 방식" value={record.mode === 'easy' ? '이지 모드' : '섹터별 기록'} />
-            <InfoRow label="기록 완료" value={new Date(record.createdAt).toLocaleString('ko-KR')} />
+            <InfoRow label="기록 완료" value={record.endedAt ? new Date(record.endedAt).toLocaleString('ko-KR') : '-'} />
           </dl>
         </section>
 

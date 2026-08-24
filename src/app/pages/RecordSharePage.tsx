@@ -19,20 +19,19 @@ import {
   revokeRecordShare,
 } from '../api/record-api';
 import { useNavigateBack } from '../navigation';
-import { useRecordHistory } from '../providers/RecordHistoryProvider';
 
 const MAX_SELECTED_DIFFICULTIES = 5;
 const MAX_COMMENT_LENGTH = 40;
 
 export default function RecordSharePage() {
   const { recordId } = useParams();
-  const { getRecord } = useRecordHistory();
-  const [record, setRecord] = useState<ClimbingRecord | undefined>(() => recordId ? getRecord(recordId) : undefined);
+  const [record, setRecord] = useState<ClimbingRecord | undefined>();
   const [shares, setShares] = useState<ApiShareSummary[]>([]);
   const [isLoading, setIsLoading] = useState(Boolean(recordId));
   const [isCreatingLink, setIsCreatingLink] = useState(false);
   const [revokingShareId, setRevokingShareId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [shareListError, setShareListError] = useState<string | null>(null);
   const navigateBack = useNavigateBack(record ? `/records/${record.id}` : '/records');
   const difficultySummaries = useMemo(() => record ? getRecordDifficultySummaries(record) : [], [record]);
   const [view, setView] = useState<'edit' | 'preview'>('edit');
@@ -44,21 +43,32 @@ export default function RecordSharePage() {
     if (!recordId) return;
 
     let isActive = true;
+    setRecord(undefined);
+    setShares([]);
     setIsLoading(true);
     setError(null);
+    setShareListError(null);
 
-    Promise.all([fetchRecord(recordId), listRecordShares(recordId)])
-      .then(([recordPayload, sharePayload]) => {
+    fetchRecord(recordId)
+      .then((recordPayload) => {
         if (!isActive) return;
         setRecord(mapApiRecordDetail(recordPayload.data));
-        setShares(sharePayload.data);
       })
       .catch((fetchError) => {
-        if (!isActive) return;
-        setError(fetchError instanceof Error ? fetchError.message : '공유 정보를 불러오지 못했어요.');
+        if (isActive) setError(fetchError instanceof Error ? fetchError.message : '공유할 기록을 불러오지 못했어요.');
       })
       .finally(() => {
         if (isActive) setIsLoading(false);
+      });
+
+    listRecordShares(recordId)
+      .then((sharePayload) => {
+        if (isActive) setShares(sharePayload.data);
+      })
+      .catch((shareError) => {
+        if (!isActive) return;
+        setShares([]);
+        setShareListError(shareError instanceof Error ? shareError.message : '공유 링크 목록을 불러오지 못했어요.');
       });
 
     return () => {
@@ -87,7 +97,7 @@ export default function RecordSharePage() {
 
   if (!recordId) return <Navigate to="/records" replace />;
 
-  if (isLoading && !record) {
+  if ((isLoading && !record) || (record && record.id !== recordId)) {
     return (
       <div className="min-h-screen bg-[#F7F8FA] pb-10 text-neutral-950">
         <header className="sticky top-0 z-10 grid grid-cols-[44px_1fr_44px] items-center border-b border-neutral-100 bg-white px-4 py-3">
@@ -258,6 +268,7 @@ export default function RecordSharePage() {
           <ActionButton label={isCreatingLink ? '생성 중' : '공유'} icon={<Share2 size={21} />} onClick={handleShare} disabled={isCreatingLink} />
         </div>
         <div className="mt-4 min-h-5 text-center text-[12px] text-neutral-500" role="status">{status}</div>
+        {shareListError && <div className="rounded-2xl bg-amber-50 px-4 py-3 text-[13px] font-medium text-amber-800">{shareListError}</div>}
         <ShareList shares={shares} revokingShareId={revokingShareId} onRevoke={handleRevokeShare} />
       </main>
     </div>

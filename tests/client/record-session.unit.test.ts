@@ -6,6 +6,7 @@ import {
   cancelRecordSession,
   completeRecordSession,
   getActiveRecordSession,
+  mapApiRecordSummary,
   pauseRecordSession,
   replaceRecordSessionCounts,
   resumeRecordSession,
@@ -71,6 +72,29 @@ test('route counts map between the UI and API without losing grade or sector ide
   const routeCounts = routeCountsFromApi(apiCounts);
   assert.deepEqual(routeCounts, { [recordCountKey('sector-1', 'grade-1')]: { success: 2, attempt: 4 } });
   assert.deepEqual(routeCountsToApi(routeCounts), [{ gymGradeId: 'grade-1', gymSectorId: 'sector-1', attempts: 4, sends: 2 }]);
+});
+
+test('record summaries preserve a missing rating and the API end time', () => {
+  const record = mapApiRecordSummary({
+    id: 'record-1',
+    gym: { id: 'gym-1', name: '더클라임', branchName: '강남' },
+    membership: null,
+    accessType: 'day_pass',
+    status: 'completed',
+    sessionType: 'free',
+    startedAt: '2026-08-23T10:00:00.000Z',
+    endedAt: '2026-08-23T11:00:00.000Z',
+    activeDurationSeconds: 3600,
+    rating: null,
+    mode: 'normal',
+    note: null,
+    sends: 2,
+    attempts: 3,
+    createdAt: '2026-08-23T09:00:00.000Z',
+  });
+
+  assert.equal(record.rating, null);
+  assert.equal(record.endedAt, '2026-08-23T11:00:00.000Z');
 });
 
 test('active duration excludes completed and currently open pause intervals', () => {

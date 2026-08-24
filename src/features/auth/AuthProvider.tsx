@@ -1,7 +1,7 @@
-import { createContext, type PropsWithChildren, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ApiClientError } from '../../lib/api/error';
 import { apiClient } from '../../lib/api/client';
-import { LOGOUT_PENDING_KEY, login as loginRequest, logout as logoutRequest, register as registerRequest, restoreSession } from './api';
+import { getCurrentUser, LOGOUT_PENDING_KEY, login as loginRequest, logout as logoutRequest, register as registerRequest, restoreSession } from './api';
 import type { AuthStatus, AuthUser, LoginInput, RegisterInput } from './types';
 
 export type AuthContextValue = {
@@ -11,6 +11,7 @@ export type AuthContextValue = {
   login: (input: LoginInput) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   retry: () => Promise<void>;
 };
 
@@ -129,8 +130,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }
 
+  const refreshUser = useCallback(async () => {
+    const currentOperation = operation.current;
+    const currentUser = await getCurrentUser();
+    if (currentOperation !== operation.current) return;
+    setUser(currentUser);
+    setError(null);
+    setStatus('authenticated');
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ status, user, error, login, register, logout, retry: initialize }}>
+    <AuthContext.Provider value={{ status, user, error, login, register, logout, refreshUser, retry: initialize }}>
       {children}
     </AuthContext.Provider>
   );
