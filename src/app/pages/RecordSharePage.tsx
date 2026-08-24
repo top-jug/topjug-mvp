@@ -9,7 +9,9 @@ import {
   RecordShareModel,
   ShareDifficultySummary,
 } from '../../features/record/record-share-model';
+import { runRecordShareAttempt } from '../../features/record/record-share-orchestrator';
 import {
+  ApiCreatedShare,
   ApiShareSummary,
   createRecordShare as requestCreateRecordShare,
   getRecord as fetchRecord,
@@ -38,6 +40,7 @@ export default function RecordSharePage() {
   const [selectedDifficultyIndexes, setSelectedDifficultyIndexes] = useState<number[]>([]);
   const [comment, setComment] = useState('');
   const [status, setStatus] = useState('');
+  const [activeAttemptShare, setActiveAttemptShare] = useState<ApiCreatedShare | null>(null);
 
   useEffect(() => {
     if (!recordId) return;
@@ -83,6 +86,7 @@ export default function RecordSharePage() {
     );
     setComment('');
     setStatus('');
+    setActiveAttemptShare(null);
   }, [recordId, difficultySummaries]);
 
   const shareOptions = useMemo(() => ({
@@ -179,31 +183,71 @@ export default function RecordSharePage() {
 
   const handleShare = async () => {
     setIsCreatingLink(true);
+    setStatus('');
+    setActiveAttemptShare(null);
+
     try {
       const { file } = await getImageFile();
-      const payload = await requestCreateRecordShare(record.id);
-      const nextShareUrl = publicShareUrl(payload.data);
-      setShares((current) => [payload.data, ...current.filter((share) => share.id !== payload.data.id)]);
-
-      const shareData = {
+      const baseShareData = {
         files: [file],
         title: `${record.gym} 클라이밍 기록`,
-        text: `오늘의 클라이밍 기록 #TopJug ${nextShareUrl}`,
       };
+      const canNativeShare = typeof navigator.share === 'function'
+        && typeof navigator.canShare === 'function'
+        && navigator.canShare(baseShareData);
+      const result = await runRecordShareAttempt({
+        createShare: async () => (await requestCreateRecordShare(record.id)).data,
+        presentShare: async (share) => {
+          const nextShareUrl = publicShareUrl(share);
 
-      if (!navigator.share || !navigator.canShare?.(shareData)) {
-        await navigator.clipboard.writeText(nextShareUrl);
-        setStatus('공유 링크를 만들고 클립보드에 복사했어요.');
-        return;
+          if (!canNativeShare) {
+            await navigator.clipboard.writeText(nextShareUrl);
+            return;
+          }
+
+          await navigator.share!({
+            ...baseShareData,
+            text: `오늘의 클라이밍 기록 #TopJug ${nextShareUrl}`,
+          });
+        },
+        revokeShare: (share) => revokeRecordShare(record.id, share.id),
+      });
+
+      const resultShare = result.share;
+      if (resultShare) {
+        const shareStatus = result.outcome === 'cancelled-revoked' ? 'revoked' : resultShare.status;
+        setShares((current) => [
+          { ...resultShare, status: shareStatus },
+          ...current.filter((share) => share.id !== resultShare.id),
+        ]);
       }
 
-      await navigator.share(shareData);
-      setStatus('공유 링크를 만들었어요.');
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      setStatus(error instanceof Error ? error.message : '공유 링크를 만들지 못했어요.');
+      if (result.outcome === 'shared') {
+        setStatus(canNativeShare
+          ? '맞춤 이미지와 공개 링크를 공유했어요. 링크에는 기본 기록만 표시돼요.'
+          : '기본 기록을 보여주는 공개 링크를 만들고 복사했어요.');
+      } else if (result.outcome === 'cancelled-revoked') {
+        setStatus('공유를 취소해 이번에 만든 공개 링크도 폐기했어요.');
+      } else if (result.outcome === 'cancelled-active') {
+        setActiveAttemptShare(result.share);
+        setStatus('공유는 취소됐지만 새 공개 링크를 폐기하지 못했어요.');
+      } else if (result.outcome === 'failed') {
+        if (result.share) setActiveAttemptShare(result.share);
+        setStatus(result.error instanceof Error ? result.error.message : '공유 링크를 만들거나 전달하지 못했어요.');
+      }
+    } catch (imageError) {
+      setStatus(imageError instanceof Error ? imageError.message : '맞춤 이미지를 준비하지 못했어요.');
     } finally {
       setIsCreatingLink(false);
+    }
+  };
+
+  const handleCopyPublicLink = async (share: ApiCreatedShare) => {
+    try {
+      await navigator.clipboard.writeText(publicShareUrl(share));
+      setStatus('활성 공개 링크를 복사했어요.');
+    } catch {
+      setStatus('공개 링크를 복사하지 못했어요. 아래 링크를 직접 관리해주세요.');
     }
   };
 
@@ -216,6 +260,7 @@ export default function RecordSharePage() {
       setShares((current) => current.map((share) => (
         share.id === shareId ? { ...share, status: 'revoked', revokedAt: new Date().toISOString() } : share
       )));
+      if (activeAttemptShare?.id === shareId) setActiveAttemptShare(null);
       setStatus('공유 링크를 폐기했어요.');
     } catch (revokeError) {
       setStatus(revokeError instanceof Error ? revokeError.message : '공유 링크를 폐기하지 못했어요.');
@@ -262,12 +307,42 @@ export default function RecordSharePage() {
       <main className="mx-auto max-w-md">
         <ShareCard record={record} model={shareModel} />
 
-        <div className="mt-7 grid grid-cols-3 gap-5">
-          <ActionButton label="저장" icon={<Download size={22} />} onClick={handleSave} />
-          <ActionButton label="복사" icon={<Clipboard size={21} />} onClick={handleCopy} />
-          <ActionButton label={isCreatingLink ? '생성 중' : '공유'} icon={<Share2 size={21} />} onClick={handleShare} disabled={isCreatingLink} />
-        </div>
+        <section className="mt-7 rounded-3xl border border-neutral-200 bg-white p-5">
+          <h2 className="text-[16px] font-bold">맞춤 이미지</h2>
+          <p className="mt-1 text-[12px] leading-5 text-neutral-500">선택한 난이도와 한줄평이 반영된 현재 이미지를 기기에 저장하거나 복사합니다.</p>
+          <div className="mt-4 grid grid-cols-2 gap-5">
+            <ActionButton label="이미지 저장" icon={<Download size={22} />} onClick={handleSave} />
+            <ActionButton label="이미지 복사" icon={<Clipboard size={21} />} onClick={handleCopy} />
+          </div>
+        </section>
+
+        <section className="mt-4 rounded-3xl border border-blue-200 bg-blue-50 p-5">
+          <h2 className="text-[16px] font-bold text-blue-950">공개 링크</h2>
+          <p className="mt-2 text-[13px] font-semibold leading-5 text-blue-950">공개 링크에는 맞춤 이미지가 게시되지 않고 기본 기록만 표시됩니다.</p>
+          <p className="mt-1 text-[12px] leading-5 text-blue-800">이미지 업로드 기능이 없어 위 미리보기의 맞춤 설정과 한줄평은 URL에 포함되지 않습니다. 지원되는 기기에서는 로컬 맞춤 이미지를 링크와 함께 공유하고, 그 외 브라우저에서는 공개 링크만 복사합니다.</p>
+          <button
+            type="button"
+            onClick={handleShare}
+            disabled={isCreatingLink}
+            className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 text-[14px] font-bold text-white disabled:opacity-50"
+          >
+            <Share2 size={19} />
+            {isCreatingLink ? '공개 링크 생성 중' : '공개 링크 만들고 공유'}
+          </button>
+        </section>
         <div className="mt-4 min-h-5 text-center text-[12px] text-neutral-500" role="status">{status}</div>
+        {activeAttemptShare && (
+          <div className="mt-2 rounded-2xl border border-red-200 bg-red-50 p-4" role="alert">
+            <div className="text-[13px] font-bold text-red-900">이번 시도에서 만든 공개 링크가 활성 상태예요.</div>
+            <div className="mt-1 break-all text-[11px] text-red-700">{publicShareUrl(activeAttemptShare)}</div>
+            <div className="mt-3 flex gap-2">
+              <button type="button" onClick={() => handleCopyPublicLink(activeAttemptShare)} className="h-10 flex-1 rounded-xl bg-white text-[12px] font-bold text-blue-700">링크 복사</button>
+              <button type="button" onClick={() => handleRevokeShare(activeAttemptShare.id)} disabled={revokingShareId === activeAttemptShare.id} className="h-10 flex-1 rounded-xl bg-red-600 text-[12px] font-bold text-white disabled:opacity-50">
+                {revokingShareId === activeAttemptShare.id ? '폐기 중' : '지금 폐기'}
+              </button>
+            </div>
+          </div>
+        )}
         {shareListError && <div className="rounded-2xl bg-amber-50 px-4 py-3 text-[13px] font-medium text-amber-800">{shareListError}</div>}
         <ShareList shares={shares} revokingShareId={revokingShareId} onRevoke={handleRevokeShare} />
       </main>
