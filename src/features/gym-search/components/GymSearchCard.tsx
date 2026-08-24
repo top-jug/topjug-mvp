@@ -1,6 +1,7 @@
 import { ImageWithFallback } from '../../../app/components/figma/ImageWithFallback';
 import { ApiGymSummary, displayGymName } from '../../../app/api/gym-api';
 import { OPERATION_STATUS_PRESENTATION } from '../../gym-detail/gym-presentation';
+import { gymCardActionLabel } from '../gym-search-options';
 
 interface GymSearchCardProps {
   gym: ApiGymSummary;
@@ -25,37 +26,42 @@ export default function GymSearchCard({ gym, onClick, isSaved, onToggleSaved, is
   const operationStatus = OPERATION_STATUS_PRESENTATION[gym.operationStatus];
 
   return (
-    <div onClick={onClick} className="flex gap-3 bg-white border border-neutral-200 rounded-2xl p-4 hover:border-blue-500 transition-colors cursor-pointer min-h-[116px]">
-      <div className="w-20 h-20 bg-neutral-200 rounded-xl overflow-hidden flex-shrink-0">
-        {gym.cover?.url ? (
-          <ImageWithFallback src={gym.cover.url} alt={`${displayGymName(gym)} 대표 이미지`} className="w-full h-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-blue-50 text-[24px] font-black text-blue-300" aria-label="대표 이미지 없음">
-            {displayGymName(gym).slice(0, 1)}
-          </div>
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-          <div className="mb-1 flex flex-wrap items-center gap-1.5">
-            <h3 className="font-bold text-[15px]">{displayGymName(gym)}</h3>
+    <div className="flex gap-3 bg-white border border-neutral-200 rounded-2xl p-4 hover:border-blue-500 transition-colors min-h-[116px]">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-w-0 flex-1 gap-3 text-left rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        aria-label={gymCardActionLabel(gym)}
+      >
+        <span className="block w-20 h-20 bg-neutral-200 rounded-xl overflow-hidden flex-shrink-0">
+          {gym.cover?.url ? (
+            <ImageWithFallback src={gym.cover.url} alt={`${displayGymName(gym)} 대표 이미지`} className="w-full h-full object-cover" />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center bg-blue-50 text-[24px] font-black text-blue-300" aria-label="대표 이미지 없음">
+              {displayGymName(gym).slice(0, 1)}
+            </span>
+          )}
+        </span>
+        <span className="block flex-1 min-w-0">
+          <span className="mb-1 flex flex-wrap items-center gap-1.5">
+            <span className="font-bold text-[15px]">{displayGymName(gym)}</span>
             <span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${operationStatus.className}`}>
               {operationStatus.label}
             </span>
-          </div>
-          <p className="text-[13px] text-neutral-500 mb-2 line-clamp-1">{gym.address}</p>
-          <div className="flex items-center gap-2">
+          </span>
+          <span className="block text-[13px] text-neutral-500 mb-2 line-clamp-1">{gym.address}</span>
+          <span className="flex items-center gap-2">
             {tags.slice(0, 2).map((tag) => (
               <span key={tag} className="px-2 py-0.5 bg-white border border-neutral-200 text-neutral-600 text-[11px] rounded-full">
                 {tag}
               </span>
             ))}
-          </div>
-      </div>
+          </span>
+        </span>
+      </button>
       <button
-        onClick={(event) => {
-          event.stopPropagation();
-          onToggleSaved();
-        }}
+        type="button"
+        onClick={onToggleSaved}
         disabled={isSaving}
         className="w-10 h-10 flex items-center justify-center rounded-full disabled:opacity-40"
         aria-label={isSaved ? '내 암장에서 제거' : '내 암장에 저장'}

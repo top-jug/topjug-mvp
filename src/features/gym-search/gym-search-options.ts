@@ -1,10 +1,46 @@
-import { RegionMap } from '../../entities/gym/types';
+import { type ApiGymSummary, displayGymName } from '../../app/api/gym-api';
 
-export const GYM_SEARCH_SUB_REGIONS: RegionMap = {
-  서울: ['종로', '신촌', '성수', '강남', '홍대', '건대', '사당', '신림', '노원', '송파'],
-  경기: ['수원', '성남', '고양', '용인', '부천', '안산', '남양주', '화성', '평택', '의정부'],
-  인천: ['남동구', '부평구', '연수구', '서구', '계양구', '중구'],
+export const ALL_GYM_REGIONS = '전체 지역';
+export const GYM_SEARCH_PLACEHOLDER = '암장 이름, 지점 또는 주소 검색';
+export const GYM_SEARCH_REGIONS = [ALL_GYM_REGIONS, '서울', '경기', '인천', '부산', '대구', '대전', '광주', '울산', '세종'];
+export const GYM_SEARCH_TABS = ['전체', '샤워실', '킬터보드', '스트레칭', '주차가능'];
+
+const ADDRESS_REGION_BY_PREFIX: Record<string, string> = {
+  서울: '서울',
+  서울시: '서울',
+  서울특별시: '서울',
+  경기: '경기',
+  경기도: '경기',
+  인천: '인천',
+  인천광역시: '인천',
+  부산: '부산',
+  부산광역시: '부산',
+  대구: '대구',
+  대구광역시: '대구',
+  대전: '대전',
+  대전광역시: '대전',
+  광주: '광주',
+  광주광역시: '광주',
+  울산: '울산',
+  울산광역시: '울산',
+  세종: '세종',
+  세종특별자치시: '세종',
 };
 
-export const GYM_SEARCH_REGIONS = ['서울', '경기', '인천', '부산', '대구', '대전', '광주', '울산', '세종'];
-export const GYM_SEARCH_TABS = ['전체', '샤워실', '킬터보드', '스트레칭', '주차가능'];
+export function regionFromAddress(address: string) {
+  const [prefix = ''] = address.trim().split(/\s+/);
+  return ADDRESS_REGION_BY_PREFIX[prefix] ?? null;
+}
+
+export function gymMatchesRegion(
+  gym: Pick<ApiGymSummary, 'address' | 'regionCode'>,
+  selectedRegion: string,
+) {
+  if (selectedRegion === ALL_GYM_REGIONS) return true;
+  const canonicalRegionCode = gym.regionCode && ADDRESS_REGION_BY_PREFIX[gym.regionCode];
+  return (canonicalRegionCode ?? regionFromAddress(gym.address)) === selectedRegion;
+}
+
+export function gymCardActionLabel(gym: Pick<ApiGymSummary, 'name' | 'branchName'>) {
+  return `${displayGymName(gym)} 상세 보기`;
+}

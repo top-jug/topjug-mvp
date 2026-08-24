@@ -4,7 +4,7 @@ import { ApiGymSummary, listGyms } from '../../app/api/gym-api';
 import BottomTabBar from '../../app/components/layout/BottomTabBar';
 import TopTabHeader from '../../app/components/layout/TopTabHeader';
 import { useSavedGyms } from '../../app/providers/SavedGymsProvider';
-import { GYM_SEARCH_REGIONS, GYM_SEARCH_SUB_REGIONS, GYM_SEARCH_TABS } from './gym-search-options';
+import { ALL_GYM_REGIONS, GYM_SEARCH_REGIONS, GYM_SEARCH_TABS, gymMatchesRegion } from './gym-search-options';
 import GymSearchInput from './components/GymSearchInput';
 import GymSearchList from './components/GymSearchList';
 import GymSearchTabs from './components/GymSearchTabs';
@@ -34,9 +34,7 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
   const [selectedTabs, setSelectedTabs] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showRegionFilter, setShowRegionFilter] = useState(false);
-  const [selectedRegion, setSelectedRegion] = useState('서울');
-  const [selectedSubRegion, setSelectedSubRegion] = useState<string | null>(null);
-  const [showSubRegion, setShowSubRegion] = useState(false);
+  const [selectedRegion, setSelectedRegion] = useState(ALL_GYM_REGIONS);
   const [gyms, setGyms] = useState<ApiGymSummary[]>([]);
   const [isLoadingGyms, setIsLoadingGyms] = useState(true);
   const [gymError, setGymError] = useState<string | null>(null);
@@ -84,11 +82,9 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
   }, [requestVersion, searchQuery, selectedTabs]);
 
   const filteredGyms = useMemo(() => gyms.filter((gym) => {
-    const regionText = selectedSubRegion ?? selectedRegion;
-    const matchesRegion = !regionText || gym.address.includes(regionText) || gym.regionCode === regionText;
     const matchesFacilities = selectedTabs.every((tab) => gym.facilities.includes(FACILITY_CODES[tab]));
-    return matchesRegion && matchesFacilities;
-  }), [gyms, selectedRegion, selectedSubRegion, selectedTabs]);
+    return gymMatchesRegion(gym, selectedRegion) && matchesFacilities;
+  }), [gyms, selectedRegion, selectedTabs]);
 
   const visibleGyms = filteredGyms.slice(0, visibleCount);
 
@@ -126,7 +122,7 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
             <GymSearchTabs
               selectedTabs={selectedTabs}
               tabs={GYM_SEARCH_TABS}
-              regionLabel={selectedSubRegion || selectedRegion}
+              regionLabel={selectedRegion}
               onSelectTab={handleSelectTab}
               onOpenRegion={() => setShowRegionFilter(true)}
             />
@@ -140,25 +136,13 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
         <>
           {showRegionFilter && (
             <RegionFilterModal
-              showSubRegion={showSubRegion}
               selectedRegion={selectedRegion}
-              selectedSubRegion={selectedSubRegion}
               regions={GYM_SEARCH_REGIONS}
-              subRegions={GYM_SEARCH_SUB_REGIONS}
-              onBack={() => setShowSubRegion(false)}
-              onClose={() => { setShowRegionFilter(false); setShowSubRegion(false); }}
+              onClose={() => setShowRegionFilter(false)}
               onSelectRegion={(region) => {
                 setVisibleCount(PAGE_SIZE);
                 setSelectedRegion(region);
-                setSelectedSubRegion(null);
-                if (GYM_SEARCH_SUB_REGIONS[region]) setShowSubRegion(true);
-                else setShowRegionFilter(false);
-              }}
-              onSelectSubRegion={(subRegion) => {
-                setVisibleCount(PAGE_SIZE);
-                setSelectedSubRegion(subRegion);
                 setShowRegionFilter(false);
-                setShowSubRegion(false);
               }}
             />
           )}
