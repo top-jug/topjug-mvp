@@ -41,6 +41,26 @@ body,
   padding-bottom: var(--mobile-safe-bottom);
 }
 
+.mobile-bottom-sheet-max-h-80 {
+  max-height: 80vh;
+}
+
+@supports (height: 100dvh) {
+  .mobile-bottom-sheet-max-h-80 {
+    max-height: 80dvh;
+  }
+}
+
+.mobile-bottom-sheet-max-h-70 {
+  max-height: 70vh;
+}
+
+@supports (height: 100dvh) {
+  .mobile-bottom-sheet-max-h-70 {
+    max-height: 70dvh;
+  }
+}
+
 .share-card-preview-frame {
   aspect-ratio: 4 / 5;
   width: min(100%, 353px);

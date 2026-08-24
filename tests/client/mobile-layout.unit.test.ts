@@ -35,6 +35,8 @@ test('critical mobile class contracts remain attached to shared and record layou
   const source = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
   const styles = source('src/styles/index.css');
   const bottomSheet = source('src/app/components/overlay/BottomSheet.tsx');
+  const calendarGearMenu = source('src/features/calendar/components/CalendarGearMenu.tsx');
+  const calendarSearchMenu = source('src/features/calendar/components/CalendarSearchMenu.tsx');
   const calendarTopBar = source('src/features/calendar/components/CalendarTopBar.tsx');
   const homeShell = source('src/features/home/components/HomeSectionShell.tsx');
   const records = source('src/app/pages/MyRecordsPage.tsx');
@@ -42,7 +44,11 @@ test('critical mobile class contracts remain attached to shared and record layou
 
   assert.match(styles, /@media \(max-width: 375px\)[\s\S]*\.home-summary-grid h3[\s\S]*text-overflow: ellipsis;[\s\S]*white-space: nowrap;/);
   assert.match(styles, /\.mobile-bottom-sheet \{\s*padding-bottom: var\(--mobile-safe-bottom\);/);
-  assert.match(bottomSheet, /maxHeightClassName = 'max-h-\[80dvh\]'/);
+  assert.match(styles, /\.mobile-bottom-sheet-max-h-80 \{\s*max-height: 80vh;\s*\}\s*@supports \(height: 100dvh\) \{\s*\.mobile-bottom-sheet-max-h-80 \{\s*max-height: 80dvh;/);
+  assert.match(styles, /\.mobile-bottom-sheet-max-h-70 \{\s*max-height: 70vh;\s*\}\s*@supports \(height: 100dvh\) \{\s*\.mobile-bottom-sheet-max-h-70 \{\s*max-height: 70dvh;/);
+  assert.match(bottomSheet, /maxHeightClassName = 'mobile-bottom-sheet-max-h-80'/);
+  assert.match(calendarGearMenu, /maxHeightClassName="mobile-bottom-sheet-max-h-70"/);
+  assert.match(calendarSearchMenu, /maxHeightClassName="mobile-bottom-sheet-max-h-70"/);
   assert.match(bottomSheet, /className=\{`mobile-bottom-sheet fixed inset-x-0 bottom-0/);
   assert.match(calendarTopBar, /aria-label=\{`기간 선택: \$\{periodLabel\}`\}/);
   assert.match(calendarTopBar, /min-\[360px\]:hidden[\s\S]*hidden truncate whitespace-nowrap[\s\S]*min-\[360px\]:inline/);

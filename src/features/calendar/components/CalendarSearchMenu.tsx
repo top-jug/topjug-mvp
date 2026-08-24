@@ -29,7 +29,7 @@ export default function CalendarSearchMenu({ gyms, onApplySearch, onClose }: Cal
   };
 
   return (
-    <BottomSheet onClose={onClose} title="암장 검색" maxHeightClassName="max-h-[70dvh]">
+    <BottomSheet onClose={onClose} title="암장 검색" maxHeightClassName="mobile-bottom-sheet-max-h-70">
       <form onSubmit={handleSubmit} className="flex items-center gap-2 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
         <Search size={18} strokeWidth={2.2} className="text-neutral-500 flex-shrink-0" aria-hidden="true" />
         <input

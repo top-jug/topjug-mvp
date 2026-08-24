@@ -13,7 +13,7 @@ export default function CalendarGearMenu({ gyms, activeGyms, onSelectAll, onTogg
   const allSelected = gyms.length > 0 && gyms.every((gym) => activeGyms[gym.id]);
 
   return (
-    <BottomSheet onClose={onClose} title="암장 필터" maxHeightClassName="max-h-[70dvh]">
+    <BottomSheet onClose={onClose} title="암장 필터" maxHeightClassName="mobile-bottom-sheet-max-h-70">
           <button
             onClick={onSelectAll}
             className={`w-full py-4 rounded-full text-[17px] font-semibold transition-colors mb-5 ${allSelected ? 'bg-blue-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}

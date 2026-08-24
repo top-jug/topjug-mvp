@@ -17,7 +17,7 @@ export default function BottomSheet(props: BottomSheetProps) {
     title,
     headerLeft,
     headerRight,
-    maxHeightClassName = 'max-h-[80dvh]',
+    maxHeightClassName = 'mobile-bottom-sheet-max-h-80',
     bodyClassName = 'p-6',
     panelClassName = '',
     zIndexClassName = 'z-[70]',
