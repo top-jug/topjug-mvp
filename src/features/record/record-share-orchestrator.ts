@@ -9,6 +9,8 @@ interface ShareStorage {
   removeItem(key: string): void;
 }
 
+export type RecordShareCreationState = 'managed' | 'create' | 'tokenless-active' | 'confirm-additional';
+
 export interface RecordShareRouteScope {
   recordId: string;
   generation: number;
@@ -58,6 +60,16 @@ export function readCachedRecordShare(storage: ShareStorage, recordId: string, n
   }
 }
 
+export function getRecordShareSessionStorage(source: unknown = globalThis): ShareStorage | null {
+  try {
+    if (!isObject(source) || !('sessionStorage' in source)) return null;
+    const storage = source.sessionStorage;
+    return isShareStorage(storage) ? storage : null;
+  } catch {
+    return null;
+  }
+}
+
 export function writeCachedRecordShare(storage: ShareStorage, recordId: string, share: ApiCreatedShare) {
   try {
     storage.setItem(recordShareCacheKey(recordId), JSON.stringify({
@@ -78,6 +90,39 @@ export function removeCachedRecordShare(storage: ShareStorage, recordId: string)
 export function reconcileCachedRecordShare(cached: ApiCreatedShare | null, shares: ApiShareSummary[]) {
   if (!cached) return null;
   return shares.some((share) => share.id === cached.id && share.status === 'active') ? cached : null;
+}
+
+export function getRecordShareCreationState(
+  managedShare: ApiCreatedShare | null,
+  shares: ApiShareSummary[],
+  isConfirmingAdditional: boolean,
+): RecordShareCreationState {
+  if (managedShare) return 'managed';
+  if (!shares.some((share) => share.status === 'active')) return 'create';
+  return isConfirmingAdditional ? 'confirm-additional' : 'tokenless-active';
+}
+
+export function mergeRecordShareListSnapshot(
+  current: ApiShareSummary[],
+  incoming: ApiShareSummary[],
+  requestMutationVersion: number,
+  currentMutationVersion: number,
+) {
+  if (requestMutationVersion === currentMutationVersion) return incoming;
+  const currentIds = new Set(current.map((share) => share.id));
+  return [...current, ...incoming.filter((share) => !currentIds.has(share.id))];
+}
+
+export async function settleRecordShareCreation(
+  recordId: string,
+  createShare: () => Promise<ApiCreatedShare>,
+  isOriginCurrent: () => boolean,
+  getStorage: () => ShareStorage | null = () => getRecordShareSessionStorage(),
+) {
+  const share = await createShare();
+  const storage = getStorage();
+  if (storage) writeCachedRecordShare(storage, recordId, share);
+  return { share, isOriginCurrent: isOriginCurrent() };
 }
 
 export async function getOrCreateRecordShare<T>(existing: T | null, createShare: () => Promise<T>) {
@@ -131,6 +176,13 @@ function isCachedRecordShare(value: unknown, recordId: string, now: number): val
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function isShareStorage(value: unknown): value is ShareStorage {
+  return isObject(value)
+    && typeof value.getItem === 'function'
+    && typeof value.setItem === 'function'
+    && typeof value.removeItem === 'function';
 }
 
 function isNonEmptyString(value: unknown): value is string {

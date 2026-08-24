@@ -238,11 +238,10 @@ export function listRecordShares(recordId: string, signal?: AbortSignal) {
   return apiRequest<{ data: ApiShareSummary[] }>(`/api/v1/records/${recordId}/shares`, { signal });
 }
 
-export function createRecordShare(recordId: string, input: { mediaAssetId?: string | null; expiresAt?: string | null } = {}, signal?: AbortSignal) {
+export function createRecordShare(recordId: string, input: { mediaAssetId?: string | null; expiresAt?: string | null } = {}) {
   return apiRequest<{ data: ApiCreatedShare }>(`/api/v1/records/${recordId}/shares`, {
     method: 'POST',
     body: input,
-    signal,
   });
 }
 

@@ -3,11 +3,15 @@ import test from 'node:test';
 import {
   createRecordShareRouteGuard,
   deliverRecordShare,
+  getRecordShareCreationState,
+  getRecordShareSessionStorage,
   getOrCreateRecordShare,
   isShareNotFoundError,
+  mergeRecordShareListSnapshot,
   readCachedRecordShare,
   reconcileCachedRecordShare,
   removeCachedRecordShare,
+  settleRecordShareCreation,
   writeCachedRecordShare,
 } from '../../src/features/record/record-share-orchestrator';
 import type { ApiCreatedShare } from '../../src/app/api/record-api';
@@ -69,6 +73,14 @@ test('unavailable session storage does not change share lifecycle results', () =
   assert.doesNotThrow(() => removeCachedRecordShare(unavailableStorage, 'record-1'));
 });
 
+test('a throwing global sessionStorage getter is safely unavailable', () => {
+  const source = Object.defineProperty({}, 'sessionStorage', {
+    get() { throw new DOMException('blocked', 'SecurityError'); },
+  });
+
+  assert.equal(getRecordShareSessionStorage(source), null);
+});
+
 test('share list reconciliation retains only a matching active cached share', () => {
   const summary = {
     id: share.id,
@@ -96,6 +108,61 @@ test('route generations abort and reject results from an older record', () => {
 
   guard.cancel(second);
   assert.equal(second.signal.aborted, true);
+});
+
+test('creation settles after a route change and caches under the originating record only', async () => {
+  const storage = createStorage();
+  const guard = createRecordShareRouteGuard();
+  const origin = guard.begin('record-1');
+  let resolveCreate: ((value: ApiCreatedShare) => void) | undefined;
+  const create = new Promise<ApiCreatedShare>((resolve) => { resolveCreate = resolve; });
+  const settling = settleRecordShareCreation(
+    'record-1',
+    () => create,
+    () => guard.isCurrent(origin),
+    () => storage,
+  );
+
+  guard.begin('record-2');
+  resolveCreate?.(share);
+  const result = await settling;
+
+  assert.equal(result.isOriginCurrent, false);
+  assert.deepEqual(readCachedRecordShare(storage, 'record-1', Date.parse('2026-08-25T00:00:00Z')), share);
+  assert.equal(readCachedRecordShare(storage, 'record-2', Date.parse('2026-08-25T00:00:00Z')), null);
+});
+
+test('tokenless active summaries require explicit additional-link confirmation', () => {
+  const activeSummary = {
+    id: share.id,
+    status: share.status,
+    mediaAssetId: share.mediaAssetId,
+    expiresAt: share.expiresAt,
+    revokedAt: share.revokedAt,
+    createdAt: share.createdAt,
+  };
+
+  assert.equal(getRecordShareCreationState(null, [], false), 'create');
+  assert.equal(getRecordShareCreationState(null, [activeSummary], false), 'tokenless-active');
+  assert.equal(getRecordShareCreationState(null, [activeSummary], true), 'confirm-additional');
+  assert.equal(getRecordShareCreationState(share, [activeSummary], false), 'managed');
+});
+
+test('a stale list snapshot preserves same-route create and revoke mutations', () => {
+  const created = { ...share, id: 'new-share' };
+  const revoked = { ...share, status: 'revoked' as const };
+  const staleIncoming = [
+    { ...share, status: 'active' as const },
+    { ...share, id: 'older-share', status: 'active' as const },
+  ];
+  const merged = mergeRecordShareListSnapshot([created, revoked], staleIncoming, 0, 2);
+
+  assert.deepEqual(merged.map(({ id, status }) => ({ id, status })), [
+    { id: 'new-share', status: 'active' },
+    { id: 'share-1', status: 'revoked' },
+    { id: 'older-share', status: 'active' },
+  ]);
+  assert.equal(mergeRecordShareListSnapshot([], staleIncoming, 2, 2), staleIncoming);
 });
 
 test('native cancellation is reported without revoking the managed share', async () => {
