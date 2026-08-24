@@ -1,7 +1,7 @@
 import { apiClient, apiRequest } from '../../lib/api/client';
 import { ApiClientError } from '../../lib/api/error';
 import type { ApiDataResponse } from '../../lib/api/types';
-import { runWithAuthSessionLock } from '../../lib/api/session-lock';
+import { AUTH_SESSION_TIMEOUT_MS, runWithAuthSessionLock } from '../../lib/api/session-lock';
 import type { AuthUser, LoginInput, RegisterInput } from './types';
 
 export const LOGOUT_PENDING_KEY = 'topjug.logout-pending';
@@ -36,42 +36,45 @@ function clearLogoutPending() {
   }
 }
 
-async function clearRefreshSession() {
+async function clearRefreshSession(signal?: AbortSignal) {
   let lastError: unknown;
   for (let attempt = 0; attempt < 3; attempt += 1) {
+    signal?.throwIfAborted();
     try {
-      await apiClient.clearRefreshSession();
+      await apiClient.clearRefreshSession(signal);
       return;
     } catch (error) {
       lastError = error;
+      signal?.throwIfAborted();
       if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
     }
   }
   throw lastError;
 }
 
-function runSharedSessionTransition<T>(operation: () => Promise<T>) {
-  return runWithAuthSessionLock(() => apiClient.runSessionTransition(operation));
+function runSharedSessionTransition<T>(operation: (signal: AbortSignal) => Promise<T>) {
+  return runWithAuthSessionLock((signal) => apiClient.runSessionTransition(() => operation(signal)));
 }
 
 async function establishSession(path: '/auth/login' | '/auth/register', input: LoginInput | RegisterInput) {
   const authenticationGeneration = apiClient.beginAuthentication();
-  return runSharedSessionTransition(async () => {
+  return runSharedSessionTransition(async (signal) => {
     let sessionGeneration: number | undefined;
     try {
       const response = await apiRequest<AuthResponse>(path, {
         method: 'POST',
         auth: 'none',
+        signal,
         body: JSON.stringify(input),
       });
       sessionGeneration = apiClient.setAccessToken(response.data.accessToken, authenticationGeneration);
-      const user = await getCurrentUser(true);
+      const user = await getCurrentUser(true, signal);
       clearLogoutPending();
       return user;
     } catch (error) {
       try {
-        if (sessionGeneration === undefined) await apiClient.clearRefreshSession();
-        else await apiClient.logout(sessionGeneration);
+        if (sessionGeneration === undefined) await apiClient.clearRefreshSession(signal);
+        else await apiClient.logout(sessionGeneration, signal);
       } catch {
         // Preserve the original session initialization error.
       }
@@ -90,31 +93,32 @@ export function register(input: RegisterInput) {
 
 export async function restoreSession() {
   if (hasPendingLogout()) {
-    return runSharedSessionTransition(async () => {
+    return runSharedSessionTransition(async (signal) => {
       apiClient.clearSession();
-      await clearRefreshSession();
+      await clearRefreshSession(signal);
       clearLogoutPending();
       throw new ApiClientError('로그인이 필요합니다.', 401, 'AUTH_REQUIRED');
     });
   }
   return apiClient.runSessionTransition(async () => {
-    await apiClient.refreshSession();
-    return getCurrentUser();
+    const signal = AbortSignal.timeout(AUTH_SESSION_TIMEOUT_MS);
+    await apiClient.refreshSession(signal);
+    return getCurrentUser(false, signal);
   });
 }
 
-export async function getCurrentUser(useCurrentSession = false) {
+export async function getCurrentUser(useCurrentSession = false, signal?: AbortSignal) {
   const response = useCurrentSession
-    ? await apiClient.requestCurrentSession<ApiDataResponse<AuthUser>>('/me')
-    : await apiRequest<ApiDataResponse<AuthUser>>('/me');
+    ? await apiClient.requestCurrentSession<ApiDataResponse<AuthUser>>('/me', { signal })
+    : await apiRequest<ApiDataResponse<AuthUser>>('/me', { signal });
   return response.data;
 }
 
 export function logout() {
   apiClient.clearSession();
-  return runSharedSessionTransition(async () => {
+  return runSharedSessionTransition(async (signal) => {
     markLogoutPending();
-    await clearRefreshSession();
+    await clearRefreshSession(signal);
     clearLogoutPending();
   });
 }

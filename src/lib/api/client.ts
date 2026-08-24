@@ -101,18 +101,18 @@ export class ApiClient {
     return result;
   }
 
-  async refreshSession() {
-    return this.refreshAccessToken();
+  async refreshSession(signal?: AbortSignal) {
+    return this.refreshAccessToken(signal);
   }
 
-  async logout(expectedGeneration?: number) {
+  async logout(expectedGeneration?: number, signal?: AbortSignal) {
     if (expectedGeneration !== undefined && expectedGeneration !== this.sessionGeneration) return;
     this.clearSession();
-    await this.clearRefreshSession();
+    await this.clearRefreshSession(signal);
   }
 
-  async clearRefreshSession() {
-    await this.send<void>('/auth/logout', { method: 'POST', auth: 'none' }, null);
+  async clearRefreshSession(signal?: AbortSignal) {
+    await this.send<void>('/auth/logout', { method: 'POST', auth: 'none', signal }, null);
   }
 
   async request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
@@ -159,13 +159,17 @@ export class ApiClient {
     }
   }
 
-  private async refreshAccessToken() {
+  private async refreshAccessToken(externalSignal?: AbortSignal) {
     if (this.refreshPromise) return this.refreshPromise;
     if (this.refreshBlocked) throw new ApiClientError('로그인이 필요합니다.', 401, 'AUTH_REQUIRED');
 
     const generation = this.sessionGeneration;
     this.refreshPromise = runWithAuthSessionLock(
-      () => this.send<TokenResponse>('/auth/refresh', { method: 'POST', auth: 'none' }, null),
+      (lockSignal) => this.send<TokenResponse>('/auth/refresh', {
+        method: 'POST',
+        auth: 'none',
+        signal: externalSignal ? AbortSignal.any([externalSignal, lockSignal]) : lockSignal,
+      }, null),
       this.sessionLockManager,
     )
       .then((response) => {

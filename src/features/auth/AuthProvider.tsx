@@ -2,7 +2,7 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 import { ApiClientError } from '../../lib/api/error';
 import { apiClient } from '../../lib/api/client';
 import { getCurrentUser, LOGOUT_PENDING_KEY, login as loginRequest, logout as logoutRequest, register as registerRequest, restoreSession } from './api';
-import { createSessionReconciler, isAuthenticatedSessionEvent, publishAuthenticatedSession } from './session-events';
+import { createSessionReconciler, isSessionStateEvent, publishAuthenticatedSession, publishLoggedOutSession, readSessionStateEvent } from './session-events';
 import type { AuthStatus, AuthUser, LoginInput, RegisterInput } from './types';
 
 export type AuthContextValue = {
@@ -32,6 +32,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const operation = useRef(0);
   const localSessionOperation = useRef(false);
   const sessionReconciler = useRef<ReturnType<typeof createSessionReconciler> | null>(null);
+  const sessionEventSnapshot = useRef<string | null>(null);
 
   async function initialize() {
     const currentOperation = ++operation.current;
@@ -71,7 +72,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const handleStorage = (event: StorageEvent) => {
       if (event.key === LOGOUT_PENDING_KEY && event.newValue === 'true') {
         sessionReconciler.current?.markDirty();
-      } else if (isAuthenticatedSessionEvent(event)) {
+      } else if (isSessionStateEvent(event)) {
+        sessionEventSnapshot.current = event.newValue;
         sessionReconciler.current?.markDirty();
       }
     };
@@ -79,18 +81,25 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (!active || localSessionOperation.current) return;
       apiClient.beginSessionRestoration();
       await initialize();
-    }, () => active && !localSessionOperation.current);
+    }, () => active && document.visibilityState === 'visible' && !localSessionOperation.current);
     sessionReconciler.current = reconciler;
     const handleActivation = () => {
       if (document.visibilityState !== 'visible') return;
+      const storedEvent = readSessionStateEvent();
+      if (storedEvent !== sessionEventSnapshot.current) {
+        sessionEventSnapshot.current = storedEvent;
+        reconciler.markDirty();
+      }
       void reconciler.reconcileOnActivation();
     };
+    sessionEventSnapshot.current = readSessionStateEvent();
     window.addEventListener('storage', handleStorage);
     window.addEventListener('focus', handleActivation);
     window.addEventListener('pageshow', handleActivation);
     document.addEventListener('visibilitychange', handleActivation);
 
-    void reconciler.reconcileOnActivation();
+    if (document.visibilityState !== 'visible') reconciler.markDirty();
+    void reconciler.reconcileBootstrap();
     return () => {
       active = false;
       sessionReconciler.current = null;
@@ -116,7 +125,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setUser(currentUser);
       setStatus('authenticated');
       sessionReconciler.current?.markClean();
-      publishAuthenticatedSession();
+      sessionEventSnapshot.current = publishAuthenticatedSession();
     } catch (nextError) {
       if (currentOperation === operation.current) {
         setUser(null);
@@ -142,7 +151,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setUser(currentUser);
       setStatus('authenticated');
       sessionReconciler.current?.markClean();
-      publishAuthenticatedSession();
+      sessionEventSnapshot.current = publishAuthenticatedSession();
     } catch (nextError) {
       if (currentOperation === operation.current) {
         setUser(null);
@@ -164,6 +173,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     try {
       await logoutRequest();
       sessionReconciler.current?.markClean();
+      sessionEventSnapshot.current = publishLoggedOutSession();
     } catch (nextError) {
       setError(asApiError(nextError));
       throw nextError;

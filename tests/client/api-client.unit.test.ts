@@ -60,7 +60,7 @@ test('protected concurrent requests share one rotating refresh request', async (
 test('separate tabs serialize rotating refresh requests through the shared lock', async () => {
   let queue = Promise.resolve();
   const manager: SessionLockManager = {
-    request: (_name, callback) => {
+    request: (_name, _options, callback) => {
       const result = queue.then(callback);
       queue = result.then(() => undefined, () => undefined);
       return result;
