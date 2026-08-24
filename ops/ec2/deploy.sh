@@ -56,15 +56,19 @@ systemctl restart topjug.service
 
 for attempt in {1..30}; do
   if curl --fail --silent --connect-timeout 2 --max-time 5 http://127.0.0.1:3000/api/ready >/dev/null; then
-    rm -f "$ARCHIVE"
-    systemctl reload caddy
-    find "$APP_ROOT/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
-      | sort -nr \
-      | awk 'NR > 5 { print $2 }' \
-      | xargs --no-run-if-empty rm -rf
-    echo "Deployed $GIT_SHA"
-    DEPLOYED=true
-    exit 0
+    REFRESH_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+      --request POST --connect-timeout 2 --max-time 5 http://127.0.0.1:3000/api/v1/auth/refresh || true)"
+    if [[ "$REFRESH_STATUS" == "401" ]]; then
+      rm -f "$ARCHIVE"
+      systemctl reload caddy
+      find "$APP_ROOT/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
+        | sort -nr \
+        | awk 'NR > 5 { print $2 }' \
+        | xargs --no-run-if-empty rm -rf
+      echo "Deployed $GIT_SHA"
+      DEPLOYED=true
+      exit 0
+    fi
   fi
 
   sleep 2

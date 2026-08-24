@@ -50,6 +50,11 @@ jobs:
         run: |
           mkdir -p deploy/.next
           cp -a .next/standalone/. deploy/
+          mkdir -p deploy/node_modules/@node-rs/argon2-linux-arm64-gnu /tmp/topjug-native
+          npm pack @node-rs/argon2-linux-arm64-gnu@2.1.0 --pack-destination /tmp/topjug-native
+          tar -xzf /tmp/topjug-native/node-rs-argon2-linux-arm64-gnu-2.1.0.tgz \
+            -C deploy/node_modules/@node-rs/argon2-linux-arm64-gnu --strip-components=1
+          test -f deploy/node_modules/@node-rs/argon2-linux-arm64-gnu/argon2.linux-arm64-gnu.node
           cp -a .next/static deploy/.next/static
           cp -a public deploy/public
           cp -a drizzle deploy/drizzle
