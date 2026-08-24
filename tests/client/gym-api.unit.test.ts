@@ -22,6 +22,12 @@ test('gym list query preserves required contract fields and normalizes optional 
         regionCode: null,
         operationStatus: 'temporarily_closed',
         facilities: ['parking'],
+        brand: {
+          id: 'brand-1',
+          name: '테스트 브랜드',
+          websiteUrl: 'https://example.com',
+          instagramUrl: 'https://instagram.com/example',
+        },
         cover: null,
       }],
     }), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -35,6 +41,12 @@ test('gym list query preserves required contract fields and normalizes optional 
   assert.deepEqual(response.data[0].tags, []);
   assert.equal(response.data[0].operationStatus, 'temporarily_closed');
   assert.deepEqual(response.data[0].facilities, ['parking']);
+  assert.deepEqual(response.data[0].brand, {
+    id: 'brand-1',
+    name: '테스트 브랜드',
+    websiteUrl: 'https://example.com',
+    instagramUrl: 'https://instagram.com/example',
+  });
   assert.equal(response.data[0].cover, null);
 });
 
@@ -46,7 +58,9 @@ test('gym detail adapter preserves operation, special hours, parking, and contac
       phone: '02-1234-5678', websiteUrl: 'https://example.com', instagramUrl: 'https://instagram.com/example',
       nearbyDirections: null, operatingHoursNote: null, parkingInfo: '건물 지하 2시간 무료', media: [], operatingHours: [],
       operatingHourOverrides: [{ date: '2026-08-15', sequence: 0, opensAt: null, closesAt: null, isClosed: true, note: '광복절' }],
-      prices: [], grades: [], walls: [], settingEvents: [],
+      prices: [], grades: [], walls: [], settingEvents: [{
+        id: 'event-1', status: 'completed', startsAt: '2026-08-15T01:00:00.000Z', endsAt: '2026-08-17T01:00:00.000Z',
+      }],
     },
   }), { status: 200, headers: { 'content-type': 'application/json' } }));
 
@@ -57,4 +71,7 @@ test('gym detail adapter preserves operation, special hours, parking, and contac
   assert.equal(data.phone, '02-1234-5678');
   assert.equal(data.websiteUrl, 'https://example.com');
   assert.equal(data.instagramUrl, 'https://instagram.com/example');
+  assert.deepEqual(data.settingEvents, [{
+    id: 'event-1', status: 'completed', startsAt: '2026-08-15T01:00:00.000Z', endsAt: '2026-08-17T01:00:00.000Z',
+  }]);
 });

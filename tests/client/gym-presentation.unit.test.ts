@@ -1,21 +1,32 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { GymOperatingHourOverride } from '../../src/app/api/gym-api';
+import type { GymOperatingHourOverride, GymSettingEvent } from '../../src/app/api/gym-api';
 import {
   buildGymSettingCalendar,
-  getGymSettingEventMonths,
+  GYM_TIME_ZONE,
   OPERATION_STATUS_PRESENTATION,
   presentGymContacts,
   presentOperatingHourOverrides,
   presentWeeklyOperatingHours,
   selectInitialGymSettingMonth,
+  shiftGymSettingMonth,
 } from '../../src/features/gym-detail/gym-presentation';
 
-test('all gym operation statuses have distinct, clear presentation labels', () => {
+function settingEvent(overrides: Partial<GymSettingEvent> = {}): GymSettingEvent {
+  return {
+    id: 'event-1',
+    status: 'scheduled',
+    startsAt: '2026-08-30T10:00:00.000Z',
+    endsAt: null,
+    ...overrides,
+  };
+}
+
+test('all gym lifecycle statuses use non-real-time presentation labels', () => {
   assert.deepEqual(
     Object.fromEntries(Object.entries(OPERATION_STATUS_PRESENTATION).map(([status, presentation]) => [status, presentation.label])),
     {
-      active: '영업 중',
+      active: '정상 운영',
       temporarily_closed: '임시 휴업',
       closed: '폐업',
       opening_soon: '오픈 예정',
@@ -36,18 +47,25 @@ test('special-date hours group open ranges and make closure precedence explicit'
   ]);
 });
 
-test('weekly hours and absent hours do not invent times or placeholders', () => {
-  assert.deepEqual(presentWeeklyOperatingHours([], null), []);
-  assert.deepEqual(presentWeeklyOperatingHours([], '평일 10:00 - 22:00\n주말 휴무'), ['평일 10:00 - 22:00', '주말 휴무']);
+test('weekly structured hours and notes are preserved together without placeholders', () => {
+  assert.deepEqual(presentWeeklyOperatingHours([], null), { hours: [], note: [] });
   assert.deepEqual(presentWeeklyOperatingHours([
-    { dayOfWeek: 1, sequence: 0, opensAt: null, closesAt: null, isClosed: true },
-  ], null), ['월요일 휴무']);
+    { dayOfWeek: 1, sequence: 0, opensAt: '10:00:00', closesAt: '22:00:00', isClosed: false },
+    { dayOfWeek: 2, sequence: 0, opensAt: null, closesAt: null, isClosed: true },
+  ], '공휴일 별도 공지'), {
+    hours: ['월요일 10:00 - 22:00', '화요일 휴무'],
+    note: ['공휴일 별도 공지'],
+  });
+  assert.deepEqual(presentWeeklyOperatingHours([], '평일 10:00 - 22:00\n주말 휴무'), {
+    hours: [],
+    note: ['평일 10:00 - 22:00', '주말 휴무'],
+  });
   assert.deepEqual(presentWeeklyOperatingHours([
     { dayOfWeek: 2, sequence: 0, opensAt: null, closesAt: null, isClosed: false },
-  ], null), []);
+  ], null), { hours: [], note: [] });
 });
 
-test('contact presentation normalizes phone, website, and Instagram links', () => {
+test('contact presentation normalizes safe phone, website, and Instagram links', () => {
   const contacts = presentGymContacts({
     phone: ' 02-1234-5678 ',
     websiteUrl: 'example.com/gym',
@@ -62,39 +80,97 @@ test('contact presentation normalizes phone, website, and Instagram links', () =
   ]);
 });
 
-test('contact presentation uses API brand links as fallback and omits missing fields', () => {
+test('contact presentation rejects unsafe URLs and misleading Instagram hosts', () => {
+  assert.deepEqual(presentGymContacts({
+    phone: null,
+    websiteUrl: 'javascript:alert(1)',
+    instagramUrl: 'https://instagram.com.evil.example/topjug',
+    brand: null,
+  }), []);
+  assert.deepEqual(presentGymContacts({
+    phone: null,
+    websiteUrl: 'data:text/html,bad',
+    instagramUrl: 'https://evil.example/instagram.com/topjug',
+    brand: null,
+  }), []);
+  assert.deepEqual(presentGymContacts({
+    phone: null,
+    websiteUrl: null,
+    instagramUrl: 'https://instagram.com/p/not-a-handle',
+    brand: null,
+  }), []);
+});
+
+test('contact presentation normalizes known Instagram URLs and uses safe brand fallbacks', () => {
   assert.deepEqual(presentGymContacts({ phone: null, websiteUrl: null, instagramUrl: null, brand: null }), []);
   assert.deepEqual(presentGymContacts({
     phone: null,
-    websiteUrl: ' ',
-    instagramUrl: '',
-    brand: { id: 'brand-1', name: '브랜드', websiteUrl: 'https://brand.example', instagramUrl: 'https://instagram.com/brand/' },
-  }).map(({ kind, href }) => ({ kind, href })), [
-    { kind: 'website', href: 'https://brand.example' },
-    { kind: 'instagram', href: 'https://instagram.com/brand/' },
+    websiteUrl: 'ftp://unsafe.example',
+    instagramUrl: 'mailto:fake@instagram.com',
+    brand: {
+      id: 'brand-1',
+      name: '브랜드',
+      websiteUrl: 'https://brand.example',
+      instagramUrl: 'http://instagram.com/Brand.Name/?utm_source=test',
+    },
+  }).map(({ kind, href, value }) => ({ kind, href, value })), [
+    { kind: 'website', href: 'https://brand.example/', value: '공식 웹사이트' },
+    { kind: 'instagram', href: 'https://www.instagram.com/Brand.Name/', value: '@Brand.Name' },
   ]);
 });
 
-test('setting calendar focuses current event month, then nearest upcoming, then nearest historical', () => {
-  const now = new Date(2026, 7, 24, 12);
+test('gym calendar uses Asia/Seoul dates rather than the viewer timezone', () => {
+  assert.equal(GYM_TIME_ZONE, 'Asia/Seoul');
+  const events = [settingEvent({
+    startsAt: '2026-08-31T16:00:00.000Z',
+    endsAt: '2026-08-31T17:00:00.000Z',
+  })];
+  assert.deepEqual(selectInitialGymSettingMonth(events, new Date('2026-08-01T00:00:00.000Z')), { year: 2026, month: 9 });
+  assert.deepEqual(buildGymSettingCalendar(events, { year: 2026, month: 9 }).eventDays, [1]);
+  assert.deepEqual(buildGymSettingCalendar(events, { year: 2026, month: 8 }).eventDays, []);
+});
+
+test('calendar focus ignores cancelled events and prefers current or nearest upcoming active span', () => {
+  const now = new Date('2026-08-24T03:00:00.000Z');
   const events = [
-    { startsAt: '2025-01-10T10:00:00' },
-    { startsAt: '2026-08-30T10:00:00' },
-    { startsAt: '2026-10-02T10:00:00' },
+    settingEvent({ id: 'old', status: 'completed', startsAt: '2025-01-10T01:00:00.000Z' }),
+    settingEvent({ id: 'cancelled', status: 'cancelled', startsAt: '2026-08-30T01:00:00.000Z' }),
+    settingEvent({ id: 'upcoming', startsAt: '2026-10-02T01:00:00.000Z' }),
   ];
-  assert.deepEqual(selectInitialGymSettingMonth(events, now), { year: 2026, month: 8 });
-  assert.deepEqual(selectInitialGymSettingMonth(events.filter((event) => !event.startsAt.startsWith('2026-08')), now), { year: 2026, month: 10 });
+  assert.deepEqual(selectInitialGymSettingMonth(events, now), { year: 2026, month: 10 });
+  assert.deepEqual(selectInitialGymSettingMonth([
+    settingEvent({ startsAt: '2026-07-31T16:00:00.000Z', endsAt: '2026-08-02T01:00:00.000Z' }),
+  ], now), { year: 2026, month: 8 });
   assert.deepEqual(selectInitialGymSettingMonth(events.slice(0, 1), now), { year: 2025, month: 1 });
   assert.deepEqual(selectInitialGymSettingMonth([], now), { year: 2026, month: 8 });
 });
 
-test('setting calendar exposes ordered event months and only marks events in the selected month', () => {
+test('scheduled and completed multi-day spans expand inclusively while cancelled spans are omitted', () => {
   const events = [
-    { startsAt: '2026-10-02T10:00:00' },
-    { startsAt: '2026-08-30T10:00:00' },
-    { startsAt: '2026-10-18T10:00:00' },
-    { startsAt: 'invalid' },
+    settingEvent({
+      id: 'scheduled',
+      startsAt: '2026-08-31T14:30:00.000Z',
+      endsAt: '2026-09-02T01:00:00.000Z',
+    }),
+    settingEvent({
+      id: 'completed',
+      status: 'completed',
+      startsAt: '2026-09-04T15:30:00.000Z',
+      endsAt: '2026-09-06T14:59:59.000Z',
+    }),
+    settingEvent({
+      id: 'cancelled',
+      status: 'cancelled',
+      startsAt: '2026-09-10T01:00:00.000Z',
+      endsAt: '2026-09-12T01:00:00.000Z',
+    }),
   ];
-  assert.deepEqual(getGymSettingEventMonths(events), [{ year: 2026, month: 8 }, { year: 2026, month: 10 }]);
-  assert.deepEqual(buildGymSettingCalendar(events, { year: 2026, month: 10 }).eventDays, [2, 18]);
+  assert.deepEqual(buildGymSettingCalendar(events, { year: 2026, month: 8 }).eventDays, [31]);
+  assert.deepEqual(buildGymSettingCalendar(events, { year: 2026, month: 9 }).eventDays, [1, 2, 5, 6]);
+});
+
+test('adjacent calendar navigation crosses years with or without events', () => {
+  assert.deepEqual(shiftGymSettingMonth({ year: 2026, month: 1 }, -1), { year: 2025, month: 12 });
+  assert.deepEqual(shiftGymSettingMonth({ year: 2026, month: 12 }, 1), { year: 2027, month: 1 });
+  assert.deepEqual(shiftGymSettingMonth({ year: 2026, month: 8 }, 1), { year: 2026, month: 9 });
 });

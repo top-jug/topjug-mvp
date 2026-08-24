@@ -2,7 +2,10 @@ import type {
   ApiGymDetail,
   GymOperatingHourOverride,
   GymOperatingHours,
+  GymSettingEvent,
 } from '../../app/api/gym-api';
+
+export const GYM_TIME_ZONE = 'Asia/Seoul';
 
 export type GymOperationStatus = ApiGymDetail['operationStatus'];
 
@@ -12,8 +15,8 @@ export const OPERATION_STATUS_PRESENTATION: Record<GymOperationStatus, {
   className: string;
 }> = {
   active: {
-    label: '영업 중',
-    description: '현재 운영 중인 암장입니다.',
+    label: '정상 운영',
+    description: '정상 운영 상태인 암장입니다.',
     className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   },
   temporarily_closed: {
@@ -34,21 +37,33 @@ export const OPERATION_STATUS_PRESENTATION: Record<GymOperationStatus, {
 };
 
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+const SEOUL_DATE_FORMAT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: GYM_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 function timeLabel(value: string) {
   return value.slice(0, 5);
 }
 
-export function presentWeeklyOperatingHours(hours: GymOperatingHours[], note: string | null) {
-  const noteLines = note?.split('\n').map((line) => line.trim()).filter(Boolean) ?? [];
-  if (noteLines.length > 0) return noteLines;
+export interface PresentedWeeklyOperatingHours {
+  hours: string[];
+  note: string[];
+}
 
-  return hours.flatMap((entry) => {
-    const day = DAY_LABELS[entry.dayOfWeek] ?? String(entry.dayOfWeek);
-    if (entry.isClosed) return [`${day}요일 휴무`];
-    if (!entry.opensAt || !entry.closesAt) return [];
-    return [`${day}요일 ${timeLabel(entry.opensAt)} - ${timeLabel(entry.closesAt)}`];
-  });
+export function presentWeeklyOperatingHours(hours: GymOperatingHours[], note: string | null): PresentedWeeklyOperatingHours {
+  return {
+    hours: hours.flatMap((entry) => {
+      const day = DAY_LABELS[entry.dayOfWeek] ?? String(entry.dayOfWeek);
+      if (entry.isClosed) return [`${day}요일 휴무`];
+      if (!entry.opensAt || !entry.closesAt) return [];
+      return [`${day}요일 ${timeLabel(entry.opensAt)} - ${timeLabel(entry.closesAt)}`];
+    }),
+    note: note?.split('\n').map((line) => line.trim()).filter(Boolean) ?? [],
+  };
 }
 
 export interface PresentedOperatingHourOverride {
@@ -63,7 +78,7 @@ function overrideDateLabel(value: string) {
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
-  const weekday = DAY_LABELS[new Date(year, month - 1, day).getDay()];
+  const weekday = DAY_LABELS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
   return `${year}년 ${month}월 ${day}일 (${weekday})`;
 }
 
@@ -102,39 +117,53 @@ function textOrNull(value: string | null | undefined) {
   return normalized || null;
 }
 
-function externalUrl(value: string | null | undefined) {
+function safeHttpUrl(value: string | null | undefined) {
   const normalized = textOrNull(value);
   if (!normalized) return null;
-  if (/^https?:\/\//i.test(normalized)) return normalized;
-  return `https://${normalized}`;
+  const hasScheme = /^[a-z][a-z\d+.-]*:/i.test(normalized);
+  if (hasScheme && !/^https?:\/\//i.test(normalized)) return null;
+
+  const candidate = hasScheme ? normalized : `https://${normalized}`;
+  try {
+    const url = new URL(candidate);
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
 }
+
+const INSTAGRAM_HANDLE = /^[a-z\d._]{1,30}$/i;
+const INSTAGRAM_RESERVED_PATHS = new Set(['about', 'accounts', 'direct', 'explore', 'p', 'reel', 'reels', 'stories']);
 
 function instagramLink(value: string | null | undefined) {
   const normalized = textOrNull(value);
   if (!normalized) return null;
-  if (/^https?:\/\//i.test(normalized)) return normalized;
-  const handle = normalized.replace(/^@/, '').replace(/^instagram\.com\//i, '').replace(/^www\.instagram\.com\//i, '').replace(/\/$/, '');
-  return handle ? `https://www.instagram.com/${handle}/` : null;
+
+  const directHandle = normalized.replace(/^@/, '');
+  if (INSTAGRAM_HANDLE.test(directHandle)) return `https://www.instagram.com/${directHandle}/`;
+
+  const candidate = /^(?:www\.)?instagram\.com\//i.test(normalized) ? `https://${normalized}` : normalized;
+  const safeUrl = safeHttpUrl(candidate);
+  if (!safeUrl) return null;
+
+  const url = new URL(safeUrl);
+  const hostname = url.hostname.replace(/^www\./i, '').toLowerCase();
+  const handle = url.pathname.split('/').filter(Boolean)[0] ?? '';
+  if (hostname !== 'instagram.com' || !INSTAGRAM_HANDLE.test(handle) || INSTAGRAM_RESERVED_PATHS.has(handle.toLowerCase())) return null;
+  return `https://www.instagram.com/${handle}/`;
 }
 
 function instagramValue(href: string) {
-  try {
-    const url = new URL(href);
-    const handle = url.hostname.replace(/^www\./, '').toLowerCase() === 'instagram.com'
-      ? url.pathname.split('/').filter(Boolean)[0]
-      : null;
-    return handle ? `@${handle}` : href;
-  } catch {
-    return href;
-  }
+  return `@${new URL(href).pathname.split('/').filter(Boolean)[0]}`;
 }
 
 export function presentGymContacts(gym: Pick<ApiGymDetail, 'phone' | 'websiteUrl' | 'instagramUrl' | 'brand'>): GymContactLink[] {
   const contacts: GymContactLink[] = [];
   const phone = textOrNull(gym.phone);
   const phoneTarget = phone?.replace(/[^\d+]/g, '') ?? null;
-  const website = externalUrl(textOrNull(gym.websiteUrl) ?? gym.brand?.websiteUrl);
-  const instagram = instagramLink(textOrNull(gym.instagramUrl) ?? gym.brand?.instagramUrl);
+  const website = safeHttpUrl(gym.websiteUrl) ?? safeHttpUrl(gym.brand?.websiteUrl);
+  const instagram = instagramLink(gym.instagramUrl) ?? instagramLink(gym.brand?.instagramUrl);
 
   if (phone && phoneTarget) contacts.push({ kind: 'phone', label: '전화', value: phone, href: `tel:${phoneTarget}`, external: false });
   if (website) contacts.push({ kind: 'website', label: '웹사이트', value: '공식 웹사이트', href: website, external: true });
@@ -147,52 +176,83 @@ export interface GymSettingMonth {
   month: number;
 }
 
+interface GymCalendarDate extends GymSettingMonth {
+  day: number;
+}
+
+function seoulCalendarDate(value: string | Date): GymCalendarDate | null {
+  const date = typeof value === 'string' ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = Object.fromEntries(SEOUL_DATE_FORMAT.formatToParts(date).map((part) => [part.type, part.value]));
+  return { year: Number(parts.year), month: Number(parts.month), day: Number(parts.day) };
+}
+
+function dateOrdinal(date: GymCalendarDate) {
+  return Date.UTC(date.year, date.month - 1, date.day) / DAY_IN_MS;
+}
+
 function monthKey(month: GymSettingMonth) {
   return month.year * 12 + month.month - 1;
 }
 
-function eventMonth(startsAt: string): GymSettingMonth | null {
-  const date = new Date(startsAt);
-  if (Number.isNaN(date.getTime())) return null;
-  return { year: date.getFullYear(), month: date.getMonth() + 1 };
+function eventRange(event: GymSettingEvent) {
+  if (event.status === 'cancelled') return null;
+  const start = seoulCalendarDate(event.startsAt);
+  const parsedEnd = event.endsAt ? seoulCalendarDate(event.endsAt) : null;
+  if (!start) return null;
+  const end = parsedEnd && dateOrdinal(parsedEnd) >= dateOrdinal(start) ? parsedEnd : start;
+  return { start, end };
 }
 
-export function getGymSettingEventMonths(events: Array<{ startsAt: string }>) {
-  const months = new Map<number, GymSettingMonth>();
-  for (const event of events) {
-    const month = eventMonth(event.startsAt);
-    if (month) months.set(monthKey(month), month);
-  }
-  return [...months.entries()].sort(([left], [right]) => left - right).map(([, month]) => month);
+function rangeOverlapsMonth(range: { start: GymCalendarDate; end: GymCalendarDate }, month: GymSettingMonth) {
+  const monthStart = dateOrdinal({ ...month, day: 1 });
+  const monthEnd = dateOrdinal({ ...shiftGymSettingMonth(month, 1), day: 1 }) - 1;
+  return dateOrdinal(range.start) <= monthEnd && dateOrdinal(range.end) >= monthStart;
 }
 
-export function selectInitialGymSettingMonth(events: Array<{ startsAt: string }>, now = new Date()): GymSettingMonth {
-  const current = { year: now.getFullYear(), month: now.getMonth() + 1 };
+export function selectInitialGymSettingMonth(events: GymSettingEvent[], now = new Date()): GymSettingMonth {
+  const currentDate = seoulCalendarDate(now);
+  const current = currentDate ? { year: currentDate.year, month: currentDate.month } : { year: 1970, month: 1 };
+  const activeRanges = events.map(eventRange).filter((range): range is NonNullable<typeof range> => Boolean(range));
+  if (activeRanges.some((range) => rangeOverlapsMonth(range, current))) return current;
+
   const currentKey = monthKey(current);
-  const months = getGymSettingEventMonths(events);
-  return months.find((month) => monthKey(month) === currentKey)
-    ?? months.find((month) => monthKey(month) > currentKey)
-    ?? months.at(-1)
+  const eventMonths = activeRanges.map((range) => ({ year: range.start.year, month: range.start.month }));
+  return eventMonths.sort((left, right) => monthKey(left) - monthKey(right)).find((month) => monthKey(month) > currentKey)
+    ?? eventMonths.at(-1)
     ?? current;
 }
 
-export function buildGymSettingCalendar(events: Array<{ startsAt: string }>, focus: GymSettingMonth) {
-  const firstDay = new Date(focus.year, focus.month - 1, 1).getDay();
-  const lastDate = new Date(focus.year, focus.month, 0).getDate();
+export function shiftGymSettingMonth(month: GymSettingMonth, delta: -1 | 1): GymSettingMonth {
+  const value = monthKey(month) + delta;
+  return { year: Math.floor(value / 12), month: ((value % 12) + 12) % 12 + 1 };
+}
+
+export function buildGymSettingCalendar(events: GymSettingEvent[], focus: GymSettingMonth) {
+  const firstDay = new Date(Date.UTC(focus.year, focus.month - 1, 1)).getUTCDay();
+  const lastDate = new Date(Date.UTC(focus.year, focus.month, 0)).getUTCDate();
   const days: Array<number | ''> = [
     ...Array.from({ length: firstDay }, () => '' as const),
     ...Array.from({ length: lastDate }, (_, index) => index + 1),
   ];
   while (days.length % 7 !== 0) days.push('');
 
+  const focusStart = dateOrdinal({ ...focus, day: 1 });
+  const focusEnd = dateOrdinal({ ...focus, day: lastDate });
+  const eventDays = new Set<number>();
+  for (const event of events) {
+    const range = eventRange(event);
+    if (!range) continue;
+    const first = Math.max(dateOrdinal(range.start), focusStart);
+    const last = Math.min(dateOrdinal(range.end), focusEnd);
+    for (let ordinal = first; ordinal <= last; ordinal += 1) {
+      eventDays.add(new Date(ordinal * DAY_IN_MS).getUTCDate());
+    }
+  }
+
   return {
     days,
-    eventDays: events.flatMap((event) => {
-      const date = new Date(event.startsAt);
-      return !Number.isNaN(date.getTime()) && date.getFullYear() === focus.year && date.getMonth() + 1 === focus.month
-        ? [date.getDate()]
-        : [];
-    }),
+    eventDays: [...eventDays].sort((left, right) => left - right),
     monthLabel: `${focus.year}년 ${focus.month}월`,
   };
 }

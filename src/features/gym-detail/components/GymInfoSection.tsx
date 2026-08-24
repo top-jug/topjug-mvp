@@ -6,13 +6,14 @@ interface GymInfoSectionProps {
   nearby: string;
   operationStatus: GymOperationStatus;
   operatingHours: string[];
+  operatingHoursNote: string[];
   operatingHourOverrides: PresentedOperatingHourOverride[];
   prices: string[];
   parkingInfo: string | null;
   contacts: GymContactLink[];
 }
 
-export default function GymInfoSection({ address, nearby, operationStatus, operatingHours, operatingHourOverrides, prices, parkingInfo, contacts }: GymInfoSectionProps) {
+export default function GymInfoSection({ address, nearby, operationStatus, operatingHours, operatingHoursNote, operatingHourOverrides, prices, parkingInfo, contacts }: GymInfoSectionProps) {
   const status = OPERATION_STATUS_PRESENTATION[operationStatus];
   return (
     <>
@@ -36,7 +37,7 @@ export default function GymInfoSection({ address, nearby, operationStatus, opera
         </div>
       </div>
 
-      {(operatingHourOverrides.length > 0 || operatingHours.length > 0) && <div className="px-5 mb-6">
+      {(operatingHourOverrides.length > 0 || operatingHours.length > 0 || operatingHoursNote.length > 0) && <div className="px-5 mb-6">
         <div className="flex items-start gap-3">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
             <circle cx="12" cy="12" r="10" />
@@ -55,9 +56,13 @@ export default function GymInfoSection({ address, nearby, operationStatus, opera
                 ))}
               </div>
             )}
-            {operatingHours.length > 0 && <div className="space-y-0.5">
+            {(operatingHours.length > 0 || operatingHoursNote.length > 0) && <div className="space-y-0.5">
               {operatingHourOverrides.length > 0 && <p className="mb-1 text-[12px] font-semibold text-neutral-500">일반 운영시간</p>}
               {operatingHours.map((hours) => <p key={hours} className="text-[14px] text-neutral-600">{hours}</p>)}
+              {operatingHoursNote.length > 0 && <div className={operatingHours.length > 0 ? 'pt-1.5' : ''}>
+                {operatingHours.length > 0 && <p className="text-[12px] font-semibold text-neutral-500">운영 안내</p>}
+                {operatingHoursNote.map((note) => <p key={note} className="text-[14px] text-neutral-600">{note}</p>)}
+              </div>}
             </div>}
           </div>
         </div>

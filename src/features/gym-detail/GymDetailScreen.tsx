@@ -10,11 +10,11 @@ import GymFacilitiesSection from './components/GymFacilitiesSection';
 import GymInfoSection from './components/GymInfoSection';
 import {
   buildGymSettingCalendar,
-  getGymSettingEventMonths,
   presentGymContacts,
   presentOperatingHourOverrides,
   presentWeeklyOperatingHours,
   selectInitialGymSettingMonth,
+  shiftGymSettingMonth,
   type GymSettingMonth,
 } from './gym-presentation';
 
@@ -74,10 +74,8 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
     const mapImage = gym.media.find((media) => media.type === 'map' && media.url)?.url
       ?? gym.walls.find((wall) => wall.mapMedia?.url)?.mapMedia?.url
       ?? null;
-    const eventMonths = getGymSettingEventMonths(gym.settingEvents);
     const focusMonth = calendarMonth ?? selectInitialGymSettingMonth(gym.settingEvents);
     const calendar = buildGymSettingCalendar(gym.settingEvents, focusMonth);
-    const calendarMonthIndex = eventMonths.findIndex((month) => month.year === focusMonth.year && month.month === focusMonth.month);
 
     return {
       title: displayGymName(gym),
@@ -85,11 +83,10 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
       photos: photos.length > 0 ? photos : photoFallback ? [photoFallback] : [],
       mapImage,
       calendar,
-      eventMonths,
-      calendarMonthIndex,
+      focusMonth,
       grades: gym.grades.map((grade) => ({ color: grade.color, label: grade.label })),
       facilities: gym.facilities.map((facility) => FACILITIES[facility]).filter((facility): facility is GymFacility => Boolean(facility)),
-      hours: presentWeeklyOperatingHours(gym.operatingHours, gym.operatingHoursNote),
+      weeklyHours: presentWeeklyOperatingHours(gym.operatingHours, gym.operatingHoursNote),
       operatingHourOverrides: presentOperatingHourOverrides(gym.operatingHourOverrides),
       contacts: presentGymContacts(gym),
       prices: gym.prices.map((price) => `${price.type === 'shoe_rental' ? '암벽화 대여' : '일일 이용권'} · ${price.rawText}`),
@@ -126,11 +123,8 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
           calendarDays={presentation.calendar.days}
           eventDays={presentation.calendar.eventDays}
           monthLabel={presentation.calendar.monthLabel}
-          canShowPreviousEventMonth={presentation.calendarMonthIndex > 0}
-          canShowNextEventMonth={presentation.calendarMonthIndex >= 0 && presentation.calendarMonthIndex < presentation.eventMonths.length - 1}
           onChangeEventMonth={(delta) => {
-            const nextMonth = presentation.eventMonths[presentation.calendarMonthIndex + delta];
-            if (nextMonth) setCalendarMonth(nextMonth);
+            setCalendarMonth(shiftGymSettingMonth(presentation.focusMonth, delta));
           }}
           onSlideChange={setCurrentSlide}
         />
@@ -139,7 +133,8 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
           address={gym.address}
           nearby={gym.nearbyDirections ?? ''}
           operationStatus={gym.operationStatus}
-          operatingHours={presentation.hours}
+          operatingHours={presentation.weeklyHours.hours}
+          operatingHoursNote={presentation.weeklyHours.note}
           operatingHourOverrides={presentation.operatingHourOverrides}
           prices={presentation.prices}
           parkingInfo={gym.parkingInfo}

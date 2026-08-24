@@ -1082,11 +1082,7 @@ components:
         calendarTextColor: { type: [string, 'null'] }
         brand:
           oneOf:
-            - type: object
-              required: [id, name]
-              properties:
-                id: { type: string, format: uuid }
-                name: { type: string }
+            - $ref: '#/components/schemas/GymBrand'
             - type: 'null'
         cover:
           oneOf: [{ $ref: '#/components/schemas/MediaReference' }, { type: 'null' }]
@@ -1095,6 +1091,14 @@ components:
           items: { $ref: '#/components/schemas/GymTag' }
         dayPassPrice:
           oneOf: [{ $ref: '#/components/schemas/GymPrice' }, { type: 'null' }]
+    GymBrand:
+      type: object
+      required: [id, name, websiteUrl, instagramUrl]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        websiteUrl: { type: [string, 'null'], format: uri }
+        instagramUrl: { type: [string, 'null'], format: uri }
     SavedGymSummary:
       allOf:
         - $ref: '#/components/schemas/GymSummary'

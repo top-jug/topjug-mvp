@@ -58,7 +58,12 @@ export async function listGyms(input: ListGymsInput) {
       facilities: gyms.facilities,
       calendarColor: gyms.calendarColor,
       calendarTextColor: gyms.calendarTextColor,
-      brand: { id: gymBrands.id, name: gymBrands.name },
+      brand: {
+        id: gymBrands.id,
+        name: gymBrands.name,
+        websiteUrl: gymBrands.websiteUrl,
+        instagramUrl: gymBrands.instagramUrl,
+      },
     })
     .from(gyms)
     .leftJoin(gymBrands, eq(gyms.brandId, gymBrands.id))
