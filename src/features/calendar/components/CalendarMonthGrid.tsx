@@ -47,6 +47,7 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
   } = props;
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const scrollTimeoutRef = useRef<number | null>(null);
+  const today = new Date();
 
   useEffect(() => {
     const node = scrollerRef.current;
@@ -97,7 +98,7 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
                     const dayData = typeof date.day === 'number' ? getEntriesForCell(date) : null;
                     const visibleEntries = dayData ?? [];
                     const isSelected = date.day === selectedDate && date.month === selectedMonth && date.year === selectedYear;
-                    const isToday = date.day === 12 && date.month === 4 && date.year === 2026;
+                    const isToday = date.day === today.getDate() && date.month === today.getMonth() + 1 && date.year === today.getFullYear();
                     const isSaturday = index % 7 === 5;
                     const isSunday = index % 7 === 6;
 

@@ -123,6 +123,7 @@ export interface RecordListParams {
   gymId?: string;
   cursor?: string | null;
   limit?: number;
+  signal?: AbortSignal;
 }
 
 export interface ApiShareSummary {
@@ -178,6 +179,7 @@ export function listRecords(params: RecordListParams = {}) {
       cursor: params.cursor,
       limit: params.limit ?? 20,
     })}`,
+    { signal: params.signal },
   );
 }
 

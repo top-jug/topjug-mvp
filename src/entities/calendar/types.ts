@@ -17,6 +17,10 @@ export interface CalendarEntry {
   color?: string;
   lightBg?: string;
   darkText?: string;
+  sends?: number;
+  attempts?: number;
+  rating?: number | null;
+  sessionType?: 'free' | 'training' | 'project';
 }
 
 export type CalendarData = Record<number, CalendarEntry[]>;
