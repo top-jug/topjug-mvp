@@ -19,7 +19,7 @@ export default function HomeScreen() {
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-5">
-          <HomeRecentGyms onGymClick={() => navigateToScreen('detail')} onOpen={() => navigateToScreen('calendar')} />
+          <HomeRecentGyms onOpen={() => navigateToScreen('records')} />
           <HomeMembership onOpen={() => navigateToScreen('membership')} />
         </div>
 
