@@ -23,13 +23,26 @@ export default function TopTabHeader<T extends string>({
   return (
     <div className={containerClassName}>
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-6">
-          {tabs.map((tab) => {
+        <div className="flex items-center gap-6" role="tablist">
+          {tabs.map((tab, index) => {
             const isActive = tab.value === activeTab;
             return (
               <button
                 key={tab.value}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                tabIndex={isActive ? 0 : -1}
                 onClick={() => onChangeTab(tab.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+                  event.preventDefault();
+                  const offset = event.key === 'ArrowRight' ? 1 : -1;
+                  const nextIndex = (index + offset + tabs.length) % tabs.length;
+                  onChangeTab(tabs[nextIndex].value);
+                  const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+                  buttons?.[nextIndex]?.focus();
+                }}
                 className={`text-[28px] tracking-[-0.03em] transition-colors ${
                   isActive ? 'font-bold text-neutral-950' : 'font-semibold text-neutral-400'
                 }`}

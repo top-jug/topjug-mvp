@@ -11,7 +11,7 @@ export default function RegionFilterModal(props: RegionFilterModalProps) {
   const { selectedRegion, regions, onClose, onSelectRegion } = props;
 
   return (
-    <RecordModalShell onClose={onClose} panelClassName="bg-white rounded-3xl w-[340px] shadow-2xl">
+    <RecordModalShell onClose={onClose} title="지역 선택" panelClassName="bg-white rounded-3xl w-[340px] shadow-2xl">
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-bold">지역 선택</h3>

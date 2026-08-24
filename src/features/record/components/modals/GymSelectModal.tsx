@@ -9,7 +9,7 @@ interface GymSelectModalProps {
 
 export default function GymSelectModal({ gyms, selectedGymId, onSelect, onClose }: GymSelectModalProps) {
   return (
-    <RecordModalShell onClose={onClose}>
+    <RecordModalShell onClose={onClose} title="클라이밍장 선택">
       <h3 className="text-lg font-bold mb-4">클라이밍장 선택</h3>
 
       <div className="space-y-2 mb-6 max-h-[300px] overflow-y-auto">

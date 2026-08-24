@@ -154,7 +154,7 @@ export default function CalendarDetailSection({ mode, year, month, selectedDate,
           {visibleEntries.length > 1 && (
             <div className="flex items-center justify-center gap-1.5 pt-4 pb-6">
               {visibleEntries.map((_, idx) => (
-                <button key={idx} onClick={() => handleSelectSlide(idx)} className={`h-1.5 rounded-full transition-all ${idx === activeSlide ? 'w-4 bg-[#185FA5]' : 'w-1.5 bg-neutral-300'}`} />
+                <button key={idx} onClick={() => handleSelectSlide(idx)} aria-label={`${idx + 1}번째 일정 보기`} aria-pressed={idx === activeSlide} className={`h-1.5 rounded-full transition-all ${idx === activeSlide ? 'w-4 bg-[#185FA5]' : 'w-1.5 bg-neutral-300'}`} />
               ))}
             </div>
           )}

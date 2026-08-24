@@ -31,7 +31,7 @@ export default function ConfirmModal(props: ConfirmModalProps) {
   };
 
   return (
-    <CenteredModalShell onClose={handleClose} panelClassName="bg-white rounded-3xl p-6 w-[340px]">
+    <CenteredModalShell onClose={handleClose} title={`${title} 확인`} role="alertdialog" dismissible={!isPending} panelClassName="bg-white rounded-3xl p-6 w-[340px]">
       <div className="flex items-center gap-2 mb-4">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={confirmTone === 'danger' ? 'rgb(239 68 68)' : 'rgb(59 130 246)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />

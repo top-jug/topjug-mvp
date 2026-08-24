@@ -16,6 +16,7 @@ export default function CalendarGearMenu({ gyms, activeGyms, onSelectAll, onTogg
     <BottomSheet onClose={onClose} title="암장 필터" maxHeightClassName="max-h-[70vh]">
           <button
             onClick={onSelectAll}
+            aria-pressed={allSelected}
             className={`w-full py-4 rounded-full text-[17px] font-semibold transition-colors mb-5 ${allSelected ? 'bg-blue-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}
           >
             전체 선택
@@ -25,6 +26,7 @@ export default function CalendarGearMenu({ gyms, activeGyms, onSelectAll, onTogg
               <button
                 key={gym.id}
                 onClick={() => onToggleGym(gym.id)}
+                aria-pressed={Boolean(activeGyms[gym.id])}
                 className={`py-3 rounded-full text-[15px] font-medium transition-colors flex items-center gap-2 ${
                   activeGyms[gym.id] ? 'bg-blue-500 text-white' : 'bg-neutral-100 text-neutral-700'
                 }`}

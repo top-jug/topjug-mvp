@@ -108,6 +108,9 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
                       <button
                         key={date.key}
                         onClick={() => typeof date.day === 'number' && onSelectDate(date.year, date.month, date.day)}
+                        aria-label={typeof date.day === 'number' ? `${date.year}년 ${date.month}월 ${date.day}일` : undefined}
+                        aria-pressed={typeof date.day === 'number' ? isSelected : undefined}
+                        aria-current={isToday ? 'date' : undefined}
                         onContextMenu={(event) => {
                           event.preventDefault();
                           if (typeof date.day === 'number') onOpenDateMenu(date.year, date.month, date.day);
