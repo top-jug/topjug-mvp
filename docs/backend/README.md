@@ -5,7 +5,7 @@ TopJug MVP backend runs in the existing Next.js application. Route Handlers only
 ## Current scope
 
 - PostgreSQL 16 and Drizzle ORM
-- Email/password authentication with Argon2id and signed JWTs
+- SES-backed email verification, email/password authentication with Argon2id, and signed JWTs
 - Rotating refresh sessions with reuse detection and server-side revocation
 - Structured request logs, request IDs, and append-only audit events
 - Gym search/detail, saved-gym, setting-calendar, membership, record, and public-share APIs under `/api/v1`
@@ -51,12 +51,12 @@ The `local` profile uses PostgreSQL and MinIO from `compose.yaml`; the Next.js p
 
 | Domain | Stable codes clients commonly handle |
 | --- | --- |
-| Authentication | `ACCOUNT_UNAVAILABLE`, `INVALID_CREDENTIALS`, `MISSING_ACCESS_TOKEN`, `INVALID_ACCESS_TOKEN`, `MISSING_REFRESH_TOKEN`, `INVALID_REFRESH_TOKEN`, `REFRESH_TOKEN_REUSED`, `LOGIN_EMAIL_RATE_LIMITED`, `LOGIN_ADDRESS_RATE_LIMITED`, `REGISTER_ADDRESS_RATE_LIMITED`, `REGISTER_GLOBAL_RATE_LIMITED`, `REFRESH_RATE_LIMITED` |
+| Authentication | `ACCOUNT_UNAVAILABLE`, `ACCOUNT_NOT_FOUND`, `INVALID_CREDENTIALS`, `INVALID_EMAIL_VERIFICATION`, `EMAIL_VERIFICATION_RATE_LIMITED`, `PASSWORD_RESET_RATE_LIMITED`, `MISSING_ACCESS_TOKEN`, `INVALID_ACCESS_TOKEN`, `MISSING_REFRESH_TOKEN`, `INVALID_REFRESH_TOKEN`, `REFRESH_TOKEN_REUSED`, `REFRESH_RATE_LIMITED` |
 | Gym | `GYM_NOT_FOUND` |
 | Membership | `INVALID_MEMBERSHIP_GYMS`, `MEMBERSHIP_NOT_FOUND`, `MEMBERSHIP_CHANGED`, `HOME_MEMBERSHIP_LIMIT`, `HOME_MEMBERSHIP_ORDER_OCCUPIED`, `MEMBERSHIP_TYPE_LOCKED`, `MEMBERSHIP_GYM_LOCKED`, `MEMBERSHIP_IN_USE` |
 | Record | `ACTIVE_RECORD_EXISTS`, `ACTIVE_RECORD_NOT_FOUND`, `RECORD_NOT_FOUND`, `RECORD_ALREADY_PAUSED`, `RECORD_NOT_PAUSED`, `INVALID_PAUSE_TIME`, `INVALID_RESUME_TIME`, `INVALID_END_TIME`, `INVALID_PAUSE_RANGE`, `INVALID_ACTIVE_DURATION`, `INVALID_CANCEL_TIME`, `MEMBERSHIP_ARCHIVED`, `MEMBERSHIP_GYM_MISMATCH`, `MEMBERSHIP_NOT_ACTIVE`, `MEMBERSHIP_EXHAUSTED`, `GRADE_GYM_MISMATCH`, `SECTOR_GYM_MISMATCH`, `INVALID_CURSOR` |
 | Share | `INVALID_SHARE_MEDIA`, `INVALID_SHARE_MEDIA_TYPE`, `SHARE_NOT_FOUND`, `SHARE_EXPIRED`, `SHARE_MEDIA_NOT_FOUND` |
-| Service | `INVALID_REQUEST`, `INVALID_JSON`, `REQUEST_TOO_LARGE`, `DATABASE_NOT_CONFIGURED`, `AUTH_NOT_CONFIGURED`, `SERVICE_NOT_READY`, `INTERNAL_SERVER_ERROR` |
+| Service | `INVALID_REQUEST`, `INVALID_JSON`, `REQUEST_TOO_LARGE`, `DATABASE_NOT_CONFIGURED`, `AUTH_NOT_CONFIGURED`, `EMAIL_NOT_CONFIGURED`, `SERVICE_NOT_READY`, `INTERNAL_SERVER_ERROR` |
 
 ### Record lifecycle
 
@@ -88,9 +88,14 @@ After completion or cancellation, active-session transitions return `ACTIVE_RECO
 - Every refresh rotates the token. Reusing a revoked token revokes the whole token family.
 - PostgreSQL stores refresh token SHA-256 hashes, never raw tokens.
 - Passwords use Argon2id with OWASP-aligned memory and iteration settings.
+- Registration requires a verified email token. Six-digit codes expire after 10 minutes, allow at most five failed confirmations, and produce a 15-minute single-use token.
+- Verification code HMACs and verification-token SHA-256 hashes are stored instead of raw credentials. Code requests do not query or reveal whether an account exists.
+- Password reset revokes every active refresh session for the account.
 - Login errors do not reveal whether an email exists. Attempts use atomic email and client-address limits; registration uses client-address and global limits before Argon2 work.
 - Concurrent or later reuse of a rotated refresh token revokes the token family and requires a new login.
 - JWTs, passwords, refresh tokens, and raw login identifiers must never enter logs or audit metadata.
+
+Amazon SES sends from `EMAIL_FROM_ADDRESS`. The production CloudFormation stack creates the domain identity and Easy DKIM records and grants the application role only `ses:SendEmail` for that identity. The AWS account must be granted SES production access before it can deliver to arbitrary recipients.
 
 ## Production secrets
 

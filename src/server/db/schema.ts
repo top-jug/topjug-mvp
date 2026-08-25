@@ -35,6 +35,7 @@ export const recordStatus = pgEnum('record_status', ['in_progress', 'completed',
 export const recordSessionType = pgEnum('record_session_type', ['free', 'training', 'project']);
 export const membershipUsageType = pgEnum('membership_usage_type', ['consume', 'restore', 'adjustment']);
 export const recordShareStatus = pgEnum('record_share_status', ['active', 'revoked', 'expired']);
+export type EmailVerificationPurpose = 'register' | 'find_account' | 'reset_password';
 
 export const regions = pgTable('regions', {
   code: text('code').primaryKey(),
@@ -88,6 +89,29 @@ export const loginAttempts = pgTable(
   (table) => [
     index('login_attempts_key_time_idx').on(table.keyHash, table.attemptedAt),
     index('login_attempts_time_idx').on(table.attemptedAt),
+  ],
+);
+
+export const emailVerificationChallenges = pgTable(
+  'email_verification_challenges',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    purpose: text('purpose').$type<EmailVerificationPurpose>().notNull(),
+    codeHash: text('code_hash').notNull(),
+    tokenHash: text('token_hash'),
+    attempts: integer('attempts').notNull().default(0),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('email_verification_email_purpose_idx').on(table.email, table.purpose, table.createdAt),
+    index('email_verification_expires_idx').on(table.expiresAt),
+    uniqueIndex('email_verification_token_uidx').on(table.tokenHash).where(sql`${table.tokenHash} IS NOT NULL`),
+    check('email_verification_purpose_check', sql`${table.purpose} IN ('register', 'find_account', 'reset_password')`),
+    check('email_verification_attempts_check', sql`${table.attempts} BETWEEN 0 AND 5`),
   ],
 );
 

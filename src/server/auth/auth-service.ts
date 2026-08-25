@@ -6,11 +6,13 @@ import { getDatabase } from '../db/client';
 import { auditEvents, climbingRecords, memberships, refreshSessions, regions, savedGyms, users } from '../db/schema';
 import { ApiError } from '../http/api-error';
 import { hashPassword, verifyPassword } from './password';
-import { clearLoginAttempts, consumeLoginAttempts, consumeRegistrationAttempts } from './rate-limit';
+import { clearLoginAttempts, consumeLoginAttempts, consumePasswordResetAttempts, consumeRegistrationAttempts } from './rate-limit';
 import { createTokenPair, hashToken, verifyRefreshToken } from './token';
 import { LoginInput, RegisterInput } from './auth-validation';
+import type { FindAccountInput, ResetPasswordInput } from './auth-validation';
 import { auditEventValues, writeAuditEvent, writeRequiredAuditEvent } from '../observability/audit';
 import { setRequestActor } from '../observability/request-context';
+import { withConsumedEmailVerification } from './email-verification-service';
 
 function publicUser(user: typeof users.$inferSelect) {
   return {
@@ -24,15 +26,16 @@ function publicUser(user: typeof users.$inferSelect) {
 }
 
 export async function registerUser(input: RegisterInput, clientAddress: string) {
-  const database = getDatabase();
   await consumeRegistrationAttempts(clientAddress);
   const passwordHash = await hashPassword(input.password);
 
   try {
-    const { user, tokens } = await database.transaction(async (transaction) => {
+    const result = await withConsumedEmailVerification('register', input.emailVerificationToken, async (transaction, verifiedEmail) => {
+      if (verifiedEmail !== input.email) return null;
+      const emailVerifiedAt = new Date();
       const [createdUser] = await transaction
         .insert(users)
-        .values({ email: input.email, displayName: input.displayName, passwordHash })
+        .values({ email: input.email, displayName: input.displayName, passwordHash, emailVerifiedAt })
         .returning();
       const createdTokens = await createTokenPair(createdUser.id);
       await transaction.insert(refreshSessions).values({
@@ -50,6 +53,8 @@ export async function registerUser(input: RegisterInput, clientAddress: string) 
       }));
       return { user: createdUser, tokens: createdTokens };
     });
+    if (!result) throw new ApiError(400, 'INVALID_EMAIL_VERIFICATION', '인증한 이메일과 회원가입 이메일이 일치하지 않습니다.');
+    const { user, tokens } = result;
     setRequestActor(user.id);
     return { user: publicUser(user), tokens };
   } catch (error) {
@@ -58,6 +63,53 @@ export async function registerUser(input: RegisterInput, clientAddress: string) 
     }
     throw error;
   }
+}
+
+export async function findAccount(input: FindAccountInput) {
+  const result = await withConsumedEmailVerification('find_account', input.emailVerificationToken, async (transaction, email) => {
+    const [user] = await transaction
+      .select({ id: users.id, email: users.email })
+      .from(users)
+      .where(and(eq(users.email, email), eq(users.displayName, input.displayName)))
+      .limit(1);
+    if (!user) return null;
+    await transaction.insert(auditEvents).values(auditEventValues({
+      action: 'auth.find_account',
+      actorUserId: user.id,
+      resourceType: 'user',
+      resourceId: user.id,
+    }));
+    return { email: user.email };
+  });
+  if (!result) throw new ApiError(404, 'ACCOUNT_NOT_FOUND', '입력한 정보와 일치하는 계정을 찾지 못했습니다.');
+  return result;
+}
+
+export async function resetPassword(input: ResetPasswordInput, clientAddress: string) {
+  await consumePasswordResetAttempts(clientAddress);
+  const passwordHash = await hashPassword(input.password);
+  const result = await withConsumedEmailVerification('reset_password', input.emailVerificationToken, async (transaction, email) => {
+    const [user] = await transaction.select().from(users).where(eq(users.email, email)).limit(1);
+    if (!user) return null;
+    const now = new Date();
+    await transaction
+      .update(users)
+      .set({ passwordHash, emailVerifiedAt: user.emailVerifiedAt ?? now, updatedAt: now })
+      .where(eq(users.id, user.id));
+    await transaction
+      .update(refreshSessions)
+      .set({ revokedAt: now })
+      .where(and(eq(refreshSessions.userId, user.id), isNull(refreshSessions.revokedAt)));
+    await transaction.insert(auditEvents).values(auditEventValues({
+      action: 'auth.password_reset',
+      actorUserId: user.id,
+      resourceType: 'user',
+      resourceId: user.id,
+    }));
+    return { reset: true as const };
+  });
+  if (!result) throw new ApiError(404, 'ACCOUNT_NOT_FOUND', '계정을 찾지 못했습니다.');
+  return result;
 }
 
 export async function loginUser(input: LoginInput, clientAddress: string) {

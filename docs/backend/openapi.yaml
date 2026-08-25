@@ -82,6 +82,101 @@ paths:
           $ref: '#/components/responses/ServiceUnavailable'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /auth/email-verifications:
+    post:
+      operationId: requestEmailVerification
+      summary: Send a one-time email verification code
+      description: Does not query or reveal account existence; account matching occurs only after email ownership is confirmed.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmailVerificationRequest' }
+      responses:
+        '202':
+          description: Verification request accepted
+          headers:
+            x-request-id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/CacheControl' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmailVerificationRequestedResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /auth/email-verifications/confirm:
+    post:
+      operationId: confirmEmailVerification
+      summary: Confirm an email verification code and receive a one-time verification token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmailVerificationConfirmationRequest' }
+      responses:
+        '200':
+          description: Email verified
+          headers:
+            x-request-id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/CacheControl' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmailVerificationConfirmedResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /auth/find-account:
+    post:
+      operationId: findAccount
+      summary: Return the login email after account-recovery email verification
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FindAccountRequest' }
+      responses:
+        '200':
+          description: Matching login email
+          headers:
+            x-request-id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/CacheControl' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FindAccountResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /auth/password-reset:
+    post:
+      operationId: resetPassword
+      summary: Replace the password and revoke every refresh session after email verification
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordResetRequest' }
+      responses:
+        '204':
+          description: Password reset and existing refresh sessions revoked
+          headers:
+            x-request-id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/CacheControl' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /auth/login:
     post:
       operationId: login
@@ -976,7 +1071,7 @@ components:
     RegisterRequest:
       type: object
       additionalProperties: false
-      required: [email, password, displayName]
+      required: [email, password, displayName, emailVerificationToken]
       properties:
         email:
           type: string
@@ -984,13 +1079,79 @@ components:
           maxLength: 254
         password:
           type: string
-          minLength: 12
+          minLength: 8
           maxLength: 128
+          description: 8자 이상이며 영문 대문자, 숫자, 특수문자 조건 중 2가지 이상을 충족해야 합니다.
           writeOnly: true
         displayName:
           type: string
           minLength: 1
           maxLength: 40
+        emailVerificationToken:
+          type: string
+          minLength: 43
+          maxLength: 128
+          writeOnly: true
+    EmailVerificationRequest:
+      type: object
+      additionalProperties: false
+      required: [email, purpose]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        purpose: { type: string, enum: [register, find_account, reset_password] }
+    EmailVerificationConfirmationRequest:
+      allOf:
+        - { $ref: '#/components/schemas/EmailVerificationRequest' }
+        - type: object
+          required: [code]
+          properties:
+            code: { type: string, pattern: '^\\d{6}$', writeOnly: true }
+    EmailVerificationRequestedResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [expiresIn]
+          properties:
+            expiresIn: { type: integer, const: 600 }
+    EmailVerificationConfirmedResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [verificationToken, expiresIn]
+          properties:
+            verificationToken: { type: string, minLength: 43, writeOnly: true }
+            expiresIn: { type: integer, const: 900 }
+    FindAccountRequest:
+      type: object
+      additionalProperties: false
+      required: [displayName, emailVerificationToken]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 40 }
+        emailVerificationToken: { type: string, minLength: 43, maxLength: 128, writeOnly: true }
+    FindAccountResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [email]
+          properties:
+            email: { type: string, format: email }
+    PasswordResetRequest:
+      type: object
+      additionalProperties: false
+      required: [password, emailVerificationToken]
+      properties:
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          writeOnly: true
+        emailVerificationToken: { type: string, minLength: 43, maxLength: 128, writeOnly: true }
     LoginRequest:
       type: object
       additionalProperties: false

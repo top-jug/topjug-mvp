@@ -2,7 +2,7 @@ import { apiClient, apiRequest } from '../../lib/api/client';
 import { ApiClientError } from '../../lib/api/error';
 import type { ApiDataResponse } from '../../lib/api/types';
 import { AUTH_SESSION_TIMEOUT_MS, runWithAuthSessionLock } from '../../lib/api/session-lock';
-import type { AuthUser, LoginInput, RegisterInput } from './types';
+import type { AuthUser, EmailVerificationPurpose, LoginInput, RegisterInput } from './types';
 
 export const LOGOUT_PENDING_KEY = 'topjug.logout-pending';
 
@@ -89,6 +89,41 @@ export function login(input: LoginInput) {
 
 export function register(input: RegisterInput) {
   return establishSession('/auth/register', input);
+}
+
+export async function requestEmailVerification(email: string, purpose: EmailVerificationPurpose) {
+  const response = await apiRequest<ApiDataResponse<{ expiresIn: number }>>('/auth/email-verifications', {
+    method: 'POST',
+    auth: 'none',
+    body: JSON.stringify({ email, purpose }),
+  });
+  return response.data;
+}
+
+export async function confirmEmailVerification(email: string, purpose: EmailVerificationPurpose, code: string) {
+  const response = await apiRequest<ApiDataResponse<{ verificationToken: string; expiresIn: number }>>('/auth/email-verifications/confirm', {
+    method: 'POST',
+    auth: 'none',
+    body: JSON.stringify({ email, purpose, code }),
+  });
+  return response.data;
+}
+
+export async function findAccount(displayName: string, emailVerificationToken: string) {
+  const response = await apiRequest<ApiDataResponse<{ email: string }>>('/auth/find-account', {
+    method: 'POST',
+    auth: 'none',
+    body: JSON.stringify({ displayName, emailVerificationToken }),
+  });
+  return response.data;
+}
+
+export function resetPassword(password: string, emailVerificationToken: string) {
+  return apiRequest<undefined>('/auth/password-reset', {
+    method: 'POST',
+    auth: 'none',
+    body: JSON.stringify({ password, emailVerificationToken }),
+  });
 }
 
 export async function restoreSession() {

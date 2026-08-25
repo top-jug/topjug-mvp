@@ -60,6 +60,17 @@ erDiagram
     text password_hash
     text home_region_code FK
   }
+  email_verification_challenges {
+    uuid id PK
+    text email
+    text purpose
+    text code_hash
+    text token_hash UK
+    integer attempts
+    timestamptz expires_at
+    timestamptz verified_at
+    timestamptz consumed_at
+  }
   media_assets {
     uuid id PK
     uuid owner_user_id FK

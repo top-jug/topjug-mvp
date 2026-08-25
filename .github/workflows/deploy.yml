@@ -71,7 +71,58 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Check production email infrastructure
+        id: email_readiness
+        env:
+          EMAIL_IDENTITY_DOMAIN: topjug.kr
+        run: |
+          READY=true
+          if ! PRODUCTION_ACCESS=$(aws sesv2 get-account \
+              --query ProductionAccessEnabled \
+              --output text); then
+            echo "::warning::Unable to inspect Amazon SES account readiness. Production deployment will be skipped."
+            READY=false
+          fi
+          if ! VERIFICATION_STATUS=$(aws sesv2 get-email-identity \
+              --email-identity "$EMAIL_IDENTITY_DOMAIN" \
+              --query VerificationStatus \
+              --output text); then
+            echo "::warning::Unable to inspect Amazon SES identity readiness. Production deployment will be skipped."
+            READY=false
+          fi
+          if ! DKIM_STATUS=$(aws sesv2 get-email-identity \
+              --email-identity "$EMAIL_IDENTITY_DOMAIN" \
+              --query DkimAttributes.Status \
+              --output text); then
+            echo "::warning::Unable to inspect Amazon SES DKIM status. Production deployment will be skipped."
+            READY=false
+          fi
+          if ! DKIM_SIGNING=$(aws sesv2 get-email-identity \
+              --email-identity "$EMAIL_IDENTITY_DOMAIN" \
+              --query DkimAttributes.SigningEnabled \
+              --output text); then
+            echo "::warning::Unable to inspect Amazon SES DKIM signing. Production deployment will be skipped."
+            READY=false
+          fi
+
+          if [[ "$PRODUCTION_ACCESS" != "True" || "$VERIFICATION_STATUS" != "SUCCESS" || "$DKIM_STATUS" != "SUCCESS" || "$DKIM_SIGNING" != "True" ]]; then
+            READY=false
+          fi
+
+          echo "ready=${READY}" >> "$GITHUB_OUTPUT"
+          if [[ "$READY" != "true" ]]; then
+            echo "::warning::Amazon SES is not ready for arbitrary recipients. Tests passed, but production upload, migration, and release will be skipped."
+            {
+              echo "### Production deployment skipped"
+              echo
+              echo "Amazon SES production access, identity verification, or DKIM is not ready."
+              echo "No release was uploaded, no database migration ran, and the EC2 service was not changed."
+              echo "Run this workflow manually after SES becomes ready."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload release
+        if: steps.email_readiness.outputs.ready == 'true'
         run: |
           aws s3 cp "topjug-mvp-${GITHUB_SHA}.tar.gz" \
             "s3://${DEPLOY_BUCKET}/releases/${GITHUB_SHA}.tar.gz"
@@ -79,6 +130,7 @@ jobs:
             "s3://${DEPLOY_BUCKET}/scripts/${GITHUB_SHA}/deploy.sh"
 
       - name: Run migrations through private tunnel
+        if: steps.email_readiness.outputs.ready == 'true'
         run: |
           if ! command -v session-manager-plugin >/dev/null 2>&1; then
             curl --fail --silent --show-error --location \
@@ -176,6 +228,7 @@ jobs:
             node .migration/provision-runtime-db-role.cjs --apply --verify-schema
 
       - name: Deploy through Systems Manager
+        if: steps.email_readiness.outputs.ready == 'true'
         run: |
           SCRIPT_SHA256=$(sha256sum ops/ec2/deploy.sh | cut -d ' ' -f1)
           ARCHIVE_SHA256=$(sha256sum "topjug-mvp-${GITHUB_SHA}.tar.gz" | cut -d ' ' -f1)

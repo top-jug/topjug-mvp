@@ -65,6 +65,26 @@ export async function consumeRegistrationAttempts(clientAddress: string) {
   ]);
 }
 
+export async function consumeEmailVerificationRequestAttempts(email: string, clientAddress: string) {
+  await consumeAttempts([
+    { value: `email-verification:request:address:${clientAddress}`, maxAttempts: 20, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+    { value: `email-verification:request:email:${email}`, maxAttempts: 5, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+  ]);
+}
+
+export async function consumeEmailVerificationConfirmAttempts(email: string, clientAddress: string) {
+  await consumeAttempts([
+    { value: `email-verification:confirm:address:${clientAddress}`, maxAttempts: 60, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+    { value: `email-verification:confirm:email:${email}`, maxAttempts: 20, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+  ]);
+}
+
+export async function consumePasswordResetAttempts(clientAddress: string) {
+  await consumeAttempts([
+    { value: `password-reset:address:${clientAddress}`, maxAttempts: 10, errorCode: 'PASSWORD_RESET_RATE_LIMITED' },
+  ]);
+}
+
 export async function consumeRefreshAttempts(clientAddress: string, refreshToken: string) {
   await consumeAttempts([
     { value: `refresh:address:${clientAddress}`, maxAttempts: 60, errorCode: 'REFRESH_RATE_LIMITED' },

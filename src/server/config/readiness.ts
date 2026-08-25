@@ -17,6 +17,13 @@ export async function assertReady() {
   }
 
   if (process.env.APP_PROFILE === 'production') {
+    try {
+      const emailFromAddress = process.env.EMAIL_FROM_ADDRESS ?? '';
+      if (!emailFromAddress.includes('@') || emailFromAddress.length > 254) throw new Error();
+    } catch {
+      throw new ApiError(503, 'SERVICE_NOT_READY', '이메일 발송 설정이 준비되지 않았습니다.');
+    }
+
     const invalidPublicUrl = REQUIRED_PUBLIC_URLS.find((name) => {
       const value = process.env[name];
       if (!value) return true;
@@ -46,6 +53,7 @@ export async function assertReady() {
   try {
     await getDatabase().execute(sql`select 1 from gyms limit 1`);
     await getDatabase().execute(sql`select 1 from media_assets limit 1`);
+    await getDatabase().execute(sql`select 1 from email_verification_challenges limit 1`);
   } catch {
     throw new ApiError(503, 'SERVICE_NOT_READY', '데이터베이스 연결이 준비되지 않았습니다.');
   }

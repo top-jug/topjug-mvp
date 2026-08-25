@@ -14,6 +14,8 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import { RequireAuth } from '../features/auth/RequireAuth';
 import PublicRecordSharePage from './pages/PublicRecordSharePage';
+import FindAccountPage from './pages/FindAccountPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 function PreviewLayout() {
   return (
@@ -29,6 +31,8 @@ export function AppRouter() {
       <Route element={<PreviewLayout />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/find-account" element={<FindAccountPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/gyms" element={<GymSearchPage />} />
         <Route path="/gyms/:gymId" element={<GymDetailPage />} />
         <Route path="/schedule" element={<Navigate to="/schedule/settings" replace />} />

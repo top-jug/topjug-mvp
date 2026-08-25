@@ -23,6 +23,8 @@ The account's current Free Tier plan restricts automated RDS backup retention to
 
 CloudFront certificates must be issued in `us-east-1`. Request and DNS-validate `media.topjug.kr` before deploying the Seoul-region stack.
 
+The same stack creates an Amazon SES domain identity for `topjug.kr`, publishes its three Easy DKIM CNAME records in the supplied hosted zone, and grants the application role permission to send only from that identity. Request SES production access in `ap-northeast-2` before enabling account email for arbitrary recipients; sandbox accounts can deliver only to verified destinations. The runtime sends from `no-reply@topjug.kr` through `EMAIL_FROM_ADDRESS`.
+
 ```bash
 aws acm request-certificate \
   --region us-east-1 \
@@ -79,7 +81,7 @@ postgresql://USER:PASSWORD@RDS_ENDPOINT:5432/topjug?sslmode=require
 
 RDS manages its master password in Secrets Manager. Store the schema-owner URL as `migration-database-url`. Generate a separate password of at least 32 random bytes for `topjug_app` and store that URL as `runtime-database-url`. The deployment workflow runs the bundled `provision-runtime-db-role.cjs --apply` through its private SSM tunnel before migration. The role receives connect, schema usage, table DML, and sequence usage but cannot modify the schema. Future tables and sequences inherit the same grants.
 
-The application instance role can read the runtime URL and application secrets only. The GitHub OIDC deployment role can read both database URLs; CI opens a short-lived SSM port-forwarding session through EC2, converges and verifies the runtime role, and runs migrations before sending the release command. After this workflow has deployed successfully, delete the legacy `/topjug/prod/database-url` parameter. Never grant the instance role access to `migration-database-url`.
+The application instance role can read the runtime URL and application secrets only. It can also inspect the SES account and configured identity and send from the scoped `topjug.kr` identity. The GitHub OIDC deployment role can read both database URLs and inspect SES readiness; CI opens a short-lived SSM port-forwarding session through EC2, converges and verifies the runtime role, and runs migrations before sending the release command. After this workflow has deployed successfully, delete the legacy `/topjug/prod/database-url` parameter. Never grant the instance role access to `migration-database-url`.
 
 Do not attach AWS managed `AmazonSSMManagedInstanceCore` to the application role. That policy grants `ssm:GetParameter` and `ssm:GetParameters` on `*`, bypassing the scoped runtime policy. `ApplicationSsmAgentCorePolicy` provides the required agent and message-channel actions without Parameter Store access.
 
@@ -87,7 +89,9 @@ Never print either URL, place it in shell history, or commit it to a file. JWT s
 
 ## Deployment And Migration
 
-Production deployment opens a short-lived SSM tunnel through EC2, applies `drizzle/` migrations from the GitHub runner, sends the release command to EC2, starts the service, then checks local `/api/ready`.
+Production deployment first checks for SES production access, a verified `topjug.kr` identity, and successful DKIM. If any email prerequisite is unavailable, the workflow reports a warning and completes after tests and build without uploading a release, migrating the database, or changing EC2. This allows reviewed code to merge while an external SES review is pending without producing a broken partial deployment. Run the workflow manually after SES becomes ready.
+
+When SES is ready, deployment opens a short-lived SSM tunnel through EC2, applies `drizzle/` migrations from the GitHub runner, and sends the release command to EC2. Before switching releases, EC2 performs an SES mailbox-simulator delivery using the application role, which verifies its runtime send permission without delivering to a real inbox. The service starts only after that check passes, then the deployment checks local `/api/ready`.
 
 For the credential-isolation rollout, first attach the `GithubMigrationPolicy` statements to the GitHub OIDC role under a distinct temporary name such as `topjug-mvp-bootstrap-production-migrations`. This one-time bootstrap lets the tunnel-based workflow deploy while the existing stack still has its broad instance policy. After that release is healthy, apply `topjug-mvp-production-data`, verify CloudFormation created `topjug-mvp-run-production-migrations`, then delete the temporary policy. Detach `AmazonSSMManagedInstanceCore`, confirm the instance remains online in SSM, restart the service, verify runtime access and migration access denial, then delete `/topjug/prod/database-url`.
 

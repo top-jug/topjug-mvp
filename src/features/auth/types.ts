@@ -26,4 +26,7 @@ export type LoginInput = {
 
 export type RegisterInput = LoginInput & {
   displayName: string;
+  emailVerificationToken: string;
 };
+
+export type EmailVerificationPurpose = 'register' | 'find_account' | 'reset_password';

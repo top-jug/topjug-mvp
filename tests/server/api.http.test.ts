@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { and, count, eq } from 'drizzle-orm';
 import { closeDatabase, getDatabase } from '../../src/server/db/client';
-import { auditEvents, gymGrades, gyms, gymSectors, gymWalls, loginAttempts, recordShares, settingEvents, settingEventSectors, users } from '../../src/server/db/schema';
+import { auditEvents, emailVerificationChallenges, gymGrades, gyms, gymSectors, gymWalls, loginAttempts, recordShares, settingEvents, settingEventSectors, users } from '../../src/server/db/schema';
+import { hashVerificationToken } from '../../src/server/auth/email-verification-service';
 
 const apiBaseUrl = process.env.API_BASE_URL ?? 'http://127.0.0.1:3000/api/v1';
 
@@ -63,9 +64,18 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
     });
     assert.equal(oversized.status, 413);
 
+    const emailVerificationToken = randomBytes(32).toString('base64url');
+    await database.insert(emailVerificationChallenges).values({
+      email,
+      purpose: 'register',
+      codeHash: 'http-fixture',
+      tokenHash: hashVerificationToken(emailVerificationToken),
+      verifiedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
     const register = await jsonRequest('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password: 'correct horse battery staple', displayName: 'HTTP Test' }),
+      body: JSON.stringify({ email, password: 'Correct horse 1', displayName: 'HTTP Test', emailVerificationToken }),
     });
     assert.equal(register.status, 201);
     assert.equal(register.headers.get('cache-control'), 'no-store');
@@ -421,6 +431,7 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
       await database.delete(auditEvents).where(eq(auditEvents.actorUserId, user.id));
       await database.delete(users).where(eq(users.id, user.id));
     }
+    await database.delete(emailVerificationChallenges).where(eq(emailVerificationChallenges.email, email));
     await database.delete(gyms).where(eq(gyms.id, gym.id));
     await database.delete(loginAttempts);
     await closeDatabase();

@@ -2,6 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { toRegisterInput, validateRegistrationPasswords } from '../../src/features/auth/registration';
 import {
+  isValidVerificationEmail,
+  maskEmail,
+  normalizeVerificationEmail,
+} from '../../src/features/auth/email-verification';
+import { getPasswordRequirementState } from '../../src/lib/auth/password-policy';
+import {
   AUTH_SESSION_EVENT_KEY,
   canUseSessionStorage,
   createSessionReconciler,
@@ -37,10 +43,16 @@ function controlledWait() {
   };
 }
 
-test('registration rejects short and mismatched passwords before submission', () => {
-  assert.equal(validateRegistrationPasswords('short', 'short'), '비밀번호는 12자 이상 입력해주세요.');
-  assert.equal(validateRegistrationPasswords('long-enough-password', 'different-password'), '비밀번호가 일치하지 않습니다.');
-  assert.equal(validateRegistrationPasswords('long-enough-password', 'long-enough-password'), null);
+test('registration enforces password length, composition, and confirmation before submission', () => {
+  assert.equal(validateRegistrationPasswords('Ab1!', 'Ab1!'), '비밀번호는 8자 이상 입력해주세요.');
+  assert.equal(
+    validateRegistrationPasswords('abcdefgh', 'abcdefgh'),
+    '비밀번호에 영문 대문자, 숫자, 특수문자 중 2가지 이상을 포함해주세요.',
+  );
+  assert.equal(validateRegistrationPasswords('ABCDEF12', 'ABCDEF12'), null);
+  assert.equal(validateRegistrationPasswords('ABCDEF!!', 'ABCDEF!!'), null);
+  assert.equal(validateRegistrationPasswords('123456!!', '123456!!'), null);
+  assert.equal(validateRegistrationPasswords('Valid123', 'Different1'), '비밀번호가 일치하지 않습니다.');
 });
 
 test('registration confirmation is omitted from the API input', () => {
@@ -48,11 +60,38 @@ test('registration confirmation is omitted from the API input', () => {
     toRegisterInput({
       displayName: 'Climber',
       email: 'climber@example.com',
-      password: 'long-enough-password',
-      passwordConfirmation: 'long-enough-password',
+      password: 'Valid123',
+      passwordConfirmation: 'Valid123',
+      emailVerificationToken: 'v'.repeat(43),
     }),
-    { displayName: 'Climber', email: 'climber@example.com', password: 'long-enough-password' },
+    { displayName: 'Climber', email: 'climber@example.com', password: 'Valid123', emailVerificationToken: 'v'.repeat(43) },
   );
+});
+
+test('frontend email verification normalizes, validates, and masks account emails', () => {
+  assert.equal(normalizeVerificationEmail('  Climber@Example.COM '), 'climber@example.com');
+  assert.equal(isValidVerificationEmail('climber@example.com'), true);
+  assert.equal(isValidVerificationEmail('not-an-email'), false);
+  assert.equal(maskEmail('climber@example.com'), 'cl*****@example.com');
+});
+
+test('password requirement state reports live length and composition progress', () => {
+  assert.deepEqual(getPasswordRequirementState('test1234'), {
+    hasMinimumLength: true,
+    hasUppercase: false,
+    hasDigit: true,
+    hasSpecialCharacter: false,
+    satisfiedCompositionCount: 1,
+    hasRequiredComposition: false,
+  });
+  assert.deepEqual(getPasswordRequirementState('Test1234!'), {
+    hasMinimumLength: true,
+    hasUppercase: true,
+    hasDigit: true,
+    hasSpecialCharacter: true,
+    satisfiedCompositionCount: 3,
+    hasRequiredComposition: true,
+  });
 });
 
 test('authenticated session events are uniquely published and strictly recognized', () => {
@@ -357,6 +396,9 @@ test('fallback heartbeat aborts on ownership loss without deleting the new owner
 });
 
 test('browser fallback fails closed when storage cannot provide a lease', async () => {
+  const failingManager: SessionLockManager = {
+    request: async () => { throw new Error('Web Locks unavailable'); },
+  };
   const storage = {
     get length(): number { throw new Error('denied'); },
     key: () => null,
@@ -366,7 +408,7 @@ test('browser fallback fails closed when storage cannot provide a lease', async 
   };
   let ran = false;
   await assert.rejects(
-    runWithAuthSessionLock(async () => { ran = true; }, undefined, { storage, owner: 'blocked' }, 10),
+    runWithAuthSessionLock(async () => { ran = true; }, failingManager, { storage, owner: 'blocked' }, 10),
     AuthSessionLockError,
   );
   assert.equal(ran, false);

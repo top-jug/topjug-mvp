@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { eq, inArray } from 'drizzle-orm';
 import { registerUser, rotateRefreshToken } from '../../src/server/auth/auth-service';
 import { closeDatabase, getDatabase } from '../../src/server/db/client';
-import { auditEvents, climbingRecords, gymGrades, gyms, gymSectors, gymWalls, loginAttempts, memberships, membershipUsages, users } from '../../src/server/db/schema';
+import { auditEvents, climbingRecords, emailVerificationChallenges, gymGrades, gyms, gymSectors, gymWalls, loginAttempts, memberships, membershipUsages, users } from '../../src/server/db/schema';
 import { ApiError } from '../../src/server/http/api-error';
 import { runWithRequestContext } from '../../src/server/observability/request-context';
 import { createRecord, getRecord, listRecords } from '../../src/server/records/record-service';
@@ -20,6 +20,7 @@ import {
   startRecordSession,
 } from '../../src/server/records/record-session-service';
 import { createRecordShare, listRecordShares, revokeRecordShare } from '../../src/server/shares/share-service';
+import { hashVerificationToken } from '../../src/server/auth/email-verification-service';
 
 test('database-backed auth, refresh concurrency, and record ownership flow', async () => {
   const database = getDatabase();
@@ -45,15 +46,31 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
 
   try {
     await runWithRequestContext({ requestId }, async () => {
+      const firstEmail = `first-${suffix}@example.com`;
+      const secondEmail = `second-${suffix}@example.com`;
+      const firstVerificationToken = randomBytes(32).toString('base64url');
+      const secondVerificationToken = randomBytes(32).toString('base64url');
+      await database.insert(emailVerificationChallenges).values([
+        {
+          email: firstEmail, purpose: 'register', codeHash: 'integration-fixture',
+          tokenHash: hashVerificationToken(firstVerificationToken), verifiedAt: new Date(), expiresAt: new Date(Date.now() + 60_000),
+        },
+        {
+          email: secondEmail, purpose: 'register', codeHash: 'integration-fixture',
+          tokenHash: hashVerificationToken(secondVerificationToken), verifiedAt: new Date(), expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]);
       const first = await registerUser({
-        email: `first-${suffix}@example.com`,
+        email: firstEmail,
         password: 'correct horse battery staple',
         displayName: 'First',
+        emailVerificationToken: firstVerificationToken,
       }, 'integration-first');
       const second = await registerUser({
-        email: `second-${suffix}@example.com`,
+        email: secondEmail,
         password: 'correct horse battery staple',
         displayName: 'Second',
+        emailVerificationToken: secondVerificationToken,
       }, 'integration-second');
 
       const tiedRecordIds = [randomUUID(), randomUUID()].sort();
@@ -275,6 +292,9 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
     });
   } finally {
     await database.delete(auditEvents).where(eq(auditEvents.requestId, requestId));
+    await database.delete(emailVerificationChallenges).where(inArray(emailVerificationChallenges.email, [
+      `first-${suffix}@example.com`, `second-${suffix}@example.com`,
+    ]));
     await database.delete(users).where(eq(users.email, `first-${suffix}@example.com`));
     await database.delete(users).where(eq(users.email, `second-${suffix}@example.com`));
     await database.delete(gyms).where(inArray(gyms.id, recentGyms.map((recentGym) => recentGym.id)));

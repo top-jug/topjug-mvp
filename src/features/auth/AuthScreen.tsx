@@ -3,6 +3,10 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { isApiClientError } from '../../lib/api';
 import { useAuth } from './AuthProvider';
 import { toRegisterInput, validateRegistrationPasswords } from './registration';
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, validatePasswordPolicy } from '../../lib/auth/password-policy';
+import { EmailVerificationControl } from './EmailVerificationControl';
+import { normalizeVerificationEmail } from './email-verification';
+import { PasswordRequirementList } from './PasswordRequirementList';
 
 type Props = {
   mode: 'login' | 'register';
@@ -22,6 +26,8 @@ export function AuthScreen({ mode }: Props) {
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
+  const [emailVerificationToken, setEmailVerificationToken] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const submitting = status === 'loading';
 
@@ -42,6 +48,10 @@ export function AuthScreen({ mode }: Props) {
     event.preventDefault();
     setMessage(null);
     if (mode === 'register') {
+      if (verifiedEmail !== normalizeVerificationEmail(email) || !emailVerificationToken) {
+        setMessage('이메일 인증을 완료해주세요.');
+        return;
+      }
       const validationMessage = validateRegistrationPasswords(password, passwordConfirmation);
       if (validationMessage) {
         setMessage(validationMessage);
@@ -51,7 +61,7 @@ export function AuthScreen({ mode }: Props) {
 
     try {
       if (mode === 'login') await login({ email, password });
-      else await register(toRegisterInput({ displayName, email, password, passwordConfirmation }));
+      else await register(toRegisterInput({ displayName, email, password, passwordConfirmation, emailVerificationToken: emailVerificationToken! }));
       navigate(intendedPath(location.state), { replace: true });
     } catch (error) {
       setMessage(isApiClientError(error) ? error.message : '요청을 처리하지 못했습니다.');
@@ -60,6 +70,7 @@ export function AuthScreen({ mode }: Props) {
 
   const isLogin = mode === 'login';
   const confirmationError = !isLogin && message === '비밀번호가 일치하지 않습니다.';
+  const passwordError = !isLogin && message !== null && validatePasswordPolicy(password) === message;
 
   return (
     <main className="min-h-screen bg-[#f4f7fb] px-5 py-10 flex items-center justify-center">
@@ -92,32 +103,51 @@ export function AuthScreen({ mode }: Props) {
                 />
               </label>
             )}
-            <label className="block">
-              <span className="mb-2 block text-sm font-bold text-neutral-800">이메일</span>
+            <div>
+              <label htmlFor="auth-email" className="mb-2 block text-sm font-bold text-neutral-800">이메일</label>
               <input
+                id="auth-email"
                 required
                 type="email"
                 maxLength={254}
                 autoComplete="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setVerifiedEmail(null);
+                  setEmailVerificationToken(null);
+                  setMessage(null);
+                }}
                 className="h-13 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 text-base text-neutral-950 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                 placeholder="name@example.com"
               />
-            </label>
+              {!isLogin && (
+                <EmailVerificationControl
+                  email={email}
+                  purpose="register"
+                  verifiedEmail={verifiedEmail}
+                  onVerified={(verified, token) => {
+                    setVerifiedEmail(verified);
+                    setEmailVerificationToken(token);
+                  }}
+                />
+              )}
+            </div>
             <label className="block">
               <span className="mb-2 block text-sm font-bold text-neutral-800">비밀번호</span>
               <span className="relative block">
                 <input
                   required
                   type={!isLogin && showPassword ? 'text' : 'password'}
-                  minLength={isLogin ? 1 : 12}
-                  maxLength={128}
+                  minLength={isLogin ? 1 : PASSWORD_MIN_LENGTH}
+                  maxLength={PASSWORD_MAX_LENGTH}
                   autoComplete={isLogin ? 'current-password' : 'new-password'}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
+                  aria-invalid={passwordError}
+                  aria-describedby={!isLogin ? (passwordError ? 'registration-password-requirements password-error' : 'registration-password-requirements') : undefined}
                   className={`h-13 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 text-base text-neutral-950 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 ${isLogin ? '' : 'pr-20'}`}
-                  placeholder={isLogin ? '비밀번호' : '12자 이상 입력'}
+                  placeholder={isLogin ? '비밀번호' : '8자 이상 입력'}
                 />
                 {!isLogin && (
                   <button
@@ -131,6 +161,7 @@ export function AuthScreen({ mode }: Props) {
                   </button>
                 )}
               </span>
+              {!isLogin && <PasswordRequirementList id="registration-password-requirements" password={password} />}
             </label>
 
             {!isLogin && (
@@ -139,8 +170,8 @@ export function AuthScreen({ mode }: Props) {
                 <input
                   required
                   type={showPassword ? 'text' : 'password'}
-                  minLength={12}
-                  maxLength={128}
+                  minLength={PASSWORD_MIN_LENGTH}
+                  maxLength={PASSWORD_MAX_LENGTH}
                   autoComplete="new-password"
                   value={passwordConfirmation}
                   onChange={(event) => setPasswordConfirmation(event.target.value)}
@@ -152,12 +183,20 @@ export function AuthScreen({ mode }: Props) {
               </label>
             )}
 
-            {message && <div id={confirmationError ? 'password-confirmation-error' : undefined} role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{message}</div>}
+            {message && <div id={confirmationError ? 'password-confirmation-error' : passwordError ? 'password-error' : undefined} role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{message}</div>}
 
             <button disabled={submitting} className="h-13 w-full rounded-2xl bg-blue-600 text-base font-bold text-white transition hover:bg-blue-700 disabled:cursor-wait disabled:bg-blue-300">
               {submitting ? '확인 중...' : isLogin ? '로그인' : '계정 만들기'}
             </button>
           </form>
+
+          {isLogin && (
+            <nav aria-label="계정 찾기" className="mt-5 flex items-center justify-center gap-3 text-sm font-bold text-neutral-600">
+              <Link to="/find-account" className="hover:text-blue-600">아이디 찾기</Link>
+              <span className="h-3 w-px bg-neutral-300" aria-hidden="true" />
+              <Link to="/reset-password" className="hover:text-blue-600">비밀번호 찾기</Link>
+            </nav>
+          )}
 
           <div className="mt-6 border-t border-neutral-100 pt-5 text-center text-sm text-neutral-500">
             {isLogin ? '처음 오셨나요?' : '이미 계정이 있나요?'}{' '}
