@@ -54,3 +54,9 @@ POST /api/v1/records/sessions
 5. systemd 서비스 재시작 및 health check
 
 Docker와 장기 AWS access key는 사용하지 않습니다. Caddy가 `topjug.kr`의 TLS 인증서와 reverse proxy를 담당합니다.
+
+## iOS wrapper
+
+The iOS app is a Capacitor wrapper around `https://topjug.kr`, not a separately deployed mobile frontend. Synchronize the checked-in Swift Package Manager project with `npm run ios:sync` and open it with `npm run ios:open`.
+
+Authentication remains on the existing same-origin web contract. Native OAuth, cookie, JWT, Keychain, or `WKWebsiteDataStore` changes require `tmin002` as a pull-request reviewer. See [`docs/mobile/ios-wrapper.md`](./docs/mobile/ios-wrapper.md) for the architecture decision, device verification matrix, and known production risks.
