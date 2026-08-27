@@ -16,6 +16,9 @@
     "ios:add": "cap add ios",
     "ios:open": "cap open ios",
     "ios:sync": "cap sync ios",
+    "android:add": "cap add android",
+    "android:open": "cap open android",
+    "android:sync": "cap sync android",
     "local:down": "docker compose down",
     "local:up": "docker compose up --detach --wait",
     "lint:openapi": "redocly lint docs/backend/openapi.yaml --skip-rule operation-4xx-response",
@@ -30,6 +33,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1116.0",
     "@aws-sdk/client-ssm": "3.1116.0",
+    "@capacitor/android": "^8.5.0",
     "@capacitor/app": "8.1.1",
     "@capacitor/core": "8.5.0",
     "@capacitor/ios": "8.5.0",

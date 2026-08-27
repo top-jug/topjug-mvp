@@ -5,7 +5,7 @@ import config from '../../capacitor.config';
 
 const TOPJUG_ORIGIN = 'https://topjug.kr/';
 
-test('iOS wrapper only loads the HTTPS TopJug origin', () => {
+test('mobile wrappers only load the HTTPS TopJug origin', () => {
   assert.equal(config.server?.url, TOPJUG_ORIGIN);
   assert.equal(config.server?.cleartext, false);
   assert.deepEqual(config.server?.allowNavigation, undefined);

@@ -60,3 +60,7 @@ Docker와 장기 AWS access key는 사용하지 않습니다. Caddy가 `topjug.k
 The iOS app is a Capacitor wrapper around `https://topjug.kr`, not a separately deployed mobile frontend. Synchronize the checked-in Swift Package Manager project with `npm run ios:sync` and open it with `npm run ios:open`.
 
 Authentication remains on the existing same-origin web contract. Native OAuth, cookie, JWT, Keychain, or `WKWebsiteDataStore` changes require `tmin002` as a pull-request reviewer. See [`docs/mobile/ios-wrapper.md`](./docs/mobile/ios-wrapper.md) for the architecture decision, device verification matrix, and known production risks.
+
+## Android wrapper
+
+The Android app uses the same Capacitor `topjug.kr` wrapper and same-origin authentication contract. Synchronize the checked-in Android project with `npm run android:sync` and open it in Android Studio with `npm run android:open`. Native OAuth, cookie, JWT, Keystore, or WebView storage changes require `tmin002` as a pull-request reviewer. See [`docs/mobile/android-wrapper.md`](./docs/mobile/android-wrapper.md).
