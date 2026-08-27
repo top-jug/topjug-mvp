@@ -38,11 +38,13 @@ The Android WebView cookie behavior must be verified on a physical device before
 
 ## Verification status
 
-`npx cap add android` and `npx cap sync android` completed. The first Gradle build downloaded Gradle 8.14.3 and Android SDK 36 successfully, but compilation requires Java 21 while this machine currently has Java 19. Install/select JDK 21 (and use a writable Gradle cache) before running:
+`npx cap add android` and `npx cap sync android` completed. OpenJDK 21.0.12.1, Gradle 8.14.3, and Android SDK 36 were used to complete a Debug APK build successfully:
 
 ```bash
 cd android
-./gradlew assembleDebug
+JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew assembleDebug
 ```
+
+The generated local artifact is `android/app/build/outputs/apk/debug/app-debug.apk`. Build outputs are ignored by Git and are not committed.
 
 Then use Android Studio or `npx cap run android` for emulator/device execution. Record Android version, device, build type, result, and redacted evidence for login, refresh, force-quit/relaunch, logout, offline launch, and external links. Never record tokens, cookies, authorization headers, passwords, or raw login identifiers.
