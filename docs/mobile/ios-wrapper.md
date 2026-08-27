@@ -69,7 +69,7 @@ After the matrix is complete:
 
 ## Initial scaffold verification
 
-The scaffold was generated with Capacitor 8.5.0 and synchronized successfully. The verification machine has Xcode 26.3 installed, but its license has not been accepted and `xcode-select` still points to Command Line Tools. Native compilation, simulator execution, code signing, and physical-device verification remain pending until a developer accepts the Xcode license and activates the full Xcode developer directory.
+The scaffold was generated with Capacitor 8.5.0 and synchronized successfully. Xcode 26.3 is active, the Xcode license is accepted, and the iOS 26.3.1 Simulator runtime is installed. A no-signing Debug build for the iOS Simulator completed successfully. Simulator execution and physical-device verification remain pending; the latter additionally requires Apple ID/team signing, a trusted device, and Developer Mode.
 
 ```bash
 sudo xcodebuild -license
