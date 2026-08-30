@@ -1,5 +1,6 @@
 import { type KeyboardEvent, type UIEvent, useEffect, useId, useRef } from 'react';
 import { ImageWithFallback } from '../../../app/components/figma/ImageWithFallback';
+import KakaoLocationMap from './KakaoLocationMap';
 import {
   carouselNavigationAvailability,
   carouselSlideForKey,
@@ -17,6 +18,10 @@ interface GymDetailCarouselProps {
   mapImage?: string | null;
   mapHref?: string | null;
   mapLinkLabel?: string;
+  mapAppKey?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  gymTitle: string;
   calendarDays: Array<number | ''>;
   eventDays?: number[];
   monthLabel?: string;
@@ -24,7 +29,22 @@ interface GymDetailCarouselProps {
   onSlideChange: (index: number) => void;
 }
 
-export default function GymDetailCarousel({ currentSlide, photos, mapImage, mapHref, mapLinkLabel = '카카오맵에서 암장 위치 보기', calendarDays, eventDays = [], monthLabel = '세팅 일정', onChangeEventMonth, onSlideChange }: GymDetailCarouselProps) {
+export default function GymDetailCarousel({
+  currentSlide,
+  photos,
+  mapImage,
+  mapHref,
+  mapLinkLabel = '카카오맵에서 암장 위치 보기',
+  mapAppKey,
+  latitude,
+  longitude,
+  gymTitle,
+  calendarDays,
+  eventDays = [],
+  monthLabel = '세팅 일정',
+  onChangeEventMonth,
+  onSlideChange,
+}: GymDetailCarouselProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const slideRefs = useRef<Array<HTMLDivElement | null>>([]);
   const slideControlRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -188,7 +208,19 @@ export default function GymDetailCarousel({ currentSlide, photos, mapImage, mapH
           </div>
 
           <div ref={(node) => { slideRefs.current[2] = node; }} role="group" aria-roledescription="slide" aria-label={gymDetailSlideLabel(2)} aria-hidden={activeSlide !== 2} inert={activeSlide !== 2} className="w-full flex-shrink-0 snap-center min-h-[300px] bg-neutral-100 rounded-2xl relative overflow-hidden">
-            {mapImage ? <ImageWithFallback src={mapImage} alt="암장 위치 지도 이미지" className="h-full w-full object-cover" /> : <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-[13px] text-neutral-500">{mapHref ? '등록된 위치 지도 이미지가 없습니다.' : '좌표 정보가 없어 위치 지도를 열 수 없습니다.'}</div>}
+            {mapHref ? (
+              <KakaoLocationMap
+                appKey={mapAppKey}
+                latitude={latitude}
+                longitude={longitude}
+                title={gymTitle}
+                isActive={activeSlide === 2}
+              />
+            ) : mapImage ? (
+              <ImageWithFallback src={mapImage} alt="암장 위치 지도 이미지" className="h-full w-full object-cover" />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-[13px] text-neutral-500">좌표 정보가 없어 위치 지도를 열 수 없습니다.</div>
+            )}
             <div className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-2 text-[12px] font-semibold text-neutral-700 shadow-sm">위치 지도</div>
             {mapHref && (
               <a

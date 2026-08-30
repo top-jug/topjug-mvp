@@ -6,7 +6,9 @@ import {
   carouselNavigationAvailability,
   carouselSlideForKey,
   clampCarouselSlide,
+  getKakaoMapScriptSrc,
   gymDetailSlideLabel,
+  isValidKakaoMapPoint,
   isHorizontalArrowKey,
   shouldSyncCarouselScroll,
   shouldTransferCarouselFocus,
@@ -87,11 +89,20 @@ test('calendar controls consume only horizontal arrow keys from outer carousel m
 
 test('gym map links are offered only for complete valid coordinates', () => {
   assert.equal(buildGymMapLink(37.5665, 126.978), 'https://map.kakao.com/link/map/37.5665,126.978');
+  assert.equal(isValidKakaoMapPoint(37.5665, 126.978), true);
   assert.equal(buildGymMapLink(null, 126.978), null);
   assert.equal(buildGymMapLink(37.5665, null), null);
   assert.equal(buildGymMapLink(Number.NaN, 126.978), null);
   assert.equal(buildGymMapLink(91, 126.978), null);
   assert.equal(buildGymMapLink(37.5665, -181), null);
+  assert.equal(isValidKakaoMapPoint(null, 126.978), false);
+});
+
+test('Kakao map SDK loader uses the public JavaScript key and deferred autoload', () => {
+  assert.equal(
+    getKakaoMapScriptSrc('test key'),
+    'https://dapi.kakao.com/v2/maps/sdk.js?appkey=test%20key&autoload=false',
+  );
 });
 
 test('gym detail media keeps logos separate from real photos and location maps', () => {
