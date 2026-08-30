@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { toRegisterInput, validateRegistrationPasswords } from '../../src/features/auth/registration';
+import { authenticatedLandingPath } from '../../src/features/auth/auth-navigation';
 import {
   AUTH_SESSION_EVENT_KEY,
   canUseSessionStorage,
@@ -53,6 +54,12 @@ test('registration confirmation is omitted from the API input', () => {
     }),
     { displayName: 'Climber', email: 'climber@example.com', password: 'long-enough-password' },
   );
+});
+
+test('operations administrators land in the console unless an intended path is present', () => {
+  assert.equal(authenticatedLandingPath(null, 'operations_admin'), '/ops');
+  assert.equal(authenticatedLandingPath(null, 'user'), '/');
+  assert.equal(authenticatedLandingPath({ from: '/ops/gyms' }, 'operations_admin'), '/ops/gyms');
 });
 
 test('authenticated session events are uniquely published and strictly recognized', () => {

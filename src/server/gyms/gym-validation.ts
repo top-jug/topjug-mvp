@@ -8,7 +8,7 @@ export const listGymsSchema = z.object({
     z.array(z.string().trim().min(1).max(40)).max(10),
   ),
   tag: z.string().trim().max(40).optional(),
-  operationStatus: z.enum(['active', 'temporarily_closed', 'closed', 'opening_soon']).default('active'),
+  operationStatus: z.enum(['active', 'temporarily_closed', 'closed', 'opening_soon']).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 }).strict();
 

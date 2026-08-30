@@ -1,6 +1,6 @@
 {
-  "id": "8ce9221a-a800-41f5-90fc-459259d20217",
-  "prevId": "835080e8-7e08-4251-bf26-e67c617b2229",
+  "id": "ba132223-74ca-4e10-90df-2cb9c904da35",
+  "prevId": "8ce9221a-a800-41f5-90fc-459259d20217",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -205,14 +205,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'completed'"
-        },
-        "session_type": {
-          "name": "session_type",
-          "type": "record_session_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'free'"
         },
         "started_at": {
           "name": "started_at",
@@ -3567,15 +3559,6 @@
       "values": [
         "easy",
         "normal"
-      ]
-    },
-    "public.record_session_type": {
-      "name": "record_session_type",
-      "schema": "public",
-      "values": [
-        "free",
-        "training",
-        "project"
       ]
     },
     "public.record_share_status": {

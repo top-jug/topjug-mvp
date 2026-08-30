@@ -26,7 +26,7 @@ test('session type is absent from record runtime and API contracts', () => {
   ].map(source).join('\n');
 
   assert.doesNotMatch(runtimeContract, /sessionType|session_type|record_session_type/);
-  const migration = source('drizzle/0004_drop_record_session_type.sql');
+  const migration = source('drizzle/0005_drop_record_session_type.sql');
   assert.match(migration, /SET LOCAL lock_timeout = '5s'/);
   assert.match(migration, /DROP COLUMN "session_type"/);
   assert.match(migration, /DROP TYPE "public"\."record_session_type"/);
