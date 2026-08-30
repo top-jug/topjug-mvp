@@ -36,6 +36,13 @@
       "when": 1788077216311,
       "tag": "0004_handy_punisher",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788081392314,
+      "tag": "0005_drop_record_session_type",
+      "breakpoints": true
     }
   ]
 }

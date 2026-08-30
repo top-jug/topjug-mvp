@@ -15,41 +15,20 @@ test('record API contract exposes gym logos and the server resolves ready logo m
   assert.match(service, /attachGymLogos/);
 });
 
-test('record runtime never reads or writes the retained session type column', () => {
-  const recordService = source('src/server/records/record-service.ts');
-  const sessionService = source('src/server/records/record-session-service.ts');
+test('session type is absent from record runtime and API contracts', () => {
   const runtimeContract = [
     'docs/backend/openapi.yaml',
     'src/app/api/record-api.ts',
+    'src/server/db/schema.ts',
     'src/server/records/record-service.ts',
-    'src/server/records/record-session-service.ts',
     'src/server/records/record-validation.ts',
     'src/server/shares/share-service.ts',
   ].map(source).join('\n');
-  const createInsert = recordService.slice(
-    recordService.indexOf('.insert(climbingRecords)'),
-    recordService.indexOf('const counts ='),
-  );
-  const sessionInsert = sessionService.slice(
-    sessionService.indexOf('transaction.insert(climbingRecords)'),
-    sessionService.indexOf("transaction.insert(auditEvents)"),
-  );
 
   assert.doesNotMatch(runtimeContract, /sessionType|session_type|record_session_type/);
-  assert.match(createInsert, /\.returning\(\{/);
-  assert.doesNotMatch(createInsert, /\.returning\(\)/);
-  assert.doesNotMatch(sessionService, /select\(\)\.from\(climbingRecords\)/);
-  assert.match(sessionInsert, /\.returning\(\{/);
-  assert.doesNotMatch(sessionInsert, /\.returning\(\)/);
-});
-
-test('session type remains declared for the phase-two physical migration', () => {
-  const schema = source('src/server/db/schema.ts');
-  const erd = source('docs/backend/erd.md');
-  const journal = source('drizzle/meta/_journal.json');
-
-  assert.match(schema, /recordSessionType = pgEnum\('record_session_type'/);
-  assert.match(schema, /sessionType: recordSessionType\('session_type'\)/);
-  assert.match(erd, /record_session_type session_type/);
-  assert.doesNotMatch(journal, /drop_record_session_type/);
+  const migration = source('drizzle/0005_drop_record_session_type.sql');
+  assert.match(migration, /SET LOCAL lock_timeout = '5s'/);
+  assert.match(migration, /DROP COLUMN "session_type"/);
+  assert.match(migration, /DROP TYPE "public"\."record_session_type"/);
+  assert.doesNotMatch(migration, /CASCADE/);
 });

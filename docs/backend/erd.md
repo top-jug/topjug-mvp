@@ -228,7 +228,6 @@ erDiagram
     uuid membership_id FK
     record_access_type access_type
     record_status status
-    record_session_type session_type
     timestamptz started_at
     timestamptz ended_at
     integer active_duration_seconds

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { registerUser, rotateRefreshToken } from '../../src/server/auth/auth-service';
 import { closeDatabase, getDatabase } from '../../src/server/db/client';
 import { auditEvents, climbingRecords, gymGrades, gyms, gymSectors, gymWalls, loginAttempts, memberships, membershipUsages, users } from '../../src/server/db/schema';
@@ -23,6 +23,15 @@ import { createRecordShare, listRecordShares, revokeRecordShare } from '../../sr
 
 test('database-backed auth, refresh concurrency, and record ownership flow', async () => {
   const database = getDatabase();
+  const [removedSchema] = await database.execute(sql<{ session_type_columns: number; session_type_enums: number }>`
+    SELECT
+      count(*) FILTER (WHERE table_name = 'climbing_records' AND column_name = 'session_type')::int AS session_type_columns,
+      (SELECT count(*)::int FROM pg_type WHERE typname = 'record_session_type') AS session_type_enums
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+  `);
+  assert.equal(removedSchema.session_type_columns, 0);
+  assert.equal(removedSchema.session_type_enums, 0);
   const requestId = randomUUID();
   const suffix = randomUUID();
   const [gym] = await database.insert(gyms).values({
@@ -123,10 +132,6 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
       assert.equal(record.sends, 3);
       assert.equal(record.attempts, 5);
       assert.equal('sessionType' in record, false);
-      const [persistedRecord] = await database.select({ sessionType: climbingRecords.sessionType })
-        .from(climbingRecords).where(eq(climbingRecords.id, record.id));
-      assert.ok(persistedRecord);
-      assert.equal(persistedRecord.sessionType, 'free');
 
       const membership = await createMembership(first.user.id, {
         name: 'Integration Count Pass',
