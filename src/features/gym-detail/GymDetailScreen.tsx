@@ -130,6 +130,7 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
           mapAppKey={process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY}
           latitude={gym.latitude}
           longitude={gym.longitude}
+          address={gym.address}
           gymTitle={presentation.title}
           calendarDays={presentation.calendar.days}
           eventDays={presentation.calendar.eventDays}
