@@ -1,22 +1,17 @@
 import { type FormEvent, useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router';
+import { Link, Navigate, useLocation } from 'react-router';
 import { isApiClientError } from '../../lib/api';
 import { useAuth } from './AuthProvider';
 import { toRegisterInput, validateRegistrationPasswords } from './registration';
+import { authenticatedLandingPath } from './auth-navigation';
 
 type Props = {
   mode: 'login' | 'register';
 };
 
-function intendedPath(state: unknown) {
-  if (!state || typeof state !== 'object' || !('from' in state) || typeof state.from !== 'string') return '/';
-  return state.from.startsWith('/') ? state.from : '/';
-}
-
 export function AuthScreen({ mode }: Props) {
-  const { status, isRestoringSession, login, register } = useAuth();
+  const { status, user, isRestoringSession, login, register } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,7 +20,7 @@ export function AuthScreen({ mode }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const submitting = status === 'loading';
 
-  if (status === 'authenticated') return <Navigate to={intendedPath(location.state)} replace />;
+  if (status === 'authenticated' && user) return <Navigate to={authenticatedLandingPath(location.state, user.role)} replace />;
   if (isRestoringSession) {
     return (
       <main className="min-h-screen bg-[#f4f7fb] px-5 flex items-center justify-center" aria-busy="true" aria-live="polite">
@@ -52,7 +47,6 @@ export function AuthScreen({ mode }: Props) {
     try {
       if (mode === 'login') await login({ email, password });
       else await register(toRegisterInput({ displayName, email, password, passwordConfirmation }));
-      navigate(intendedPath(location.state), { replace: true });
     } catch (error) {
       setMessage(isApiClientError(error) ? error.message : '요청을 처리하지 못했습니다.');
     }
