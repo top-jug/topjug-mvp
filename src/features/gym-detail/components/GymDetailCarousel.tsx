@@ -7,6 +7,7 @@ import {
   clampCarouselSlide,
   GYM_DETAIL_SLIDE_TITLES,
   gymDetailSlideLabel,
+  hasKakaoLocationSource,
   isHorizontalArrowKey,
   shouldSyncCarouselScroll,
   shouldTransferCarouselFocus,
@@ -21,6 +22,7 @@ interface GymDetailCarouselProps {
   mapAppKey?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  address?: string | null;
   gymTitle: string;
   calendarDays: Array<number | ''>;
   eventDays?: number[];
@@ -38,6 +40,7 @@ export default function GymDetailCarousel({
   mapAppKey,
   latitude,
   longitude,
+  address,
   gymTitle,
   calendarDays,
   eventDays = [],
@@ -53,6 +56,7 @@ export default function GymDetailCarousel({
   const slideCount = GYM_DETAIL_SLIDE_TITLES.length;
   const activeSlide = clampCarouselSlide(currentSlide, slideCount);
   const navigation = carouselNavigationAvailability(activeSlide, slideCount);
+  const hasLocationSource = hasKakaoLocationSource({ latitude, longitude, address });
 
   useEffect(() => {
     if (programmaticScrollTargetRef.current === activeSlide) {
@@ -208,11 +212,12 @@ export default function GymDetailCarousel({
           </div>
 
           <div ref={(node) => { slideRefs.current[2] = node; }} role="group" aria-roledescription="slide" aria-label={gymDetailSlideLabel(2)} aria-hidden={activeSlide !== 2} inert={activeSlide !== 2} className="w-full flex-shrink-0 snap-center min-h-[300px] bg-neutral-100 rounded-2xl relative overflow-hidden">
-            {mapHref ? (
+            {hasLocationSource ? (
               <KakaoLocationMap
                 appKey={mapAppKey}
                 latitude={latitude}
                 longitude={longitude}
+                address={address}
                 title={gymTitle}
                 isActive={activeSlide === 2}
               />

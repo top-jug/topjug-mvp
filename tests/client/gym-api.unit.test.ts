@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, mock, test } from 'node:test';
 import { displayGymName, getGym, listGyms, listRecentVisitedGyms } from '../../src/app/api/gym-api';
+import { listRegions } from '../../src/app/api/region-api';
 import { apiClient } from '../../src/lib/api/client';
 
 afterEach(() => {
@@ -64,6 +65,49 @@ test('gym list query sends multi-token Korean region intent to the server', asyn
   await listGyms({ q: ' 서울 종로 ', limit: 100 });
 
   assert.match(requestedUrl, /q=%EC%84%9C%EC%9A%B8\+%EC%A2%85%EB%A1%9C/);
+});
+
+test('gym list sends canonical region independently from free text', async () => {
+  let requestedUrl = '';
+  mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+    requestedUrl = String(input);
+    return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+
+  await listGyms({ q: '클라이밍', regionCode: '11110', limit: 10 });
+
+  assert.match(requestedUrl, /q=%ED%81%B4%EB%9D%BC%EC%9D%B4%EB%B0%8D/);
+  assert.match(requestedUrl, /regionCode=11110/);
+});
+
+test('gym list repeats every selected facility in the server query', async () => {
+  let requestedUrl = '';
+  mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+    requestedUrl = String(input);
+    return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+
+  await listGyms({ facility: ['shower', 'parking'], limit: 1 });
+
+  const query = new URL(requestedUrl, 'https://topjug.test').searchParams;
+  assert.deepEqual(query.getAll('facility'), ['shower', 'parking']);
+  assert.equal(query.get('limit'), '1');
+});
+
+test('region catalog uses the public read-only endpoint', async () => {
+  let requestedUrl = '';
+  mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+    requestedUrl = String(input);
+    return new Response(JSON.stringify({ data: [{ code: '11', name: '서울특별시', level: 1, parentCode: null, sortOrder: 10 }] }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  });
+
+  const response = await listRegions();
+
+  assert.equal(requestedUrl, '/api/v1/regions');
+  assert.equal(response.data[0]?.code, '11');
 });
 
 test('gym detail adapter preserves operation, special hours, parking, and contact fields', async () => {
