@@ -2,7 +2,6 @@ import { UIEvent, useLayoutEffect, useRef } from 'react';
 import { ImageWithFallback } from '../../../app/components/figma/ImageWithFallback';
 import { CalendarData, CalendarGym } from '../../../entities/calendar/types';
 import { getCalendarSlideStateKey, reconcileCalendarSlide } from '../calendar-state';
-import { recordSessionTypeLabel } from '../../record/session-labels';
 
 interface CalendarDetailSectionProps {
   mode: 'record' | 'setting';
@@ -136,14 +135,10 @@ export default function CalendarDetailSection({ mode, year, month, selectedDate,
                           완료
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 mb-3">
+                      <div className="mb-3">
                         <div className="rounded-xl bg-white border border-neutral-200 px-3 py-2">
                           <div className="text-[12px] text-neutral-500 mb-1">기록 요약</div>
                           <div className="text-[14px] font-medium text-neutral-900">{entry.wall}</div>
-                        </div>
-                        <div className="rounded-xl bg-white border border-neutral-200 px-3 py-2">
-                          <div className="text-[12px] text-neutral-500 mb-1">세션 상태</div>
-                          <div className="text-[14px] font-medium text-neutral-900">{recordSessionTypeLabel(entry.sessionType)}</div>
                         </div>
                       </div>
                       <div className="rounded-xl border border-neutral-200 px-3 py-3 text-[13px] text-neutral-600 leading-6">

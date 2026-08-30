@@ -78,7 +78,7 @@ After completion or cancellation, active-session transitions return `ACTIVE_RECO
 
 ## Known API limitations
 
-- Gym search returns at most 100 gyms and has no cursor or total count. Filtering uses stored free-form region, facility, and tag codes; there is no region-catalog endpoint.
+- Gym search returns at most 100 gyms and has no cursor or total count. `regionCode` is a canonical physical administrative-region subtree filter and is applied with `q`, facility, and tag filters before the limit. `/api/v1/regions` supplies the two-level catalog.
 - Record-list `sends` and `attempts` are per-record aggregates computed in the page query; the API does not expose cross-page totals.
 - Membership validity is represented as timezone-aware instants, not local calendar dates. Updates are full replacements and require the last observed `updatedAt` as `expectedUpdatedAt`; stale updates return `409 MEMBERSHIP_CHANGED`.
 - Memberships can reference multiple gyms, while the current frontend editor exposes one gym selection. API clients that manage multi-gym memberships must preserve the full `gymIds` array.
@@ -119,7 +119,7 @@ The runtime URL uses the restricted `topjug_app` role; the migration URL uses th
 
 Production systemd config sets `EMAIL_DELIVERY_MODE=ses` and `EMAIL_FROM_ADDRESS=no-reply@topjug.kr`; these non-secret settings are not stored in SSM. The infrastructure stack provisions the SES identity, DKIM DNS records, runtime send permission, and deployment-role inspection permission. CI gates upload and migration on production access, identity, and DKIM readiness. The EC2 release script then performs a live send to the SES success simulator before switching the current release symlink. This activation path depends on #82 and must be released together with #87.
 
-Initial gym data is a controlled one-time operation, not part of every deployment. Production RDS is private, so run the bundled importer on EC2 through SSM with `SSM_PARAMETER_PREFIX`, `MEDIA_S3_BUCKET`, `MEDIA_PUBLIC_BASE_URL`, and an explicit `--apply`. Grant media write access only for the import and remove it afterward. The importer verifies the expected 31 gyms, 7 brands, 31 assets, and 93 media roles; a second run must upload no objects. See the [production database and media runbook](../operations/production-data.md).
+Initial gym data is a controlled one-time operation, not part of every deployment. Production RDS is private, so run the bundled importer on EC2 through SSM with `SSM_PARAMETER_PREFIX`, `MEDIA_S3_BUCKET`, `MEDIA_PUBLIC_BASE_URL`, and an explicit `--apply`. Grant media write access only for the import and remove it afterward. The importer verifies the expected 31 gyms, reviewed second-level physical regions, 7 brands, 31 assets, and 93 media roles; a second run must upload no objects. See the [production database and media runbook](../operations/production-data.md).
 
 ## Observability
 

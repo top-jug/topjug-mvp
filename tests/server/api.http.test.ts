@@ -32,7 +32,10 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
   const [gym] = await database.insert(gyms).values({
     name: `HTTP Gym ${suffix}`,
     address: 'Local Docker PostgreSQL',
+    regionCode: '11110',
+    facilities: ['shower', 'parking'],
   }).returning();
+  let facilityDecoyGymId: string | undefined;
   const [grade] = await database.insert(gymGrades).values({
     gymId: gym.id,
     code: 'green',
@@ -99,6 +102,12 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
     assert.equal(unauthorizedRecentGyms.status, 401);
 
     const authorization = { authorization: `Bearer ${registerBody.data.accessToken}` };
+    const regionCatalog = await jsonRequest('/regions');
+    assert.equal(regionCatalog.status, 200);
+    const regionCatalogBody = await regionCatalog.json() as { data: Array<{ code: string; level: number; parentCode: string | null }> };
+    assert.equal(regionCatalogBody.data.filter((region) => region.level === 1).length, 17);
+    assert.ok(regionCatalogBody.data.some((region) => region.code === '11110' && region.parentCode === '11'));
+
     const incomingRequestId = randomUUID();
     const gymList = await jsonRequest(`/gyms?q=${encodeURIComponent(suffix)}`, {
       headers: { 'x-request-id': incomingRequestId },
@@ -111,6 +120,29 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
       'address', 'branchName', 'brand', 'calendarColor', 'calendarTextColor', 'cover', 'dayPassPrice', 'facilities',
       'id', 'latitude', 'longitude', 'name', 'operationStatus', 'regionCode', 'tags',
     ]);
+
+    const seoulRegionList = await jsonRequest(`/gyms?q=${encodeURIComponent(suffix)}&regionCode=11&limit=1`);
+    assert.equal(seoulRegionList.status, 200);
+    assert.deepEqual((await seoulRegionList.json() as { data: Array<{ id: string }> }).data.map((item) => item.id), [gym.id]);
+    const jongnoRegionList = await jsonRequest(`/gyms?q=${encodeURIComponent(suffix)}&regionCode=11110`);
+    assert.equal(jongnoRegionList.status, 200);
+    assert.deepEqual((await jongnoRegionList.json() as { data: Array<{ id: string }> }).data.map((item) => item.id), [gym.id]);
+    const invalidRegionList = await jsonRequest('/gyms?regionCode=not-a-region');
+    assert.equal(invalidRegionList.status, 400);
+    assert.equal((await invalidRegionList.json() as { error: { code: string } }).error.code, 'INVALID_REGION_CODE');
+    const [facilityDecoyGym] = await database.insert(gyms).values({
+      name: `AAA HTTP Gym ${suffix}`,
+      address: 'Local Docker PostgreSQL',
+      regionCode: '11110',
+      facilities: ['shower'],
+    }).returning({ id: gyms.id });
+    facilityDecoyGymId = facilityDecoyGym.id;
+    const facilityQuery = new URLSearchParams({ q: suffix, regionCode: '11', limit: '1' });
+    facilityQuery.append('facility', 'shower');
+    facilityQuery.append('facility', 'parking');
+    const allFacilitiesList = await jsonRequest(`/gyms?${facilityQuery}`);
+    assert.equal(allFacilitiesList.status, 200);
+    assert.deepEqual((await allFacilitiesList.json() as { data: Array<{ id: string }> }).data.map((item) => item.id), [gym.id]);
 
     const gymDetail = await jsonRequest(`/gyms/${gym.id}`, { headers: { 'x-request-id': 'invalid-request-id' } });
     assert.equal(gymDetail.status, 200);
@@ -434,6 +466,7 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
       await database.delete(users).where(eq(users.id, user.id));
     }
     await database.delete(gyms).where(eq(gyms.id, gym.id));
+    if (facilityDecoyGymId) await database.delete(gyms).where(eq(gyms.id, facilityDecoyGymId));
     await database.delete(loginAttempts);
     await closeDatabase();
   }

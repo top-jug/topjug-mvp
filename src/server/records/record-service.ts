@@ -167,7 +167,6 @@ export async function createRecord(userId: string, input: CreateRecordInput) {
         membershipId: input.membershipId ?? null,
         accessType: input.accessType,
         status: 'completed',
-        sessionType: input.sessionType,
         startedAt: new Date(input.startedAt),
         endedAt: new Date(input.endedAt),
         activeDurationSeconds: input.activeDurationSeconds,

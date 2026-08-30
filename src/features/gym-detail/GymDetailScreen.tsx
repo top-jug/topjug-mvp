@@ -8,7 +8,7 @@ import GymDetailHeader from './components/GymDetailHeader';
 import GymDifficultySection from './components/GymDifficultySection';
 import GymFacilitiesSection from './components/GymFacilitiesSection';
 import GymInfoSection from './components/GymInfoSection';
-import { buildGymMapLink } from './gym-detail-controls';
+import { buildGymMapLink, buildGymMapSearchLink } from './gym-detail-controls';
 import {
   buildGymSettingCalendar,
   presentGymContacts,
@@ -80,7 +80,7 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
       logoUrl: media.logoUrl,
       photos: media.photos,
       mapImage: media.locationMapImage,
-      mapHref: buildGymMapLink(gym.latitude, gym.longitude),
+      mapHref: buildGymMapLink(gym.latitude, gym.longitude) ?? buildGymMapSearchLink(gym.address, displayGymName(gym)),
       calendar,
       focusMonth,
       grades: gym.grades.map((grade) => ({ color: grade.color, label: grade.label })),
@@ -130,6 +130,7 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
           mapAppKey={process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY}
           latitude={gym.latitude}
           longitude={gym.longitude}
+          address={gym.address}
           gymTitle={presentation.title}
           calendarDays={presentation.calendar.days}
           eventDays={presentation.calendar.eventDays}

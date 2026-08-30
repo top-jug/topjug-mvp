@@ -74,7 +74,6 @@ export async function startRecordSession(userId: string, input: StartRecordSessi
       membershipId: input.membershipId ?? null,
       accessType: input.accessType,
       status: 'in_progress',
-      sessionType: input.sessionType,
       startedAt: new Date(input.startedAt),
       mode: input.mode,
       note: input.note ?? null,

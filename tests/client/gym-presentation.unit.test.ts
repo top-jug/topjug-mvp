@@ -3,11 +3,13 @@ import test from 'node:test';
 import type { GymOperatingHourOverride, GymSettingEvent } from '../../src/app/api/gym-api';
 import {
   buildGymMapLink,
+  buildGymMapSearchLink,
   carouselNavigationAvailability,
   carouselSlideForKey,
   clampCarouselSlide,
   getKakaoMapScriptSrc,
   gymDetailSlideLabel,
+  hasKakaoLocationSource,
   isValidKakaoMapPoint,
   isHorizontalArrowKey,
   shouldSyncCarouselScroll,
@@ -89,6 +91,8 @@ test('calendar controls consume only horizontal arrow keys from outer carousel m
 
 test('gym map links are offered only for complete valid coordinates', () => {
   assert.equal(buildGymMapLink(37.5665, 126.978), 'https://map.kakao.com/link/map/37.5665,126.978');
+  assert.equal(buildGymMapSearchLink('서울특별시 종로구 청계천로 1', '테스트 암장'), 'https://map.kakao.com/link/search/%ED%85%8C%EC%8A%A4%ED%8A%B8%20%EC%95%94%EC%9E%A5%20%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EC%A2%85%EB%A1%9C%EA%B5%AC%20%EC%B2%AD%EA%B3%84%EC%B2%9C%EB%A1%9C%201');
+  assert.equal(buildGymMapSearchLink('   ', '   '), null);
   assert.equal(isValidKakaoMapPoint(37.5665, 126.978), true);
   assert.equal(buildGymMapLink(null, 126.978), null);
   assert.equal(buildGymMapLink(37.5665, null), null);
@@ -101,8 +105,14 @@ test('gym map links are offered only for complete valid coordinates', () => {
 test('Kakao map SDK loader uses the public JavaScript key and deferred autoload', () => {
   assert.equal(
     getKakaoMapScriptSrc('test key'),
-    'https://dapi.kakao.com/v2/maps/sdk.js?appkey=test%20key&autoload=false',
+    'https://dapi.kakao.com/v2/maps/sdk.js?appkey=test%20key&libraries=services&autoload=false',
   );
+});
+
+test('Kakao map source can fall back from missing coordinates to a gym address', () => {
+  assert.equal(hasKakaoLocationSource({ latitude: null, longitude: null, address: '서울특별시 종로구 청계천로 1' }), true);
+  assert.equal(hasKakaoLocationSource({ latitude: 37.5665, longitude: 126.978, address: null }), true);
+  assert.equal(hasKakaoLocationSource({ latitude: null, longitude: null, address: '   ' }), false);
 });
 
 test('gym detail media keeps logos separate from real photos and location maps', () => {
