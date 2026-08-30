@@ -1,4 +1,4 @@
-import type { AuthStatus } from './types';
+import type { AuthStatus, UserRole } from './types';
 
 type RouteLocation = {
   pathname: string;
@@ -9,6 +9,13 @@ type RouteLocation = {
 export function intendedPath(state: unknown) {
   if (!state || typeof state !== 'object' || !('from' in state) || typeof state.from !== 'string') return '/';
   return state.from.startsWith('/') && !state.from.startsWith('//') ? state.from : '/';
+}
+
+export function authenticatedLandingPath(state: unknown, role: UserRole) {
+  if (state && typeof state === 'object' && 'from' in state && typeof state.from === 'string') {
+    return intendedPath(state);
+  }
+  return role === 'operations_admin' ? '/ops' : '/';
 }
 
 export function protectedDestination(location: RouteLocation) {

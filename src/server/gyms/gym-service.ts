@@ -36,7 +36,9 @@ function mediaReference(asset: {
 
 export async function listGyms(input: ListGymsInput) {
   const database = getDatabase();
-  const conditions = [eq(gyms.operationStatus, input.operationStatus)];
+  const conditions = [input.operationStatus
+    ? eq(gyms.operationStatus, input.operationStatus)
+    : inArray(gyms.operationStatus, ['active', 'temporarily_closed', 'opening_soon'])];
   const searchTokens = normalizeGymSearchTokens(input.q);
   if (searchTokens.length > 0) {
     conditions.push(and(...searchTokens.map((token) => (

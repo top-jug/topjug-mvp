@@ -213,6 +213,125 @@ paths:
           $ref: '#/components/responses/ServiceUnavailable'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /ops/gyms:
+    get:
+      operationId: listOperationsGyms
+      summary: List all gyms for operations management
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: operationStatus, in: query, schema: { $ref: '#/components/schemas/GymOperationStatus' } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: Recently modified gyms and page metadata
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { $ref: '#/components/schemas/OperationsGymListResponse' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    post:
+      operationId: createOperationsGym
+      summary: Create a gym and its editable base information
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateOperationsGymRequest' } } }
+      responses:
+        '201':
+          description: Created gym
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/OperationsGym' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /ops/gyms/{gymId}:
+    get:
+      operationId: getOperationsGym
+      summary: Get a gym for operations editing
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/GymIdPath' }]
+      responses:
+        '200':
+          description: Editable gym data
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/OperationsGym' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    patch:
+      operationId: updateOperationsGym
+      summary: Replace editable gym base information with optimistic concurrency
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/GymIdPath' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateOperationsGymRequest' } } }
+      responses:
+        '200':
+          description: Updated gym
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/OperationsGym' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /ops/gyms/{gymId}/operation-status:
+    patch:
+      operationId: updateOperationsGymStatus
+      summary: Update a gym's public operation status
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/GymIdPath' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateOperationsGymStatusRequest' } } }
+      responses:
+        '200':
+          description: Updated gym
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/OperationsGym' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /ops/gyms/{gymId}/verification:
+    post:
+      operationId: verifyOperationsGym
+      summary: Record that an operator explicitly verified current gym information
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/GymIdPath' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/VerifyOperationsGymRequest' } } }
+      responses:
+        '200':
+          description: Gym with updated lastVerifiedAt and version
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/OperationsGym' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /regions:
     get:
       operationId: listRegions
@@ -235,7 +354,7 @@ paths:
   /gyms:
     get:
       operationId: listGyms
-      summary: Search active gyms for search and home screens
+      summary: Search non-closed gyms for search and home screens
       security: []
       parameters:
         - { name: q, in: query, schema: { type: string, maxLength: 100 } }
@@ -252,7 +371,8 @@ paths:
         - { name: tag, in: query, schema: { type: string, maxLength: 40 } }
         - name: operationStatus
           in: query
-          schema: { type: string, enum: [active, temporarily_closed, closed, opening_soon], default: active }
+          description: When omitted, active, temporarily closed, and opening-soon gyms are included; closed gyms are excluded.
+          schema: { $ref: '#/components/schemas/GymOperationStatus' }
         - name: limit
           in: query
           schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
@@ -1177,6 +1297,92 @@ components:
         level: { type: integer, enum: [1, 2] }
         parentCode: { type: [string, 'null'] }
         sortOrder: { type: integer, minimum: 0 }
+    GymOperationStatus:
+      type: string
+      enum: [active, temporarily_closed, closed, opening_soon]
+    OperationsGymPriceInput:
+      type: [object, 'null']
+      additionalProperties: false
+      required: [amount, rawText]
+      properties:
+        amount: { type: [integer, 'null'], minimum: 0 }
+        rawText: { type: string, minLength: 1, maxLength: 100 }
+    OperationsGymFields:
+      type: object
+      required: [name, branchName, address, phone, websiteUrl, instagramUrl, nearbyDirections, operatingHoursNote, parkingInfo, calendarColor, calendarTextColor, facilities, dayPassPrice, shoeRentalPrice]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        branchName: { type: [string, 'null'], maxLength: 120 }
+        address: { type: string, minLength: 1, maxLength: 300 }
+        phone: { type: [string, 'null'], maxLength: 40 }
+        websiteUrl: { type: [string, 'null'], format: uri, pattern: '^https://' }
+        instagramUrl: { type: [string, 'null'], format: uri, pattern: '^https://' }
+        nearbyDirections: { type: [string, 'null'], maxLength: 500 }
+        operatingHoursNote: { type: [string, 'null'], maxLength: 1000 }
+        parkingInfo: { type: [string, 'null'], maxLength: 1000 }
+        calendarColor: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$' }
+        calendarTextColor: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$' }
+        facilities: { type: array, maxItems: 30, items: { type: string, minLength: 1, maxLength: 40 } }
+        dayPassPrice: { $ref: '#/components/schemas/OperationsGymPriceInput' }
+        shoeRentalPrice: { $ref: '#/components/schemas/OperationsGymPriceInput' }
+    CreateOperationsGymRequest:
+      unevaluatedProperties: false
+      allOf:
+        - { $ref: '#/components/schemas/OperationsGymFields' }
+        - type: object
+          required: [operationStatus]
+          properties: { operationStatus: { $ref: '#/components/schemas/GymOperationStatus' } }
+    UpdateOperationsGymRequest:
+      unevaluatedProperties: false
+      allOf:
+        - { $ref: '#/components/schemas/OperationsGymFields' }
+        - type: object
+          required: [expectedUpdatedAt]
+          properties: { expectedUpdatedAt: { type: string, format: date-time } }
+    UpdateOperationsGymStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [operationStatus, expectedUpdatedAt]
+      properties:
+        operationStatus: { $ref: '#/components/schemas/GymOperationStatus' }
+        expectedUpdatedAt: { type: string, format: date-time }
+    VerifyOperationsGymRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedUpdatedAt]
+      properties:
+        expectedUpdatedAt: { type: string, format: date-time }
+    OperationsGymSummary:
+      type: object
+      required: [id, name, branchName, address, operationStatus, lastVerifiedAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        branchName: { type: [string, 'null'] }
+        address: { type: string }
+        operationStatus: { $ref: '#/components/schemas/GymOperationStatus' }
+        lastVerifiedAt: { type: [string, 'null'], format: date-time }
+        updatedAt: { type: string, format: date-time }
+    OperationsGym:
+      allOf:
+        - { $ref: '#/components/schemas/OperationsGymSummary' }
+        - { $ref: '#/components/schemas/OperationsGymFields' }
+        - type: object
+          required: [createdAt]
+          properties: { createdAt: { type: string, format: date-time } }
+    OperationsGymListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/OperationsGymSummary' } }
+        meta:
+          type: object
+          required: [page, limit, total, totalPages]
+          properties:
+            page: { type: integer, minimum: 1 }
+            limit: { type: integer, minimum: 1, maximum: 100 }
+            total: { type: integer, minimum: 0 }
+            totalPages: { type: integer, minimum: 1 }
     GymSummary:
       type: object
       required: [id, name, branchName, address, regionCode, operationStatus, facilities, cover]
