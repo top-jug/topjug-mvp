@@ -99,7 +99,7 @@ After completion or cancellation, active-session transitions return `ACTIVE_RECO
 - Password reset revokes every refresh session. Stateless access tokens already issued before reset cannot be revoked and retain a residual lifetime of at most 15 minutes.
 - Password reset, login session issuance, and refresh rotation take the same transaction-scoped user lock. Login re-reads and verifies the current password while holding that lock, so neither login nor rotation can create a session after a concurrent reset revocation.
 - Verification requests do not disclose account existence. A challenge is marked delivered only after the configured adapter succeeds; delivery failures return `EMAIL_DELIVERY_FAILED`, invalidate the challenge, and are never reported as accepted.
-- Login errors do not reveal whether an email exists. Attempts use atomic email and client-address limits; registration uses client-address and global limits before Argon2 work.
+- Login errors do not reveal whether an email exists. Registration and password reset each atomically consume independent 15-minute limits before Argon2 work: 10 attempts per client address and 100 attempts globally. The reset limits do not use account or email keys, and registration exhaustion does not consume the reset budget.
 - Concurrent or later reuse of a rotated refresh token revokes the token family and requires a new login.
 - JWTs, passwords, refresh tokens, and raw login identifiers must never enter logs or audit metadata.
 

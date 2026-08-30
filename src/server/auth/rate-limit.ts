@@ -8,6 +8,10 @@ import { ApiError } from '../http/api-error';
 import type { EmailVerificationPurpose } from '../db/schema';
 
 const WINDOW_MS = 15 * 60 * 1000;
+export const REGISTRATION_ADDRESS_ATTEMPTS = 10;
+export const REGISTRATION_GLOBAL_ATTEMPTS = 100;
+export const PASSWORD_RESET_ADDRESS_ATTEMPTS = 10;
+export const PASSWORD_RESET_GLOBAL_ATTEMPTS = 100;
 
 function getRateLimitKey(value: string) {
   const pepper = process.env.AUTH_RATE_LIMIT_PEPPER;
@@ -62,7 +66,8 @@ export async function consumeLoginAttempts(email: string, clientAddress: string)
 
 export async function consumeRegistrationAttempts(clientAddress: string) {
   await consumeAttempts([
-    { value: `register:address:${clientAddress}`, maxAttempts: 10, errorCode: 'REGISTRATION_RATE_LIMITED' },
+    { value: `register:address:${clientAddress}`, maxAttempts: REGISTRATION_ADDRESS_ATTEMPTS, errorCode: 'REGISTRATION_RATE_LIMITED' },
+    { value: 'register:global', maxAttempts: REGISTRATION_GLOBAL_ATTEMPTS, errorCode: 'REGISTRATION_RATE_LIMITED' },
   ]);
 }
 
@@ -104,7 +109,8 @@ export async function consumeEmailVerificationConfirmAttempts(
 
 export async function consumePasswordResetAttempts(clientAddress: string) {
   await consumeAttempts([
-    { value: `password-reset:address:${clientAddress}`, maxAttempts: 10, errorCode: 'PASSWORD_RESET_RATE_LIMITED' },
+    { value: `password-reset:address:${clientAddress}`, maxAttempts: PASSWORD_RESET_ADDRESS_ATTEMPTS, errorCode: 'PASSWORD_RESET_RATE_LIMITED' },
+    { value: 'password-reset:global', maxAttempts: PASSWORD_RESET_GLOBAL_ATTEMPTS, errorCode: 'PASSWORD_RESET_RATE_LIMITED' },
   ]);
 }
 
