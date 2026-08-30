@@ -40,6 +40,7 @@ import {
   revokeRecordShare,
 } from '../api/record-api';
 import { useNavigateBack } from '../navigation';
+import { BrandIcon } from '../components/brand/BrandLogo';
 
 const MAX_SELECTED_DIFFICULTIES = 5;
 const MAX_COMMENT_LENGTH = 40;
@@ -864,7 +865,7 @@ function ShareCard({ record, model }: { record: ClimbingRecord; model: RecordSha
     <section className="share-card-preview relative flex flex-col overflow-hidden rounded-[28px] border border-neutral-200 bg-[#F5F7FA] px-4 py-3 text-neutral-950">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-[12px] font-black text-white">T</span>
+          <BrandIcon decorative className="h-7 w-7 rounded-lg" />
           <span className="text-[12px] font-black tracking-[0.08em]">TOPJUG</span>
         </div>
         <span className="text-[9px] font-bold tracking-[0.12em] text-neutral-400">CLIMB LOG</span>

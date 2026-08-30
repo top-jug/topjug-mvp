@@ -20,7 +20,7 @@ export type AuthContextValue = {
   retry: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+export const AuthContext = createContext<AuthContextValue | null>(null);
 
 function asApiError(error: unknown) {
   if (error instanceof ApiClientError) return error;

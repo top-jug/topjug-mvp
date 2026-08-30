@@ -2,6 +2,7 @@ import { createContext, PropsWithChildren, useCallback, useContext, useEffect, u
 import { ApiClientError } from '../api/api-client';
 import { ApiGymSummary, listSavedGyms, saveGym, unsaveGym } from '../api/gym-api';
 import { useAuth } from '../../features/auth/AuthProvider';
+import { shouldLoadProtectedResources } from '../../features/auth/auth-navigation';
 import {
   clearSavedGymActionError,
   createSavedGymAccountResetState,
@@ -77,7 +78,7 @@ export function SavedGymsProvider({ children }: PropsWithChildren) {
     setActionErrors(reset.actionErrors);
     setPendingGymIds(reset.pendingGymIds);
     setIsLoading(reset.isLoading);
-    if (authStatus === 'authenticated') {
+    if (shouldLoadProtectedResources(authStatus)) {
       void refreshSavedGyms();
       return;
     }
