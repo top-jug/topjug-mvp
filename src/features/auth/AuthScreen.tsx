@@ -131,10 +131,11 @@ export function AuthScreen({ mode }: Props) {
                 placeholder="name@example.com"
               />
             </label>
-            <label className="block">
-              <span className="mb-2 block text-sm font-bold text-neutral-800">비밀번호</span>
+            <div>
+              <label htmlFor="auth-password" className="mb-2 block text-sm font-bold text-neutral-800">비밀번호</label>
               <span className="relative block">
                 <input
+                  id="auth-password"
                   required
                   type={passwordControl.inputType}
                   minLength={isLogin ? 1 : 12}
@@ -155,7 +156,7 @@ export function AuthScreen({ mode }: Props) {
                   {passwordControl.visibleLabel}
                 </button>
               </span>
-            </label>
+            </div>
 
             {!isLogin && (
               <label className="block">
