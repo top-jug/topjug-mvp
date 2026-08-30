@@ -15,7 +15,6 @@ import DatePickerModal from '../../features/record/components/modals/DatePickerM
 import GymSelectModal from '../../features/record/components/modals/GymSelectModal';
 import PassSelectModal from '../../features/record/components/modals/PassSelectModal';
 import { shiftRecordMonth } from '../../features/record/record-date';
-import { RECORD_SESSION_TYPE_OPTIONS } from '../../features/record/session-labels';
 
 const MONTH_NAMES = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
 const TIME_WHEEL_ITEM_HEIGHT = 44;
@@ -162,7 +161,6 @@ export default function RecordStartPage() {
   const [selectedMembershipId, setSelectedMembershipId] = useState<string | null>(draft?.membershipId ?? null);
   const [tempPassType, setTempPassType] = useState<'횟수권' | '기간권'>('횟수권');
   const [mode, setMode] = useState<'easy' | 'normal'>(draft?.mode ?? 'normal');
-  const [sessionType, setSessionType] = useState<'free' | 'training' | 'project'>(draft?.sessionType ?? 'free');
   const [showGymModal, setShowGymModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showPassModal, setShowPassModal] = useState(false);
@@ -225,7 +223,6 @@ export default function RecordStartPage() {
         membershipId: selectedMembershipId,
         startedAt,
         mode,
-        sessionType,
       });
       const nextDraft: RecordDraft = {
         recordId: data.id,
@@ -239,7 +236,6 @@ export default function RecordStartPage() {
         membershipId: data.membershipId,
         accessType: data.accessType,
         mode: data.mode,
-        sessionType: data.sessionType,
       };
       setDraft(nextDraft);
       navigate('/record');
@@ -301,10 +297,6 @@ export default function RecordStartPage() {
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => setMode('normal')} className={`min-h-11 rounded-full text-[14px] font-medium ${mode === 'normal' ? 'bg-blue-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>일반 모드</button>
                 <button onClick={() => setMode('easy')} className={`min-h-11 rounded-full text-[14px] font-medium ${mode === 'easy' ? 'bg-blue-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>이지 모드</button>
-              </div>
-              <div className="mb-3 mt-5 text-[13px] text-neutral-500">세션 종류</div>
-              <div className="grid grid-cols-3 gap-2">
-                {RECORD_SESSION_TYPE_OPTIONS.map((option) => <button key={option.value} onClick={() => setSessionType(option.value)} className={`min-h-11 rounded-full text-[14px] font-medium ${sessionType === option.value ? 'bg-blue-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>{option.label}</button>)}
               </div>
             </div>
 

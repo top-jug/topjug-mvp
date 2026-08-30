@@ -16,7 +16,6 @@ export type RecordDraft = {
   membershipId: string | null;
   accessType: ApiRecordBase['accessType'];
   mode: ApiRecordBase['mode'];
-  sessionType: ApiRecordBase['sessionType'];
 };
 
 function formatGymName(gym: ApiActiveRecordSession['gym']) {
@@ -52,7 +51,6 @@ export function recordDraftFromActiveSession(session: ApiActiveRecordSession): R
     membershipId: session.membership?.id ?? null,
     accessType: session.accessType,
     mode: session.mode,
-    sessionType: session.sessionType,
   };
 }
 
