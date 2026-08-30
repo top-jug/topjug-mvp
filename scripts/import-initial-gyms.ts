@@ -17,7 +17,7 @@ import {
   mediaAssets,
   regions,
 } from "../src/server/db/schema";
-import { INITIAL_GYM_REGION_BY_EXTERNAL_ID, initialGymRegionCode } from "../src/server/regions/initial-gym-regions";
+import { INITIAL_GYM_REGION_BY_EXTERNAL_ID, assignInitialGymRegions } from "../src/server/regions/initial-gym-regions";
 
 const SOURCE_NAME = "topjug_initial_research_2026-08-23";
 const DEFAULT_ARCHIVE = "../암장최초데이터베이스.zip";
@@ -236,7 +236,6 @@ function parseRows(csv: string) {
       brand,
       branchName,
       address,
-      regionCode: initialGymRegionCode(externalId),
       phone: normalizedText(row["전화번호"]) || null,
       instagramUrl: instagramUrl(normalizedText(row["인스타"])),
       operatingHoursNote: normalizedText(row["영업시간"]) || null,
@@ -268,11 +267,7 @@ async function main() {
   const logoDirectory = resolve(process.cwd(), logoDirectoryArg);
   const { csvName, csv } = csvFromNestedArchive(await readFile(archivePath));
   const researchedRows = parseRows(csv);
-  const rows = researchedRows.filter((row) => !EXCLUDED_GYMS.has(row.location));
-  const missingRegionMappings = rows.filter((row) => !row.regionCode).map((row) => row.location);
-  const unexpectedRegionMappings = Object.keys(INITIAL_GYM_REGION_BY_EXTERNAL_ID).filter(
-    (externalId) => !rows.some((row) => row.externalId === externalId),
-  );
+  const rows = assignInitialGymRegions(researchedRows.filter((row) => !EXCLUDED_GYMS.has(row.location)));
   const logoFiles = await logoByExternalId(logoDirectory, rows);
   const missingLogos = rows
     .filter((row) => !logoFiles.has(row.externalId))
@@ -288,8 +283,6 @@ async function main() {
   if (logoFiles.size !== EXPECTED_IMPORTED_GYMS) throw new Error(`Expected ${EXPECTED_IMPORTED_GYMS} logos, received ${logoFiles.size}.`);
   if (missingLogos.length > 0)
     throw new Error(`Missing logos: ${missingLogos.join(", ")}`);
-  if (missingRegionMappings.length > 0) throw new Error(`Missing region mappings: ${missingRegionMappings.join(", ")}`);
-  if (unexpectedRegionMappings.length > 0) throw new Error(`Region mappings without imported gyms: ${unexpectedRegionMappings.join(", ")}`);
   if (dryRun) {
     console.log(
       JSON.stringify(

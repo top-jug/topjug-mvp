@@ -44,7 +44,7 @@ export async function listGyms(input: ListGymsInput) {
     )))!);
   }
   if (input.regionCode) conditions.push(inArray(gyms.regionCode, await regionSubtreeCodes(input.regionCode)));
-  if (input.facility) conditions.push(sql`${input.facility} = ANY(${gyms.facilities})`);
+  for (const facility of input.facility) conditions.push(sql`${facility} = ANY(${gyms.facilities})`);
   if (input.tag) conditions.push(exists(
     database.select({ value: sql`1` })
       .from(gymTagAssignments)

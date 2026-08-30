@@ -7,12 +7,13 @@ interface RegionFilterModalProps {
   selectedRegionCode: string | null;
   regions: ApiRegion[];
   error: string | null;
+  onRetry: () => void;
   onClose: () => void;
   onApply: (regionCode: string | null) => void;
 }
 
 export default function RegionFilterModal(props: RegionFilterModalProps) {
-  const { selectedRegionCode, regions, error, onClose, onApply } = props;
+  const { selectedRegionCode, regions, error, onRetry, onClose, onApply } = props;
   const [selection, dispatch] = useReducer(updateRegionSelection, initialRegionSelection(regions, selectedRegionCode));
   const { draftCode, activeParentCode } = selection;
   const firstLevel = firstLevelRegions(regions);
@@ -37,7 +38,12 @@ export default function RegionFilterModal(props: RegionFilterModalProps) {
           </button>
         </div>
 
-        {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
+        {error && (
+          <div role="alert" className="mb-4 flex items-center justify-between gap-3 text-sm text-red-600">
+            <span>{error}</span>
+            <button type="button" onClick={onRetry} className="min-h-10 shrink-0 rounded-lg border border-red-200 px-3 font-semibold">다시 시도</button>
+          </div>
+        )}
         <div className="mb-6 max-h-[55vh] overflow-y-auto">
           <div className="grid grid-cols-2 gap-2">
             {!activeParent && (

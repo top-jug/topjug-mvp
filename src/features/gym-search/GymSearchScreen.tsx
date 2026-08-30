@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ApiClientError } from '../../app/api/api-client';
 import { ApiGymSummary, listGyms } from '../../app/api/gym-api';
 import { ApiRegion, listRegions } from '../../app/api/region-api';
@@ -39,6 +39,7 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
   const [selectedRegionCode, setSelectedRegionCode] = useState<string | null>(null);
   const [regions, setRegions] = useState<ApiRegion[]>([]);
   const [regionError, setRegionError] = useState<string | null>(null);
+  const [regionRequestVersion, setRegionRequestVersion] = useState(0);
   const [gyms, setGyms] = useState<ApiGymSummary[]>([]);
   const [isLoadingGyms, setIsLoadingGyms] = useState(true);
   const [gymError, setGymError] = useState<string | null>(null);
@@ -70,7 +71,7 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
         setRegionError(listErrorMessage(error));
       });
     return () => controller.abort();
-  }, []);
+  }, [regionRequestVersion]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -82,7 +83,7 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
         const response = await listGyms({
           q: searchQuery.trim() || undefined,
           regionCode: selectedRegionCode ?? undefined,
-          facility: selectedTabs[0] ? FACILITY_CODES[selectedTabs[0]] : undefined,
+          facility: selectedTabs.map((tab) => FACILITY_CODES[tab]),
           limit: 100,
           signal: controller.signal,
         });
@@ -103,12 +104,7 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
     };
   }, [requestVersion, searchQuery, selectedRegionCode, selectedTabs]);
 
-  const filteredGyms = useMemo(() => gyms.filter((gym) => {
-    const matchesFacilities = selectedTabs.every((tab) => gym.facilities.includes(FACILITY_CODES[tab]));
-    return matchesFacilities;
-  }), [gyms, selectedTabs]);
-
-  const visibleGyms = filteredGyms.slice(0, visibleCount);
+  const visibleGyms = gyms.slice(0, visibleCount);
 
   const handleSelectTab = (tab: string) => {
     setVisibleCount(PAGE_SIZE);
@@ -161,6 +157,10 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
                 selectedRegionCode={selectedRegionCode}
                 regions={regions}
                 error={regionError}
+                onRetry={() => {
+                  setRegionError(null);
+                  setRegionRequestVersion((version) => version + 1);
+                }}
                 onClose={() => setShowRegionFilter(false)}
                 onApply={(regionCode) => {
                   setVisibleCount(PAGE_SIZE);
@@ -173,8 +173,8 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
               gyms={visibleGyms}
               onSelectGym={(gym) => onNavigate('detail', gym.id)}
               title="암장"
-              countOverride={filteredGyms.length}
-              countLabel={`불러온 검색 결과 ${filteredGyms.length}개`}
+              countOverride={gyms.length}
+              countLabel={`불러온 검색 결과 ${gyms.length}개`}
               isSavedGym={isSavedGym}
               onToggleSavedGym={handleToggleSavedGym}
               isSavingGym={(gymId) => pendingGymIds.includes(gymId)}
@@ -183,7 +183,7 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
               isLoading={isLoadingGyms}
               error={gymError}
               onRetry={() => setRequestVersion((version) => version + 1)}
-              hasMore={visibleCount < filteredGyms.length}
+              hasMore={visibleCount < gyms.length}
               onLoadMore={() => setVisibleCount((count) => count + PAGE_SIZE)}
             />
           </>

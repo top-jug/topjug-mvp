@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import type { ApiGymSummary } from '../../src/app/api/gym-api';
 import type { ApiRegion } from '../../src/app/api/region-api';
@@ -69,6 +70,15 @@ test('region selector preserves committed state across parent, child, back, canc
   assert.equal(committedCode, '11110'); // cancel does not publish the draft
   const appliedCode = state.draftCode;
   assert.equal(appliedCode, '11110');
+});
+
+test('region catalog failures expose a retry wired to a new request', () => {
+  const screen = readFileSync(new URL('../../src/features/gym-search/GymSearchScreen.tsx', import.meta.url), 'utf8');
+  const modal = readFileSync(new URL('../../src/features/gym-search/components/modals/RegionFilterModal.tsx', import.meta.url), 'utf8');
+  assert.match(screen, /regionRequestVersion/);
+  assert.match(screen, /setRegionRequestVersion\(\(version\) => version \+ 1\)/);
+  assert.match(modal, /onClick=\{onRetry\}/);
+  assert.match(modal, />다시 시도</);
 });
 
 test('search placeholder describes only q searchable fields', () => {

@@ -31,8 +31,8 @@ WITH catalog("code", "parent_code", "name") AS (VALUES
   ('26410','26','금정구'),('26440','26','강서구'),('26470','26','연제구'),('26500','26','수영구'),('26530','26','사상구'),('26710','26','기장군'),
   ('27110','27','중구'),('27140','27','동구'),('27170','27','서구'),('27200','27','남구'),('27230','27','북구'),
   ('27260','27','수성구'),('27290','27','달서구'),('27710','27','달성군'),('27720','27','군위군'),
-  ('28110','28','중구'),('28140','28','동구'),('28177','28','미추홀구'),('28185','28','연수구'),('28200','28','남동구'),
-  ('28237','28','부평구'),('28245','28','계양구'),('28260','28','서구'),('28710','28','강화군'),('28720','28','옹진군'),
+  ('28125','28','제물포구'),('28155','28','영종구'),('28177','28','미추홀구'),('28185','28','연수구'),('28200','28','남동구'),
+  ('28237','28','부평구'),('28245','28','계양구'),('28275','28','서해구'),('28290','28','검단구'),('28710','28','강화군'),('28720','28','옹진군'),
   ('29110','29','동구'),('29140','29','서구'),('29155','29','남구'),('29170','29','북구'),('29200','29','광산구'),
   ('30110','30','동구'),('30140','30','중구'),('30170','30','서구'),('30200','30','유성구'),('30230','30','대덕구'),
   ('31110','31','중구'),('31140','31','남구'),('31170','31','동구'),('31200','31','북구'),('31710','31','울주군'),
@@ -97,7 +97,12 @@ WITH aliases("legacy_code", "canonical_code") AS (VALUES
 UPDATE "users" SET "home_region_code" = aliases."canonical_code"
 FROM aliases WHERE "users"."home_region_code" = aliases."legacy_code";
 --> statement-breakpoint
-WITH assignments("external_id", "region_code") AS (VALUES
+CREATE TEMPORARY TABLE "expected_initial_gym_regions" (
+  "external_id" text PRIMARY KEY,
+  "region_code" text NOT NULL
+) ON COMMIT DROP;
+--> statement-breakpoint
+INSERT INTO "expected_initial_gym_regions" ("external_id", "region_code") VALUES
   ('2e164c716034d6a1379b3871a6aa011c','41285'),('cd09bb3588f0ecca77f5f581e459f3ac','11500'),
   ('9a6583aebb3703c0e8fa914506403842','11680'),('0889e0647df7851978ea2484f14a97bd','11620'),
   ('2d4bbe3c02f72c07d83c3872863ca23f','11440'),('50656c96e6db48670d2f7013095a5740','11680'),
@@ -113,26 +118,66 @@ WITH assignments("external_id", "region_code") AS (VALUES
   ('81a8c8f5431fac4bfd38e5185962000e','11680'),('f00e9041f6a05d840c156512d1573733','11650'),
   ('b93c66b6e19186b17b59cf576b3f59bd','41135'),('7e890d64bc73e7ff8947fdf985a4833e','11140'),
   ('685c80ed2a2d15b49c6de95a0cddfe3d','11740'),('6892b9026d056ed71fbc08405f95758c','11560'),
-  ('ac3193b969ca0091827bab509519c07a','11110')
-)
-UPDATE "gyms" SET "region_code" = assignments."region_code"
-FROM "gym_sources", assignments
+  ('ac3193b969ca0091827bab509519c07a','11110');
+--> statement-breakpoint
+UPDATE "gyms" SET "region_code" = expected."region_code"
+FROM "gym_sources", "expected_initial_gym_regions" expected
 WHERE "gym_sources"."gym_id" = "gyms"."id"
   AND "gym_sources"."source_name" = 'topjug_initial_research_2026-08-23'
-  AND "gym_sources"."external_id" = assignments."external_id";
+  AND "gym_sources"."external_id" = expected."external_id";
 --> statement-breakpoint
 DO $$
-DECLARE imported_count integer; assigned_count integer;
+DECLARE
+  expected_count integer;
+  imported_count integer;
+  invalid_catalog_count integer;
+  missing_or_duplicate_count integer;
+  unexpected_count integer;
+  mismatched_count integer;
 BEGIN
-  SELECT count(*)::integer,
-    count(*) FILTER (WHERE g.region_code IS NOT NULL AND r.level = 2 AND r.parent_code IS NOT NULL)::integer
-  INTO imported_count, assigned_count
-  FROM gym_sources s
-  JOIN gyms g ON g.id = s.gym_id
-  LEFT JOIN regions r ON r.code = g.region_code
-  WHERE s.source_name = 'topjug_initial_research_2026-08-23';
+  SELECT count(*)::integer INTO expected_count FROM expected_initial_gym_regions;
+  SELECT count(*)::integer INTO invalid_catalog_count
+  FROM expected_initial_gym_regions expected
+  LEFT JOIN regions region ON region.code = expected.region_code
+  LEFT JOIN regions parent ON parent.code = region.parent_code
+  WHERE region.level IS DISTINCT FROM 2 OR parent.level IS DISTINCT FROM 1;
 
-  IF imported_count NOT IN (0, 31) OR assigned_count <> imported_count THEN
-    RAISE EXCEPTION 'Initial gym region backfill failed: imported %, assigned valid second-level %', imported_count, assigned_count;
+  IF expected_count <> 31 OR invalid_catalog_count <> 0 THEN
+    RAISE EXCEPTION 'Reviewed initial gym mapping is invalid: expected %, invalid catalog assignments %', expected_count, invalid_catalog_count;
+  END IF;
+
+  SELECT count(*)::integer INTO imported_count
+  FROM gym_sources WHERE source_name = 'topjug_initial_research_2026-08-23';
+
+  IF imported_count = 0 THEN
+    RETURN;
+  END IF;
+
+  SELECT count(*)::integer INTO missing_or_duplicate_count FROM (
+    SELECT expected.external_id
+    FROM expected_initial_gym_regions expected
+    LEFT JOIN gym_sources source
+      ON source.source_name = 'topjug_initial_research_2026-08-23'
+      AND source.external_id = expected.external_id
+    GROUP BY expected.external_id
+    HAVING count(source.gym_id) <> 1
+  ) invalid_sources;
+
+  SELECT count(*)::integer INTO unexpected_count
+  FROM gym_sources source
+  LEFT JOIN expected_initial_gym_regions expected ON expected.external_id = source.external_id
+  WHERE source.source_name = 'topjug_initial_research_2026-08-23' AND expected.external_id IS NULL;
+
+  SELECT count(*)::integer INTO mismatched_count
+  FROM expected_initial_gym_regions expected
+  JOIN gym_sources source
+    ON source.source_name = 'topjug_initial_research_2026-08-23'
+    AND source.external_id = expected.external_id
+  JOIN gyms gym ON gym.id = source.gym_id
+  WHERE gym.region_code IS DISTINCT FROM expected.region_code;
+
+  IF imported_count <> 31 OR missing_or_duplicate_count <> 0 OR unexpected_count <> 0 OR mismatched_count <> 0 THEN
+    RAISE EXCEPTION 'Initial gym region backfill failed: imported %, missing/duplicate %, unexpected %, mismatched %',
+      imported_count, missing_or_duplicate_count, unexpected_count, mismatched_count;
   END IF;
 END $$;

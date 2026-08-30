@@ -20,6 +20,14 @@ PK (gym_id, market_region_code)
 
 A gym may have multiple market-region assignments, while at most one assignment is primary. `rank` provides deterministic ordering within a market. Aliases help query interpretation but do not create implicit assignments.
 
+The database must enforce the primary rule, not only application validation:
+
+```sql
+CREATE UNIQUE INDEX gym_market_regions_one_primary_per_gym
+ON gym_market_regions (gym_id)
+WHERE is_primary;
+```
+
 ## API and ranking
 
 - Keep `physicalRegionCode` (currently exposed as `regionCode`) separate from a future `marketRegionCode`; do not overload one parameter.

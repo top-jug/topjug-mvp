@@ -35,3 +35,20 @@ export const INITIAL_GYM_REGION_BY_EXTERNAL_ID = {
 export function initialGymRegionCode(externalId: string) {
   return (INITIAL_GYM_REGION_BY_EXTERNAL_ID as Record<string, string>)[externalId];
 }
+
+export function assignInitialGymRegions<T extends { externalId: string; location: string }>(rows: T[]) {
+  const seen = new Set<string>();
+  const duplicateSourceIds: string[] = [];
+  const assigned = rows.map((row) => {
+    if (seen.has(row.externalId)) duplicateSourceIds.push(row.externalId);
+    seen.add(row.externalId);
+    return { ...row, regionCode: initialGymRegionCode(row.externalId) };
+  });
+  const missing = assigned.filter((row) => !row.regionCode).map((row) => row.location);
+  const unexpected = Object.keys(INITIAL_GYM_REGION_BY_EXTERNAL_ID).filter((externalId) => !seen.has(externalId));
+
+  if (duplicateSourceIds.length > 0) throw new Error(`Duplicate source IDs in region mapping input: ${duplicateSourceIds.join(', ')}`);
+  if (missing.length > 0) throw new Error(`Missing region mappings: ${missing.join(', ')}`);
+  if (unexpected.length > 0) throw new Error(`Region mappings without imported gyms: ${unexpected.join(', ')}`);
+  return assigned as Array<T & { regionCode: string }>;
+}

@@ -80,6 +80,20 @@ test('gym list sends canonical region independently from free text', async () =>
   assert.match(requestedUrl, /regionCode=11110/);
 });
 
+test('gym list repeats every selected facility in the server query', async () => {
+  let requestedUrl = '';
+  mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+    requestedUrl = String(input);
+    return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+
+  await listGyms({ facility: ['shower', 'parking'], limit: 1 });
+
+  const query = new URL(requestedUrl, 'https://topjug.test').searchParams;
+  assert.deepEqual(query.getAll('facility'), ['shower', 'parking']);
+  assert.equal(query.get('limit'), '1');
+});
+
 test('region catalog uses the public read-only endpoint', async () => {
   let requestedUrl = '';
   mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {

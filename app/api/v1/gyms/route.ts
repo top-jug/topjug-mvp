@@ -8,6 +8,8 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export const GET = withApiHandler(async (request) => {
-  const query = Object.fromEntries(request.nextUrl.searchParams.entries());
+  const query: Record<string, string | string[]> = Object.fromEntries(request.nextUrl.searchParams.entries());
+  const facilities = request.nextUrl.searchParams.getAll('facility');
+  if (facilities.length > 0) query.facility = facilities;
   return NextResponse.json(await listGyms(parseInput(listGymsSchema, query)));
 });

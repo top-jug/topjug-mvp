@@ -217,7 +217,12 @@ paths:
           in: query
           description: Canonical physical region code. Matches the selected region and every descendant.
           schema: { type: string, minLength: 1, maxLength: 40 }
-        - { name: facility, in: query, schema: { type: string, maxLength: 40 } }
+        - name: facility
+          in: query
+          description: Repeat to require every selected facility. All values are applied before the result limit.
+          style: form
+          explode: true
+          schema: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 40 } }
         - { name: tag, in: query, schema: { type: string, maxLength: 40 } }
         - name: operationStatus
           in: query

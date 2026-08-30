@@ -17,4 +17,8 @@ test('gym search validation trims empty queries and rejects unsafe lengths', () 
   assert.equal(listGymsSchema.safeParse({ q: '가'.repeat(101) }).success, false);
   assert.equal(listGymsSchema.safeParse({ regionCode: '  ' }).success, false);
   assert.equal(listGymsSchema.parse({ regionCode: ' 11110 ' }).regionCode, '11110');
+  assert.deepEqual(listGymsSchema.parse({}).facility, []);
+  assert.deepEqual(listGymsSchema.parse({ facility: ' shower ' }).facility, ['shower']);
+  assert.deepEqual(listGymsSchema.parse({ facility: ['shower', 'parking'] }).facility, ['shower', 'parking']);
+  assert.equal(listGymsSchema.safeParse({ facility: [''] }).success, false);
 });

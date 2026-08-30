@@ -120,7 +120,7 @@ export interface ApiGymDetail extends ApiGymSummary {
 export interface ListGymsInput {
   q?: string;
   regionCode?: string;
-  facility?: string;
+  facility?: string[];
   tag?: string;
   limit?: number;
   signal?: AbortSignal;
