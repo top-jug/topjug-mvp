@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { intendedPath } from '../../src/features/auth/auth-navigation';
+import { intendedPath, loginRedirectState, protectedDestination, shouldLoadProtectedResources } from '../../src/features/auth/auth-navigation';
+import { passwordVisibilityControl } from '../../src/features/auth/auth-presentation';
+import { ONBOARDING_ROUTES } from '../../src/features/onboarding/onboarding-routes';
 import { getRootRouteView } from '../../src/features/onboarding/root-route';
 
 const projectFile = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url));
@@ -15,37 +17,44 @@ test('root route selects an explicit view for every auth state', () => {
 });
 
 test('protected deep links survive auth while unsafe destinations fall back home', () => {
-  assert.equal(intendedPath({ from: '/records/record-1/share?preview=true' }), '/records/record-1/share?preview=true');
+  const location = { pathname: '/records/record-1/share', search: '?preview=true', hash: '#difficulty-3' };
+  const destination = '/records/record-1/share?preview=true#difficulty-3';
+
+  assert.equal(protectedDestination(location), destination);
+  assert.deepEqual(loginRedirectState(location), { from: destination });
+  assert.equal(intendedPath(loginRedirectState(location)), destination);
   assert.equal(intendedPath({ from: 'https://example.com' }), '/');
   assert.equal(intendedPath({ from: '//example.com' }), '/');
   assert.equal(intendedPath(null), '/');
 });
 
-test('root onboarding exposes only public exploration routes and keeps home outside RequireAuth', () => {
-  const router = projectSource('src/app/router.tsx');
-  const onboarding = projectSource('src/features/onboarding/RootScreen.tsx');
-
-  assert.match(router, /<Route path="\/" element={<RootScreen \/>} \/>/);
-  assert.match(router, /<Route path="\/gyms" element={<GymSearchPage \/>} \/>/);
-  assert.match(router, /<Route path="\/schedule\/:calendarView" element={<CalendarPage \/>} \/>/);
-  assert.doesNotMatch(router, /<Route element={<RequireAuth \/>}>\s*<Route path="\/"/);
-  assert.match(onboarding, /to="\/login"/);
-  assert.match(onboarding, /to="\/register"/);
-  assert.match(onboarding, /to="\/gyms"/);
-  assert.match(onboarding, /to="\/schedule\/settings"/);
+test('onboarding destinations expose auth and public exploration entry points', () => {
+  assert.deepEqual(ONBOARDING_ROUTES, {
+    login: '/login',
+    register: '/register',
+    gyms: '/gyms',
+    calendar: '/schedule/settings',
+  });
 });
 
-test('protected data providers request resources only after authentication', () => {
-  const providers = [
-    ['src/app/providers/SavedGymsProvider.tsx', 'refreshSavedGyms'],
-    ['src/app/providers/MembershipProvider.tsx', 'refreshMemberships'],
-    ['src/app/providers/RecordHistoryProvider.tsx', 'fetchRecords'],
-  ] as const;
+test('protected resources load for authenticated state only', () => {
+  assert.equal(shouldLoadProtectedResources('loading'), false);
+  assert.equal(shouldLoadProtectedResources('error'), false);
+  assert.equal(shouldLoadProtectedResources('unauthenticated'), false);
+  assert.equal(shouldLoadProtectedResources('authenticated'), true);
+});
 
-  for (const [path, request] of providers) {
-    const source = projectSource(path);
-    assert.match(source, new RegExp(`if \\(authStatus === 'authenticated'\\) \\{[\\s\\S]{0,120}\\b${request}\\(`), path);
-  }
+test('password visibility control keeps the visible label in its accessible name', () => {
+  assert.deepEqual(passwordVisibilityControl(false), {
+    inputType: 'password',
+    visibleLabel: '보기',
+    accessibleName: '비밀번호 보기',
+  });
+  assert.deepEqual(passwordVisibilityControl(true), {
+    inputType: 'text',
+    visibleLabel: '숨기기',
+    accessibleName: '비밀번호 숨기기',
+  });
 });
 
 test('manifest declares valid normal and maskable PNG assets at their real dimensions', () => {

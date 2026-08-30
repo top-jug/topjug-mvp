@@ -5,6 +5,7 @@ import { BrandIcon, BrandLockup } from '../../app/components/brand/BrandLogo';
 import { isApiClientError } from '../../lib/api';
 import { useAuth } from './AuthProvider';
 import { intendedPath } from './auth-navigation';
+import { passwordVisibilityControl } from './auth-presentation';
 import { toRegisterInput, validateRegistrationPasswords } from './registration';
 
 type Props = {
@@ -44,7 +45,7 @@ export function AuthScreen({ mode }: Props) {
           <BrandIcon className="mx-auto h-16 w-16 rounded-[20px]" />
           <h1 className="mt-5 text-xl font-black tracking-[-0.03em] text-neutral-950">로그인 상태를 확인하지 못했어요</h1>
           <p className="mt-2 text-sm leading-6 text-neutral-500">{error?.message ?? '네트워크 연결을 확인하고 다시 시도해주세요.'}</p>
-          <button type="button" onClick={() => void retry()} className="mt-6 h-12 w-full rounded-2xl bg-teal-600 text-sm font-bold text-white">다시 시도</button>
+          <button type="button" onClick={() => void retry()} className="mt-6 h-12 w-full rounded-2xl bg-teal-700 text-sm font-bold text-white hover:bg-teal-800">다시 시도</button>
           <Link to="/" className="mt-4 inline-flex min-h-11 items-center text-sm font-bold text-neutral-500">처음으로 돌아가기</Link>
         </section>
       </main>
@@ -73,13 +74,14 @@ export function AuthScreen({ mode }: Props) {
 
   const isLogin = mode === 'login';
   const confirmationError = !isLogin && message === '비밀번호가 일치하지 않습니다.';
+  const passwordControl = passwordVisibilityControl(showPassword);
 
   return (
     <main className="mobile-screen flex items-center justify-center bg-[#f3faf8] px-5 py-8 sm:px-8 sm:py-12">
       <div className="grid w-full max-w-[980px] overflow-hidden rounded-[32px] border border-white bg-white shadow-[0_28px_80px_rgba(15,118,110,0.12)] lg:grid-cols-[0.9fr_1.1fr]">
         <aside className="relative hidden overflow-hidden bg-neutral-950 p-10 text-white lg:flex lg:flex-col lg:justify-between">
           <div className="absolute -right-24 -top-20 h-64 w-64 rounded-full bg-teal-500/25 blur-3xl" aria-hidden="true" />
-          <Link to="/" aria-label="TopJug 홈" className="relative inline-flex">
+          <Link to="/" className="relative inline-flex">
             <BrandLockup inverted />
           </Link>
           <div className="relative my-16">
@@ -94,10 +96,10 @@ export function AuthScreen({ mode }: Props) {
         </aside>
 
         <div className="p-5 sm:p-9 lg:p-12">
-          <Link to="/" aria-label="TopJug 홈" className="mb-8 inline-flex lg:hidden"><BrandLockup /></Link>
+          <Link to="/" className="mb-8 inline-flex lg:hidden"><BrandLockup /></Link>
 
           <section>
-            <div className="text-xs font-bold uppercase tracking-[0.16em] text-teal-600">{isLogin ? 'Welcome back' : 'Start climbing'}</div>
+            <div className="text-xs font-bold uppercase tracking-[0.16em] text-teal-700">{isLogin ? 'Welcome back' : 'Start climbing'}</div>
             <h1 className="mt-3 text-[28px] font-black tracking-[-0.04em] text-neutral-950">{isLogin ? '다시 만나서 반가워요' : '나만의 기록을 시작하세요'}</h1>
             <p className="mt-2 text-sm leading-6 text-neutral-500">{isLogin ? '회원권과 클라이밍 기록을 이어서 관리합니다.' : '암장과 루트, 완등 기록을 한곳에서 관리합니다.'}</p>
 
@@ -134,7 +136,7 @@ export function AuthScreen({ mode }: Props) {
               <span className="relative block">
                 <input
                   required
-                  type={showPassword ? 'text' : 'password'}
+                  type={passwordControl.inputType}
                   minLength={isLogin ? 1 : 12}
                   maxLength={128}
                   autoComplete={isLogin ? 'current-password' : 'new-password'}
@@ -145,12 +147,12 @@ export function AuthScreen({ mode }: Props) {
                 />
                 <button
                   type="button"
-                  aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 표시하기'}
+                  aria-label={passwordControl.accessibleName}
                   aria-pressed={showPassword}
                   onClick={() => setShowPassword((visible) => !visible)}
-                  className="absolute inset-y-1 right-1 min-w-16 rounded-xl px-3 text-sm font-bold text-teal-600 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                  className="absolute inset-y-1 right-1 min-w-16 rounded-xl px-3 text-sm font-bold text-teal-700 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
                 >
-                  {showPassword ? '숨기기' : '보기'}
+                  {passwordControl.visibleLabel}
                 </button>
               </span>
             </label>
@@ -160,7 +162,7 @@ export function AuthScreen({ mode }: Props) {
                 <span className="mb-2 block text-sm font-bold text-neutral-800">비밀번호 확인</span>
                 <input
                   required
-                  type={showPassword ? 'text' : 'password'}
+                  type={passwordControl.inputType}
                   minLength={12}
                   maxLength={128}
                   autoComplete="new-password"
@@ -176,14 +178,14 @@ export function AuthScreen({ mode }: Props) {
 
             {message && <div id={confirmationError ? 'password-confirmation-error' : undefined} role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{message}</div>}
 
-            <button disabled={submitting} className="h-13 w-full rounded-2xl bg-teal-600 text-base font-bold text-white transition hover:bg-teal-700 disabled:cursor-wait disabled:bg-teal-300">
+            <button disabled={submitting} className="h-13 w-full rounded-2xl bg-teal-700 text-base font-bold text-white transition hover:bg-teal-800 disabled:cursor-wait disabled:bg-neutral-500">
               {submitting ? '확인 중...' : isLogin ? '로그인' : '계정 만들기'}
             </button>
           </form>
 
           <div className="mt-6 border-t border-neutral-100 pt-5 text-center text-sm text-neutral-500">
             {isLogin ? '처음 오셨나요?' : '이미 계정이 있나요?'}{' '}
-            <Link to={isLogin ? '/register' : '/login'} state={location.state} className="font-bold text-teal-600 hover:text-teal-700">
+            <Link to={isLogin ? '/register' : '/login'} state={location.state} className="font-bold text-teal-700 hover:text-teal-800">
               {isLogin ? '회원가입' : '로그인'}
             </Link>
           </div>
