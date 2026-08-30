@@ -21,7 +21,6 @@ export interface CalendarEntry {
   sends?: number;
   attempts?: number;
   rating?: number | null;
-  sessionType?: 'free' | 'training' | 'project';
   address?: string;
   logoUrl?: string | null;
 }

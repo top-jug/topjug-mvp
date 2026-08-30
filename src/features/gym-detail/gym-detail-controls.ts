@@ -61,6 +61,12 @@ export function buildGymMapLink(latitude: number | null | undefined, longitude: 
   return `https://map.kakao.com/link/map/${latitude},${longitude}`;
 }
 
+export function buildGymMapSearchLink(address: string | null | undefined, title: string) {
+  const query = [title.trim(), normalizeKakaoMapAddress(address)].filter(Boolean).join(' ');
+  if (!query) return null;
+  return `https://map.kakao.com/link/search/${encodeURIComponent(query)}`;
+}
+
 export function normalizeKakaoMapAddress(address: string | null | undefined) {
   const normalized = address?.trim();
   return normalized || null;

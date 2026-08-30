@@ -23,7 +23,6 @@ export const createRecordSchema = z.object({
   activeDurationSeconds: z.number().int().min(0).optional(),
   rating: z.number().min(0.5).max(5).multipleOf(0.5).nullable().optional(),
   mode: z.enum(['easy', 'normal']),
-  sessionType: z.enum(['free', 'training', 'project']).default('free'),
   note: z.string().trim().max(2000).nullable().optional(),
   counts: z.array(recordCountSchema).max(200),
 }).strict().superRefine((record, context) => {
@@ -80,7 +79,6 @@ export const startRecordSessionSchema = z.object({
   ...accessFields,
   startedAt: dateTimeSchema,
   mode: z.enum(['easy', 'normal']),
-  sessionType: z.enum(['free', 'training', 'project']).default('free'),
   note: z.string().trim().max(2000).nullable().optional(),
 }).strict().superRefine((record, context) => {
   if ((record.accessType === 'membership') !== Boolean(record.membershipId)) {

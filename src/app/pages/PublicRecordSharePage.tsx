@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router';
 import { ApiClientError } from '../api/api-client';
 import { ApiPublicShare, getPublicShare, mapPublicShareToRecord } from '../api/record-api';
 import { getRecordTotals } from '../../features/record/record-summary';
-import { recordSessionTypeLabel } from '../../features/record/session-labels';
+import { BrandIcon } from '../components/brand/BrandLogo';
 
 export default function PublicRecordSharePage() {
   const { token } = useParams();
@@ -66,7 +66,10 @@ export default function PublicRecordSharePage() {
     <div className="min-h-screen bg-[#F7F8FA] px-5 py-8 text-neutral-950">
       <main className="mx-auto max-w-md space-y-5">
         <header>
-          <div className="text-[12px] font-black tracking-[0.12em] text-blue-600">TOPJUG SHARE</div>
+          <div className="flex items-center gap-2">
+            <BrandIcon decorative className="h-8 w-8 rounded-[10px]" />
+            <div className="text-[12px] font-black tracking-[0.12em] text-teal-700">TOPJUG SHARE</div>
+          </div>
           <h1 className="mt-2 text-[26px] font-black tracking-[-0.03em]">{record.gym}</h1>
           <div className="mt-1 text-[13px] text-neutral-500">{record.date} · {record.duration}</div>
         </header>
@@ -101,7 +104,6 @@ export default function PublicRecordSharePage() {
             <InfoRow label="운동 날짜" value={record.date} />
             <InfoRow label="운동 시간" value={record.duration} />
             <InfoRow label="이용 방식" value={record.passLabel} />
-            <InfoRow label="세션 종류" value={recordSessionTypeLabel(record.sessionType)} />
             <InfoRow label="기록 방식" value={record.mode === 'easy' ? '이지 모드' : '섹터별 기록'} />
             <InfoRow label="난이도 평가" value={record.rating === null ? '미평가' : `${record.rating} / 5`} />
           </dl>

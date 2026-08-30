@@ -118,11 +118,15 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
         endedAt: '2026-08-23T12:00:00+09:00',
         rating: 4.5,
         mode: 'normal',
-        sessionType: 'free',
         counts: [{ gymGradeId: grade.id, gymSectorId: sector.id, attempts: 5, sends: 3 }],
       });
       assert.equal(record.sends, 3);
       assert.equal(record.attempts, 5);
+      assert.equal('sessionType' in record, false);
+      const [persistedRecord] = await database.select({ sessionType: climbingRecords.sessionType })
+        .from(climbingRecords).where(eq(climbingRecords.id, record.id));
+      assert.ok(persistedRecord);
+      assert.equal(persistedRecord.sessionType, 'free');
 
       const membership = await createMembership(first.user.id, {
         name: 'Integration Count Pass',
@@ -142,9 +146,9 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
         endedAt: '2026-08-24T12:00:00+09:00',
         rating: 4,
         mode: 'normal',
-        sessionType: 'training',
         counts: [{ gymGradeId: grade.id, gymSectorId: sector.id, attempts: 4, sends: 2 }],
       });
+      assert.equal('sessionType' in membershipRecord, false);
       const [updatedMembership] = await database.select({ remainingUses: memberships.remainingUses, updatedAt: memberships.updatedAt })
         .from(memberships).where(eq(memberships.id, membership.id));
       const [usage] = await database.select().from(membershipUsages)
@@ -225,9 +229,9 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
         membershipId: membership.id,
         startedAt: '2026-08-25T10:00:00+09:00',
         mode: 'normal',
-        sessionType: 'training',
       });
       assert.ok(live);
+      assert.equal('sessionType' in live, false);
       assert.equal((await getActiveRecordSession(first.user.id))?.id, live.id);
       await assert.rejects(
         () => startRecordSession(first.user.id, {
@@ -235,7 +239,6 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
           accessType: 'day_pass',
           startedAt: '2026-08-25T10:10:00+09:00',
           mode: 'normal',
-          sessionType: 'free',
         }),
         (error: unknown) => error instanceof ApiError && error.code === 'ACTIVE_RECORD_EXISTS',
       );

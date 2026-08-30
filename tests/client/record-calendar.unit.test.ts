@@ -22,7 +22,6 @@ function record(overrides: Partial<ApiRecordSummary> = {}): ApiRecordSummary {
     membership: null,
     accessType: 'day_pass',
     status: 'completed',
-    sessionType: 'training',
     startedAt: '2026-08-24T10:00:00.000Z',
     endedAt: '2026-08-24T11:00:00.000Z',
     activeDurationSeconds: 3600,
@@ -77,7 +76,6 @@ test('API record summaries map to their local day with real IDs and details', ()
     sends: 4,
     attempts: 7,
     rating: 4.5,
-    sessionType: 'training',
   }]);
 });
 

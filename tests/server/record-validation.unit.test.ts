@@ -22,6 +22,22 @@ test('record creation accepts normalized domain values', () => {
   assert.equal(createRecordSchema.safeParse(validRecord).success, true);
 });
 
+test('record writes reject removed session types', () => {
+  for (const schema of [createRecordSchema, startRecordSessionSchema]) {
+    const base = schema === createRecordSchema
+      ? validRecord
+      : {
+          gymId: validRecord.gymId,
+          accessType: validRecord.accessType,
+          startedAt: validRecord.startedAt,
+          mode: validRecord.mode,
+        };
+
+    assert.equal(schema.safeParse(base).success, true);
+    assert.equal(schema.safeParse({ ...base, sessionType: 'free' }).success, false);
+  }
+});
+
 test('record creation rejects impossible and duplicate counts', () => {
   const impossible = {
     ...validRecord,
@@ -75,6 +91,13 @@ test('record list limits are coerced and bounded', () => {
 
 test('request schemas reject unknown properties', () => {
   assert.equal(createRecordSchema.safeParse({ ...validRecord, unexpected: true }).success, false);
+  assert.equal(startRecordSessionSchema.safeParse({
+    gymId: validRecord.gymId,
+    accessType: validRecord.accessType,
+    startedAt: validRecord.startedAt,
+    mode: validRecord.mode,
+    unexpected: true,
+  }).success, false);
   assert.equal(listRecordsSchema.safeParse({ limit: '20', unexpected: true }).success, false);
 });
 

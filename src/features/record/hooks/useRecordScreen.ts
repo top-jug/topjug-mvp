@@ -281,7 +281,6 @@ export function useRecordScreen({ onClose, initialDraft, onSubmitComplete }: Use
       selectedPass: initialDraft.selectedPass,
       selectedGym: initialDraft.selectedGym,
       mode: initialDraft.mode,
-      sessionType: initialDraft.sessionType,
       expandedSectors,
       rating,
       showSubmitConfirm,

@@ -5,7 +5,6 @@ import { ClimbingRecord } from '../../entities/record/types';
 import { getRecordTotals } from '../../features/record/record-summary';
 import { classifyRecordFetchFailure, RecordFetchFailure } from '../../features/record/record-async-state';
 import { RECORD_DIFFICULTIES } from '../../mocks/record';
-import { recordSessionTypeLabel } from '../../features/record/session-labels';
 import { getRecord as fetchRecord, mapApiRecordDetail } from '../api/record-api';
 import { useNavigateBack } from '../navigation';
 
@@ -188,7 +187,6 @@ export default function RecordResultPage() {
             <InfoRow label="사용 회원권" value={record.passLabel} />
             <InfoRow label="난이도 평가" value={record.rating === null ? '미평가' : `${record.rating} / 5`} />
             <InfoRow label="기록 방식" value={record.mode === 'easy' ? '이지 모드' : '섹터별 기록'} />
-            <InfoRow label="세션 종류" value={recordSessionTypeLabel(record.sessionType)} />
             <InfoRow label="기록 완료" value={record.endedAt ? new Date(record.endedAt).toLocaleString('ko-KR') : '-'} />
           </dl>
         </section>

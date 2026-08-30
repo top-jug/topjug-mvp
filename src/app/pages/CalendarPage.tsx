@@ -1,6 +1,7 @@
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 import CalendarScreen from '../../features/calendar/CalendarScreen';
 import { useAuth } from '../../features/auth/AuthProvider';
+import { loginRedirectState } from '../../features/auth/auth-navigation';
 import { AppScreen, useAppScreenNavigate } from '../navigation';
 
 export default function CalendarPage() {
@@ -13,7 +14,7 @@ export default function CalendarPage() {
 
   if (!viewMode) return <Navigate to="/schedule/settings" replace />;
   if (viewMode === 'record' && authStatus === 'unauthenticated') {
-    return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
+    return <Navigate to="/login" replace state={loginRedirectState(location)} />;
   }
 
   return (

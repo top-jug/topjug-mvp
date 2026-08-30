@@ -74,11 +74,25 @@ export async function startRecordSession(userId: string, input: StartRecordSessi
       membershipId: input.membershipId ?? null,
       accessType: input.accessType,
       status: 'in_progress',
-      sessionType: input.sessionType,
       startedAt: new Date(input.startedAt),
       mode: input.mode,
       note: input.note ?? null,
-    }).returning();
+    }).returning({
+      id: climbingRecords.id,
+      userId: climbingRecords.userId,
+      gymId: climbingRecords.gymId,
+      membershipId: climbingRecords.membershipId,
+      accessType: climbingRecords.accessType,
+      status: climbingRecords.status,
+      startedAt: climbingRecords.startedAt,
+      endedAt: climbingRecords.endedAt,
+      activeDurationSeconds: climbingRecords.activeDurationSeconds,
+      rating: climbingRecords.rating,
+      mode: climbingRecords.mode,
+      note: climbingRecords.note,
+      createdAt: climbingRecords.createdAt,
+      updatedAt: climbingRecords.updatedAt,
+    });
     await transaction.insert(auditEvents).values(auditEventValues({ action: 'record.start', resourceType: 'climbing_record', resourceId: record.id }));
     return record;
   });
@@ -114,7 +128,10 @@ export async function replaceRecordSessionCounts(userId: string, recordId: strin
 
 export async function pauseRecordSession(userId: string, recordId: string, at = new Date()) {
   return getDatabase().transaction(async (transaction) => {
-    const [record] = await transaction.select().from(climbingRecords)
+    const [record] = await transaction.select({
+      status: climbingRecords.status,
+      startedAt: climbingRecords.startedAt,
+    }).from(climbingRecords)
       .where(and(eq(climbingRecords.id, recordId), eq(climbingRecords.userId, userId))).limit(1).for('update');
     if (!record || record.status !== 'in_progress') throw new ApiError(404, 'ACTIVE_RECORD_NOT_FOUND', '진행 중인 기록을 찾을 수 없습니다.');
     if (at < record.startedAt) throw new ApiError(400, 'INVALID_PAUSE_TIME', '일시정지 시각이 기록 시작보다 빠를 수 없습니다.');
@@ -147,7 +164,13 @@ export async function resumeRecordSession(userId: string, recordId: string, at =
 
 export async function completeRecordSession(userId: string, recordId: string, input: CompleteRecordSessionInput) {
   await getDatabase().transaction(async (transaction) => {
-    const [record] = await transaction.select().from(climbingRecords)
+    const [record] = await transaction.select({
+      status: climbingRecords.status,
+      startedAt: climbingRecords.startedAt,
+      gymId: climbingRecords.gymId,
+      membershipId: climbingRecords.membershipId,
+      note: climbingRecords.note,
+    }).from(climbingRecords)
       .where(and(eq(climbingRecords.id, recordId), eq(climbingRecords.userId, userId))).limit(1).for('update');
     if (!record || record.status !== 'in_progress') throw new ApiError(404, 'ACTIVE_RECORD_NOT_FOUND', '진행 중인 기록을 찾을 수 없습니다.');
     const endedAt = new Date(input.endedAt);
@@ -193,7 +216,7 @@ export async function completeRecordSession(userId: string, recordId: string, in
 
 export async function cancelRecordSession(userId: string, recordId: string, at = new Date()) {
   await getDatabase().transaction(async (transaction) => {
-    const [existing] = await transaction.select().from(climbingRecords)
+    const [existing] = await transaction.select({ startedAt: climbingRecords.startedAt }).from(climbingRecords)
       .where(and(eq(climbingRecords.id, recordId), eq(climbingRecords.userId, userId), eq(climbingRecords.status, 'in_progress')))
       .limit(1).for('update');
     if (!existing) throw new ApiError(404, 'ACTIVE_RECORD_NOT_FOUND', '진행 중인 기록을 찾을 수 없습니다.');

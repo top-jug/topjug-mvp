@@ -364,6 +364,7 @@ test('fallback heartbeat aborts on ownership loss without deleting the new owner
 });
 
 test('browser fallback fails closed when storage cannot provide a lease', async () => {
+  const failingManager: SessionLockManager = { request: async () => { throw new Error('unavailable'); } };
   const storage = {
     get length(): number { throw new Error('denied'); },
     key: () => null,
@@ -373,7 +374,7 @@ test('browser fallback fails closed when storage cannot provide a lease', async 
   };
   let ran = false;
   await assert.rejects(
-    runWithAuthSessionLock(async () => { ran = true; }, undefined, { storage, owner: 'blocked' }, 10),
+    runWithAuthSessionLock(async () => { ran = true; }, failingManager, { storage, owner: 'blocked' }, 10),
     AuthSessionLockError,
   );
   assert.equal(ran, false);
