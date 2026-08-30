@@ -73,7 +73,7 @@ After completion or cancellation, active-session transitions return `ACTIVE_RECO
 
 ## Known API limitations
 
-- Gym search returns at most 100 gyms and has no cursor or total count. Filtering uses stored free-form region, facility, and tag codes; there is no region-catalog endpoint.
+- Gym search returns at most 100 gyms and has no cursor or total count. `regionCode` is a canonical physical administrative-region subtree filter and is applied with `q`, facility, and tag filters before the limit. `/api/v1/regions` supplies the two-level catalog.
 - Record-list `sends` and `attempts` are per-record aggregates computed in the page query; the API does not expose cross-page totals.
 - Membership validity is represented as timezone-aware instants, not local calendar dates. Updates are full replacements and require the last observed `updatedAt` as `expectedUpdatedAt`; stale updates return `409 MEMBERSHIP_CHANGED`.
 - Memberships can reference multiple gyms, while the current frontend editor exposes one gym selection. API clients that manage multi-gym memberships must preserve the full `gymIds` array.
@@ -88,6 +88,8 @@ After completion or cancellation, active-session transitions return `ACTIVE_RECO
 - Every refresh rotates the token. Reusing a revoked token revokes the whole token family.
 - PostgreSQL stores refresh token SHA-256 hashes, never raw tokens.
 - Passwords use Argon2id with OWASP-aligned memory and iteration settings.
+- New registrations always receive the `user` role. Operations routes resolve the current `users.role` from PostgreSQL on every request instead of trusting a role claim in the access token.
+- The first `operations_admin` account is created only with the audited, interactive bootstrap command documented in the [operations console runbook](../admin/operations-console.md). There is no administrator-management API or screen in the MVP.
 - Login errors do not reveal whether an email exists. Attempts use atomic email and client-address limits; registration uses client-address and global limits before Argon2 work.
 - Concurrent or later reuse of a rotated refresh token revokes the token family and requires a new login.
 - JWTs, passwords, refresh tokens, and raw login identifiers must never enter logs or audit metadata.
@@ -106,7 +108,7 @@ The `production` profile requires `SSM_PARAMETER_PREFIX=/topjug/prod`. Next.js l
 
 The runtime URL uses the restricted `topjug_app` role; the migration URL uses the schema owner and is readable only by the GitHub OIDC deployment role. The EC2 role has explicit read access to the four runtime parameters, not the whole production path. CI applies packaged Drizzle migrations through a short-lived SSM database tunnel before sending the release command, then deployment checks `/api/ready`, which verifies secrets and the runtime database connection.
 
-Initial gym data is a controlled one-time operation, not part of every deployment. Production RDS is private, so run the bundled importer on EC2 through SSM with `SSM_PARAMETER_PREFIX`, `MEDIA_S3_BUCKET`, `MEDIA_PUBLIC_BASE_URL`, and an explicit `--apply`. Grant media write access only for the import and remove it afterward. The importer verifies the expected 31 gyms, 7 brands, 31 assets, and 93 media roles; a second run must upload no objects. See the [production database and media runbook](../operations/production-data.md).
+Initial gym data is a controlled one-time operation, not part of every deployment. Production RDS is private, so run the bundled importer on EC2 through SSM with `SSM_PARAMETER_PREFIX`, `MEDIA_S3_BUCKET`, `MEDIA_PUBLIC_BASE_URL`, and an explicit `--apply`. Grant media write access only for the import and remove it afterward. The importer verifies the expected 31 gyms, reviewed second-level physical regions, 7 brands, 31 assets, and 93 media roles; a second run must upload no objects. See the [production database and media runbook](../operations/production-data.md).
 
 ## Observability
 
@@ -129,6 +131,7 @@ npm run dev:local
 npm run test:integration:local
 npm run test:http:local
 npm run lint:openapi
+npm run ops:admin:create:local -- --email admin@example.com --display-name "운영자"
 npm run typecheck
 npm test
 npm run build
@@ -142,3 +145,4 @@ Do not edit generated SQL migration files after they have been applied. Change `
 - [OpenAPI contract](./openapi.yaml)
 - [Low-cost RDS plan](./rds.md)
 - [Production database and media runbook](../operations/production-data.md)
+- [Operations console and initial administrator runbook](../admin/operations-console.md)

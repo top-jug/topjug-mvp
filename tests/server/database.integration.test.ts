@@ -55,6 +55,8 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
         password: 'correct horse battery staple',
         displayName: 'Second',
       }, 'integration-second');
+      assert.equal(first.user.role, 'user');
+      assert.equal(second.user.role, 'user');
 
       const tiedRecordIds = [randomUUID(), randomUUID()].sort();
       await database.insert(climbingRecords).values([
@@ -116,11 +118,11 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
         endedAt: '2026-08-23T12:00:00+09:00',
         rating: 4.5,
         mode: 'normal',
-        sessionType: 'free',
         counts: [{ gymGradeId: grade.id, gymSectorId: sector.id, attempts: 5, sends: 3 }],
       });
       assert.equal(record.sends, 3);
       assert.equal(record.attempts, 5);
+      assert.equal(record.sessionType, 'free');
 
       const membership = await createMembership(first.user.id, {
         name: 'Integration Count Pass',
@@ -140,9 +142,9 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
         endedAt: '2026-08-24T12:00:00+09:00',
         rating: 4,
         mode: 'normal',
-        sessionType: 'training',
         counts: [{ gymGradeId: grade.id, gymSectorId: sector.id, attempts: 4, sends: 2 }],
       });
+      assert.equal(membershipRecord.sessionType, 'free');
       const [updatedMembership] = await database.select({ remainingUses: memberships.remainingUses, updatedAt: memberships.updatedAt })
         .from(memberships).where(eq(memberships.id, membership.id));
       const [usage] = await database.select().from(membershipUsages)
@@ -223,9 +225,9 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
         membershipId: membership.id,
         startedAt: '2026-08-25T10:00:00+09:00',
         mode: 'normal',
-        sessionType: 'training',
       });
       assert.ok(live);
+      assert.equal(live.sessionType, 'free');
       assert.equal((await getActiveRecordSession(first.user.id))?.id, live.id);
       await assert.rejects(
         () => startRecordSession(first.user.id, {
@@ -233,7 +235,6 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
           accessType: 'day_pass',
           startedAt: '2026-08-25T10:10:00+09:00',
           mode: 'normal',
-          sessionType: 'free',
         }),
         (error: unknown) => error instanceof ApiError && error.code === 'ACTIVE_RECORD_EXISTS',
       );

@@ -22,6 +22,26 @@ test('record creation accepts normalized domain values', () => {
   assert.equal(createRecordSchema.safeParse(validRecord).success, true);
 });
 
+test('record writes accept and ignore omitted and legacy session types', () => {
+  for (const schema of [createRecordSchema, startRecordSessionSchema]) {
+    const base = schema === createRecordSchema
+      ? validRecord
+      : {
+          gymId: validRecord.gymId,
+          accessType: validRecord.accessType,
+          startedAt: validRecord.startedAt,
+          mode: validRecord.mode,
+        };
+
+    for (const sessionType of [undefined, 'free', 'training', 'project'] as const) {
+      const input = sessionType === undefined ? base : { ...base, sessionType };
+      const result = schema.safeParse(input);
+      assert.equal(result.success, true, `expected ${sessionType ?? 'omitted'} to be accepted`);
+      if (result.success) assert.equal('sessionType' in result.data, false);
+    }
+  }
+});
+
 test('record creation rejects impossible and duplicate counts', () => {
   const impossible = {
     ...validRecord,
@@ -75,6 +95,13 @@ test('record list limits are coerced and bounded', () => {
 
 test('request schemas reject unknown properties', () => {
   assert.equal(createRecordSchema.safeParse({ ...validRecord, unexpected: true }).success, false);
+  assert.equal(startRecordSessionSchema.safeParse({
+    gymId: validRecord.gymId,
+    accessType: validRecord.accessType,
+    startedAt: validRecord.startedAt,
+    mode: validRecord.mode,
+    unexpected: true,
+  }).success, false);
   assert.equal(listRecordsSchema.safeParse({ limit: '20', unexpected: true }).success, false);
 });
 

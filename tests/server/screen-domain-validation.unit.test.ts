@@ -8,7 +8,7 @@ import { createShareSchema } from '../../src/server/shares/share-validation';
 const gymId = '00000000-0000-4000-8000-000000000010';
 
 test('gym search applies screen defaults and rejects unknown filters', () => {
-  assert.deepEqual(listGymsSchema.parse({}), { operationStatus: 'active', limit: 50 });
+  assert.deepEqual(listGymsSchema.parse({}), { facility: [], operationStatus: 'active', limit: 50 });
   assert.equal(listGymsSchema.safeParse({ unsupported: 'value' }).success, false);
 });
 

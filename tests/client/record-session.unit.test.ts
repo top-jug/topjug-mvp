@@ -46,7 +46,7 @@ test('record session API calls the lifecycle endpoints with the expected methods
 
   const count = { gymGradeId: 'grade-1', gymSectorId: 'sector-1', attempts: 3, sends: 2 };
   await getActiveRecordSession();
-  await startRecordSession({ gymId: 'gym-1', accessType: 'day_pass', startedAt: '2026-08-23T10:00:00+09:00', mode: 'normal', sessionType: 'free' });
+  await startRecordSession({ gymId: 'gym-1', accessType: 'day_pass', startedAt: '2026-08-23T10:00:00+09:00', mode: 'normal' });
   await replaceRecordSessionCounts('record-1', [count]);
   await pauseRecordSession('record-1', '2026-08-23T10:30:00+09:00');
   await resumeRecordSession('record-1', '2026-08-23T10:40:00+09:00');
@@ -62,6 +62,12 @@ test('record session API calls the lifecycle endpoints with the expected methods
     { url: '/api/v1/records/record-1/complete', method: 'POST' },
     { url: '/api/v1/records/record-2/cancel', method: 'POST' },
   ]);
+  assert.deepEqual(calls[1].body, {
+    gymId: 'gym-1',
+    accessType: 'day_pass',
+    startedAt: '2026-08-23T10:00:00+09:00',
+    mode: 'normal',
+  });
   assert.deepEqual(calls[2].body, { counts: [count] });
 });
 
@@ -87,7 +93,6 @@ test('record summaries preserve a missing rating and the API end time', () => {
     membership: null,
     accessType: 'day_pass',
     status: 'completed',
-    sessionType: 'free',
     startedAt: '2026-08-23T10:00:00.000Z',
     endedAt: '2026-08-23T11:00:00.000Z',
     activeDurationSeconds: 3600,

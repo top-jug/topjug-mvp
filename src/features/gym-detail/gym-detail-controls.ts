@@ -52,11 +52,30 @@ export function isValidKakaoMapPoint(latitude: number | null | undefined, longit
 }
 
 export function getKakaoMapScriptSrc(appKey: string) {
-  return `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false`;
+  return `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&libraries=services&autoload=false`;
 }
 
 export function buildGymMapLink(latitude: number | null | undefined, longitude: number | null | undefined) {
   if (!isValidKakaoMapPoint(latitude, longitude)) return null;
 
   return `https://map.kakao.com/link/map/${latitude},${longitude}`;
+}
+
+export function buildGymMapSearchLink(address: string | null | undefined, title: string) {
+  const query = [title.trim(), normalizeKakaoMapAddress(address)].filter(Boolean).join(' ');
+  if (!query) return null;
+  return `https://map.kakao.com/link/search/${encodeURIComponent(query)}`;
+}
+
+export function normalizeKakaoMapAddress(address: string | null | undefined) {
+  const normalized = address?.trim();
+  return normalized || null;
+}
+
+export function hasKakaoLocationSource(input: {
+  latitude?: number | null;
+  longitude?: number | null;
+  address?: string | null;
+}) {
+  return isValidKakaoMapPoint(input.latitude, input.longitude) || Boolean(normalizeKakaoMapAddress(input.address));
 }
