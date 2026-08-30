@@ -56,7 +56,7 @@ The `local` profile uses PostgreSQL and MinIO from `compose.yaml`; the Next.js p
 
 | Domain | Stable codes clients commonly handle |
 | --- | --- |
-| Authentication | `ACCOUNT_UNAVAILABLE`, `INVALID_CREDENTIALS`, `INVALID_EMAIL_VERIFICATION`, `EMAIL_DELIVERY_FAILED`, `EMAIL_VERIFICATION_RATE_LIMITED`, `PASSWORD_RESET_RATE_LIMITED`, `MISSING_ACCESS_TOKEN`, `INVALID_ACCESS_TOKEN`, `MISSING_REFRESH_TOKEN`, `INVALID_REFRESH_TOKEN`, `REFRESH_TOKEN_REUSED`, `LOGIN_EMAIL_RATE_LIMITED`, `LOGIN_ADDRESS_RATE_LIMITED`, `REGISTER_ADDRESS_RATE_LIMITED`, `REGISTER_GLOBAL_RATE_LIMITED`, `REFRESH_RATE_LIMITED` |
+| Authentication | `ACCOUNT_UNAVAILABLE`, `INVALID_CREDENTIALS`, `INVALID_EMAIL_VERIFICATION`, `EMAIL_DELIVERY_FAILED`, `EMAIL_VERIFICATION_RATE_LIMITED`, `PASSWORD_RESET_RATE_LIMITED`, `MISSING_ACCESS_TOKEN`, `INVALID_ACCESS_TOKEN`, `MISSING_REFRESH_TOKEN`, `INVALID_REFRESH_TOKEN`, `REFRESH_TOKEN_REUSED`, `LOGIN_RATE_LIMITED`, `REGISTRATION_RATE_LIMITED`, `REFRESH_RATE_LIMITED`, `LOGOUT_RATE_LIMITED` |
 | Gym | `GYM_NOT_FOUND` |
 | Membership | `INVALID_MEMBERSHIP_GYMS`, `MEMBERSHIP_NOT_FOUND`, `MEMBERSHIP_CHANGED`, `HOME_MEMBERSHIP_LIMIT`, `HOME_MEMBERSHIP_ORDER_OCCUPIED`, `MEMBERSHIP_TYPE_LOCKED`, `MEMBERSHIP_GYM_LOCKED`, `MEMBERSHIP_IN_USE` |
 | Record | `ACTIVE_RECORD_EXISTS`, `ACTIVE_RECORD_NOT_FOUND`, `RECORD_NOT_FOUND`, `RECORD_ALREADY_PAUSED`, `RECORD_NOT_PAUSED`, `INVALID_PAUSE_TIME`, `INVALID_RESUME_TIME`, `INVALID_END_TIME`, `INVALID_PAUSE_RANGE`, `INVALID_ACTIVE_DURATION`, `INVALID_CANCEL_TIME`, `MEMBERSHIP_ARCHIVED`, `MEMBERSHIP_GYM_MISMATCH`, `MEMBERSHIP_NOT_ACTIVE`, `MEMBERSHIP_EXHAUSTED`, `GRADE_GYM_MISMATCH`, `SECTOR_GYM_MISMATCH`, `INVALID_CURSOR` |
@@ -97,7 +97,7 @@ After completion or cancellation, active-session transitions return `ACTIVE_RECO
 - Email codes expire after 10 minutes, allow five incorrect attempts, and are bound to the normalized email and `register` or `reset_password` purpose. Verified tokens expire after 15 minutes and are consumed atomically with registration or reset.
 - Requesting another code does not invalidate delivered codes. Only successful ownership proof retires sibling codes; failed delivery retires only its pending challenge. Request and confirmation rate limits are isolated by purpose.
 - Password reset revokes every refresh session. Stateless access tokens already issued before reset cannot be revoked and retain a residual lifetime of at most 15 minutes.
-- Password reset and refresh rotation take the same transaction-scoped user lock, so a concurrent rotation cannot create a session after reset revocation.
+- Password reset, login session issuance, and refresh rotation take the same transaction-scoped user lock. Login re-reads and verifies the current password while holding that lock, so neither login nor rotation can create a session after a concurrent reset revocation.
 - Verification requests do not disclose account existence. A challenge is marked delivered only after the configured adapter succeeds; delivery failures return `EMAIL_DELIVERY_FAILED`, invalidate the challenge, and are never reported as accepted.
 - Login errors do not reveal whether an email exists. Attempts use atomic email and client-address limits; registration uses client-address and global limits before Argon2 work.
 - Concurrent or later reuse of a rotated refresh token revokes the token family and requires a new login.

@@ -4,7 +4,7 @@ import test from 'node:test';
 import { and, eq, isNull } from 'drizzle-orm';
 import postgres from 'postgres';
 import { authUserLockKey } from '../../src/server/auth/auth-lock';
-import { registerUser, resetPassword, rotateRefreshToken } from '../../src/server/auth/auth-service';
+import { loginUser, registerUser, resetPassword, rotateRefreshToken } from '../../src/server/auth/auth-service';
 import { hashVerificationToken } from '../../src/server/auth/email-verification-service';
 import { closeDatabase, getDatabase } from '../../src/server/db/client';
 import { auditEvents, emailVerificationChallenges, refreshSessions, users } from '../../src/server/db/schema';
@@ -82,6 +82,70 @@ test('password reset queued behind refresh revokes the newly rotated session', a
       () => rotateRefreshToken(rotated.refreshToken),
       (error: unknown) => error instanceof ApiError && error.code === 'REFRESH_TOKEN_REUSED',
     );
+  } finally {
+    await rawClient.end();
+    if (userId) {
+      await database.delete(auditEvents).where(eq(auditEvents.actorUserId, userId));
+      await database.delete(users).where(eq(users.id, userId));
+    }
+    await database.delete(emailVerificationChallenges).where(eq(emailVerificationChallenges.email, email));
+    await closeDatabase();
+  }
+});
+
+test('old-password login queued behind reset cannot issue a session', async () => {
+  const database = getDatabase();
+  const email = `login-reset-race-${randomUUID()}@example.com`;
+  const registerToken = randomBytes(32).toString('base64url');
+  const resetToken = randomBytes(32).toString('base64url');
+  const rawClient = postgres(process.env.DATABASE_URL!, { max: 2 });
+  let userId: string | undefined;
+
+  try {
+    await database.insert(emailVerificationChallenges).values([
+      {
+        email, purpose: 'register', codeHash: 'register-fixture', tokenHash: hashVerificationToken(registerToken),
+        deliveredAt: new Date(), verifiedAt: new Date(), expiresAt: new Date(Date.now() + 60_000),
+      },
+      {
+        email, purpose: 'reset_password', codeHash: 'reset-fixture', tokenHash: hashVerificationToken(resetToken),
+        deliveredAt: new Date(), verifiedAt: new Date(), expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
+    const registration = await registerUser({
+      email, displayName: 'Login Race Climber', password: 'Valid123', emailVerificationToken: registerToken,
+    }, `register-${randomUUID()}`);
+    userId = registration.user.id;
+
+    let resetPromise!: ReturnType<typeof resetPassword>;
+    let loginPromise!: ReturnType<typeof loginUser>;
+    await rawClient.begin(async (blocker) => {
+      const [backend] = await blocker<{ pid: number }[]>`select pg_backend_pid()::int as pid`;
+      await blocker`select pg_advisory_xact_lock(hashtextextended(${authUserLockKey(userId!)}, 0))`;
+
+      resetPromise = resetPassword({ password: 'Changed1!', emailVerificationToken: resetToken }, `reset-${randomUUID()}`);
+      await waitForQueuedUserLocks(rawClient, backend.pid, 1);
+      loginPromise = loginUser({ email, password: 'Valid123' }, `login-${randomUUID()}`);
+      await waitForQueuedUserLocks(rawClient, backend.pid, 2);
+    });
+
+    await resetPromise;
+    await assert.rejects(
+      () => loginPromise,
+      (error: unknown) => error instanceof ApiError && error.code === 'INVALID_CREDENTIALS',
+    );
+    const activeSessions = await database.select().from(refreshSessions).where(and(
+      eq(refreshSessions.userId, userId),
+      isNull(refreshSessions.revokedAt),
+    ));
+    assert.equal(activeSessions.length, 0);
+
+    await loginUser({ email, password: 'Changed1!' }, `new-login-${randomUUID()}`);
+    const sessionsAfterNewLogin = await database.select().from(refreshSessions).where(and(
+      eq(refreshSessions.userId, userId),
+      isNull(refreshSessions.revokedAt),
+    ));
+    assert.equal(sessionsAfterNewLogin.length, 1);
   } finally {
     await rawClient.end();
     if (userId) {

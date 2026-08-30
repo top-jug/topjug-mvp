@@ -22,3 +22,15 @@ test('production deployment gates and live-tests the configured SES identity', a
   assert.match(infrastructure, /ses:GetEmailIdentity/);
   assert.match(packageJson, /scripts\/verify-production-email\.mjs/);
 });
+
+test('production deployment is gated by database integration and HTTP contract tests', async () => {
+  const workflow = await readFile('.github/workflows/deploy.yml', 'utf8');
+  const integrationTest = workflow.indexOf('npm test && npm run test:integration');
+  const httpTest = workflow.indexOf('npm run test:http');
+  const productionAccess = workflow.indexOf('Configure AWS credentials');
+
+  assert.match(workflow, /image: postgres:16-alpine/);
+  assert.match(workflow, /EMAIL_DELIVERY_MODE: file/);
+  assert.ok(integrationTest >= 0 && integrationTest < productionAccess);
+  assert.ok(httpTest >= 0 && httpTest < productionAccess);
+});

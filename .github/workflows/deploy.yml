@@ -23,7 +23,21 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: topjug
+          POSTGRES_USER: topjug
+          POSTGRES_PASSWORD: topjug
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U topjug -d topjug"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,14 +51,34 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint OpenAPI contract
+        run: npm run lint:openapi
+
+      - name: Apply test database migrations
+        env:
+          APP_PROFILE: local
+          DATABASE_URL: postgresql://topjug:topjug@127.0.0.1:5432/topjug
+        run: npm run db:migrate
+
       - name: Test
-        run: npm test
+        env: &test-env
+          APP_PROFILE: local
+          DATABASE_URL: postgresql://topjug:topjug@127.0.0.1:5432/topjug
+          JWT_ACCESS_SECRET: deploy-test-access-secret-that-is-at-least-32-bytes
+          JWT_REFRESH_SECRET: deploy-test-refresh-secret-that-is-at-least-32-bytes
+          AUTH_RATE_LIMIT_PEPPER: deploy-test-rate-limit-pepper-that-is-at-least-32-bytes
+          EMAIL_DELIVERY_MODE: file
+        run: npm test && npm run test:integration
 
       - name: Typecheck
         run: npm run typecheck
 
       - name: Build
         run: npm run build && npm run build:migrate
+
+      - name: Test HTTP API
+        env: *test-env
+        run: npm run test:http
 
       - name: Package standalone application
         run: |

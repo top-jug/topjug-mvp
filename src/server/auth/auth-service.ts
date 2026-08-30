@@ -95,32 +95,41 @@ export async function loginUser(input: LoginInput, clientAddress: string) {
   const rateLimitKeys = await consumeLoginAttempts(input.email, clientAddress);
   const rows = await database.select().from(users).where(eq(users.email, input.email)).limit(1);
   const user = rows[0];
-  const passwordMatches = await verifyPassword(user?.passwordHash ?? null, input.password);
-
-  if (!user || !passwordMatches) {
+  if (!user) {
+    await verifyPassword(null, input.password);
     await writeRequiredAuditEvent({ action: 'auth.login', outcome: 'failure', metadata: { reason: 'invalid_credentials' } });
     throw new ApiError(401, 'INVALID_CREDENTIALS', '이메일 또는 비밀번호를 확인해주세요.');
   }
 
-  await clearLoginAttempts(rateLimitKeys);
-  const tokens = await createTokenPair(user.id);
-  await database.transaction(async (transaction) => {
+  const result = await database.transaction(async (transaction) => {
+    await lockAuthUser(transaction, user.id);
+    const [currentUser] = await transaction.select().from(users).where(eq(users.id, user.id)).limit(1);
+    if (!currentUser || !(await verifyPassword(currentUser.passwordHash, input.password))) return null;
+
+    const tokens = await createTokenPair(currentUser.id);
     await transaction.insert(refreshSessions).values({
       id: tokens.sessionId,
       familyId: tokens.familyId,
-      userId: user.id,
+      userId: currentUser.id,
       tokenHash: hashToken(tokens.refreshToken),
       expiresAt: tokens.refreshTokenExpiresAt,
     });
     await transaction.insert(auditEvents).values(auditEventValues({
       action: 'auth.login',
-      actorUserId: user.id,
+      actorUserId: currentUser.id,
       resourceType: 'user',
-      resourceId: user.id,
+      resourceId: currentUser.id,
     }));
+    return { user: currentUser, tokens };
   });
-  setRequestActor(user.id);
-  return { user: publicUser(user), tokens };
+  if (!result) {
+    await writeRequiredAuditEvent({ action: 'auth.login', outcome: 'failure', metadata: { reason: 'invalid_credentials' } });
+    throw new ApiError(401, 'INVALID_CREDENTIALS', '이메일 또는 비밀번호를 확인해주세요.');
+  }
+
+  await clearLoginAttempts(rateLimitKeys);
+  setRequestActor(result.user.id);
+  return { user: publicUser(result.user), tokens: result.tokens };
 }
 
 function tokenHashesMatch(left: string, right: string) {
