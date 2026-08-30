@@ -58,6 +58,7 @@ erDiagram
     text display_name
     text email UK
     text password_hash
+    user_role role
     text home_region_code FK
   }
   media_assets {

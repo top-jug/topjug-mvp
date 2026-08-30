@@ -55,6 +55,8 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
         password: 'correct horse battery staple',
         displayName: 'Second',
       }, 'integration-second');
+      assert.equal(first.user.role, 'user');
+      assert.equal(second.user.role, 'user');
 
       const tiedRecordIds = [randomUUID(), randomUUID()].sort();
       await database.insert(climbingRecords).values([
