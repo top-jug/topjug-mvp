@@ -259,7 +259,6 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
         endedAt: '2026-08-23T12:00:00+09:00',
         rating: 4.5,
         mode: 'normal',
-        sessionType: 'free',
         counts: [{ gymGradeId: grade.id, gymSectorId: sector.id, attempts: 5, sends: 3 }],
       }),
     });
@@ -267,6 +266,23 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
     const createdBody = await created.json() as { data: { id: string; sends: number; attempts: number } };
     assert.equal(createdBody.data.sends, 3);
     assert.equal(createdBody.data.attempts, 5);
+    assert.equal('sessionType' in createdBody.data, false);
+
+    const legacyRecord = await jsonRequest('/records', {
+      method: 'POST',
+      headers: authorization,
+      body: JSON.stringify({
+        gymId: gym.id,
+        accessType: 'day_pass',
+        startedAt: '2026-08-24T09:00:00+09:00',
+        endedAt: '2026-08-24T09:30:00+09:00',
+        mode: 'normal',
+        sessionType: 'free',
+        counts: [],
+      }),
+    });
+    assert.equal(legacyRecord.status, 400);
+    assert.equal((await legacyRecord.json() as { error: { code: string } }).error.code, 'INVALID_REQUEST');
 
     const secondCreated = await jsonRequest('/records', {
       method: 'POST',
@@ -278,7 +294,6 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
         endedAt: '2026-08-24T12:00:00+09:00',
         rating: 4,
         mode: 'normal',
-        sessionType: 'training',
         counts: [{ gymGradeId: grade.id, gymSectorId: sector.id, attempts: 2, sends: 1 }],
       }),
     });
@@ -301,6 +316,7 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
     assert.equal(list.status, 200);
     const listBody = await list.json() as { data: Array<{ id: string }> };
     assert.equal(listBody.data.some((record) => record.id === createdBody.data.id), true);
+    assert.equal(listBody.data.some((record) => 'sessionType' in record), false);
 
     const firstPage = await jsonRequest('/records?limit=1', { headers: authorization });
     assert.equal(firstPage.status, 200);
@@ -333,11 +349,11 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
         accessType: 'day_pass',
         startedAt: '2026-08-25T10:00:00+09:00',
         mode: 'normal',
-        sessionType: 'free',
       }),
     });
     assert.equal(session.status, 201);
     const sessionBody = await session.json() as { data: { id: string } };
+    assert.equal('sessionType' in sessionBody.data, false);
     const pause = await jsonRequest(`/records/${sessionBody.data.id}/pause`, {
       method: 'POST', headers: authorization, body: JSON.stringify({ at: '2026-08-25T10:30:00+09:00' }),
     });
@@ -382,7 +398,6 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
         accessType: 'day_pass',
         startedAt: '2026-08-26T10:00:00+09:00',
         mode: 'easy',
-        sessionType: 'free',
       }),
     });
     assert.equal(cancellableSession.status, 201);
@@ -417,6 +432,10 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
     });
     assert.equal(revocableShare.status, 201);
     const revocableShareBody = await revocableShare.json() as { data: { id: string; token: string } };
+    const activePublicShare = await jsonRequest(`/shares/${revocableShareBody.data.token}`);
+    assert.equal(activePublicShare.status, 200);
+    const activePublicShareBody = await activePublicShare.json() as { data: { record: Record<string, unknown> } };
+    assert.equal('sessionType' in activePublicShareBody.data.record, false);
     const revoke = await jsonRequest(`/records/${createdBody.data.id}/shares/${revocableShareBody.data.id}`, {
       method: 'DELETE', headers: authorization,
     });

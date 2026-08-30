@@ -6,9 +6,7 @@ info:
     Runtime-aligned API contract for the TopJug MVP backend. Every response includes
     `x-request-id` and `Cache-Control: no-store` for responses produced by documented handlers. Error `code` values are stable client
     identifiers; localized `message` text is not stable. Nullable response fields are
-    emitted as JSON null when present, while non-required fields may be omitted. Deprecated
-    record `sessionType` request and response fields remain temporarily for stale clients;
-    issue #86 will remove them with the database column and enum.
+    emitted as JSON null when present, while non-required fields may be omitted.
   license:
     name: UNLICENSED
     identifier: UNLICENSED
@@ -1508,11 +1506,6 @@ components:
         membershipId: { type: [string, 'null'], format: uuid }
         startedAt: { type: string, format: date-time }
         mode: { type: string, enum: [easy, normal] }
-        sessionType:
-          type: string
-          enum: [free, training, project]
-          deprecated: true
-          description: Legacy compatibility input. Accepted but ignored for new writes; removal is tracked by issue #86.
         note: { type: [string, 'null'], maxLength: 2000 }
       allOf:
         - if:
@@ -1525,7 +1518,7 @@ components:
             properties: { membershipId: { type: 'null' } }
     StartedRecordSession:
       type: object
-      required: [id, userId, gymId, membershipId, accessType, status, sessionType, startedAt, endedAt, activeDurationSeconds, rating, mode, note, createdAt, updatedAt]
+      required: [id, userId, gymId, membershipId, accessType, status, startedAt, endedAt, activeDurationSeconds, rating, mode, note, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
         userId: { type: string, format: uuid }
@@ -1533,11 +1526,6 @@ components:
         membershipId: { type: [string, 'null'], format: uuid }
         accessType: { type: string, enum: [day_pass, membership, other] }
         status: { type: string, enum: [in_progress] }
-        sessionType:
-          type: string
-          enum: [free, training, project]
-          deprecated: true
-          description: Legacy response field retained for stale clients; removal is tracked by issue #86.
         startedAt: { type: string, format: date-time }
         endedAt: { type: 'null' }
         activeDurationSeconds: { type: 'null' }
@@ -1628,18 +1616,13 @@ components:
           oneOf: [{ $ref: '#/components/schemas/MediaReference' }, { type: 'null' }]
         record:
           type: object
-          required: [id, startedAt, endedAt, rating, mode, sessionType, accessType, activeDurationSeconds, sends, attempts]
+          required: [id, startedAt, endedAt, rating, mode, accessType, activeDurationSeconds, sends, attempts]
           properties:
             id: { type: string, format: uuid }
             startedAt: { type: string, format: date-time }
             endedAt: { type: [string, 'null'], format: date-time }
             rating: { type: [number, 'null'] }
             mode: { type: string, enum: [easy, normal] }
-            sessionType:
-              type: string
-              enum: [free, training, project]
-              deprecated: true
-              description: Legacy response field retained for stale clients; removal is tracked by issue #86.
             accessType: { type: string, enum: [day_pass, membership, other] }
             activeDurationSeconds: { type: [integer, 'null'] }
             sends: { type: integer }
@@ -1679,11 +1662,6 @@ components:
         mode:
           type: string
           enum: [easy, normal]
-        sessionType:
-          type: string
-          enum: [free, training, project]
-          deprecated: true
-          description: Legacy compatibility input. Accepted but ignored for new writes; removal is tracked by issue #86.
         note:
           type: [string, 'null']
           maxLength: 2000
@@ -1721,7 +1699,7 @@ components:
           description: Must not exceed attempts.
     RecordSummary:
       type: object
-      required: [id, gym, membership, accessType, status, sessionType, startedAt, endedAt, activeDurationSeconds, rating, mode, note, sends, attempts, createdAt]
+      required: [id, gym, membership, accessType, status, startedAt, endedAt, activeDurationSeconds, rating, mode, note, sends, attempts, createdAt]
       properties:
         id:
           type: string
@@ -1738,11 +1716,6 @@ components:
         status:
           type: string
           enum: [in_progress, completed, cancelled]
-        sessionType:
-          type: string
-          enum: [free, training, project]
-          deprecated: true
-          description: Legacy response field retained for stale clients; removal is tracked by issue #86.
         startedAt:
           type: string
           format: date-time

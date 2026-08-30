@@ -24,7 +24,6 @@ export interface ApiRecordBase {
   membership: ApiMembershipRef | null;
   accessType: 'day_pass' | 'membership' | 'other';
   status: 'in_progress' | 'completed' | 'cancelled';
-  sessionType?: 'free' | 'training' | 'project';
   startedAt: string;
   endedAt: string | null;
   activeDurationSeconds: number | null;
@@ -88,7 +87,6 @@ export interface ApiStartedRecordSession {
   membershipId: string | null;
   accessType: ApiRecordBase['accessType'];
   status: 'in_progress';
-  sessionType?: ApiRecordBase['sessionType'];
   startedAt: string;
   endedAt: null;
   activeDurationSeconds: null;
@@ -165,7 +163,6 @@ export interface ApiPublicShare {
     endedAt: string | null;
     rating: number | null;
     mode: 'easy' | 'normal';
-    sessionType?: 'free' | 'training' | 'project';
     accessType: 'day_pass' | 'membership' | 'other';
     activeDurationSeconds: number | null;
     sends: number;

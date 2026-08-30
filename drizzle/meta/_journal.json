@@ -29,6 +29,13 @@
       "when": 1788076052714,
       "tag": "0003_rapid_ben_parker",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788077093491,
+      "tag": "0004_drop_record_session_type",
+      "breakpoints": true
     }
   ]
 }

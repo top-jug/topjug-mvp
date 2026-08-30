@@ -33,7 +33,6 @@ export const gymPriceType = pgEnum('gym_price_type', ['day_pass', 'shoe_rental']
 export const settingEventStatus = pgEnum('setting_event_status', ['scheduled', 'completed', 'cancelled']);
 export const recordAccessType = pgEnum('record_access_type', ['day_pass', 'membership', 'other']);
 export const recordStatus = pgEnum('record_status', ['in_progress', 'completed', 'cancelled']);
-export const recordSessionType = pgEnum('record_session_type', ['free', 'training', 'project']);
 export const membershipUsageType = pgEnum('membership_usage_type', ['consume', 'restore', 'adjustment']);
 export const recordShareStatus = pgEnum('record_share_status', ['active', 'revoked', 'expired']);
 
@@ -467,7 +466,6 @@ export const climbingRecords = pgTable(
     membershipId: uuid('membership_id'),
     accessType: recordAccessType('access_type').notNull(),
     status: recordStatus('status').notNull().default('completed'),
-    sessionType: recordSessionType('session_type').notNull().default('free'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
     endedAt: timestamp('ended_at', { withTimezone: true }),
     activeDurationSeconds: integer('active_duration_seconds'),
