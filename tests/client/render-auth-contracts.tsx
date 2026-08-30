@@ -126,10 +126,21 @@ async function renderedRoutes() {
 
 async function renderedProviderWiring() {
   const requests: string[] = [];
+  const expectedProtectedPaths = ['/api/v1/me/saved-gyms', '/api/v1/memberships', '/api/v1/records'];
+  let resolveProtectedRequests!: () => void;
+  const protectedRequestsObserved = new Promise<void>((resolve) => {
+    resolveProtectedRequests = resolve;
+  });
+  const resolveWhenComplete = () => {
+    if (expectedProtectedPaths.every((path) => requests.some((url) => url.includes(path)))) {
+      resolveProtectedRequests();
+    }
+  };
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
     const url = String(input);
     requests.push(url);
+    resolveWhenComplete();
     const payload = url.includes('/auth/refresh')
       ? { data: { accessToken: 'test-access-token', accessTokenExpiresIn: 300 } }
       : url.includes('/records')
@@ -145,7 +156,6 @@ async function renderedProviderWiring() {
         <AppDataProviders><span>provider child</span></AppDataProviders>
       </AuthContext.Provider>,
     );
-    await new Promise((resolve) => setTimeout(resolve, 20));
   });
   const unauthenticatedRequests = [...requests];
 
@@ -155,8 +165,8 @@ async function renderedProviderWiring() {
         <AppDataProviders><span>provider child</span></AppDataProviders>
       </AuthContext.Provider>,
     );
-    await new Promise((resolve) => setTimeout(resolve, 50));
   });
+  await act(async () => protectedRequestsObserved);
 
   const authenticatedRequests = requests.slice(unauthenticatedRequests.length);
   renderer!.unmount();
