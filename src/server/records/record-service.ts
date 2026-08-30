@@ -174,7 +174,19 @@ export async function createRecord(userId: string, input: CreateRecordInput) {
         mode: input.mode,
         note: input.note ?? null,
       })
-      .returning();
+      .returning({
+        id: climbingRecords.id,
+        startedAt: climbingRecords.startedAt,
+        endedAt: climbingRecords.endedAt,
+        rating: climbingRecords.rating,
+        mode: climbingRecords.mode,
+        accessType: climbingRecords.accessType,
+        status: climbingRecords.status,
+        activeDurationSeconds: climbingRecords.activeDurationSeconds,
+        note: climbingRecords.note,
+        createdAt: climbingRecords.createdAt,
+        updatedAt: climbingRecords.updatedAt,
+      });
 
     const counts = input.counts.length > 0
       ? await transaction.insert(recordCounts).values(
