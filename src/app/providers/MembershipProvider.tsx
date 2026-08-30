@@ -11,6 +11,7 @@ import {
   replaceMembership,
 } from '../api/membership-api';
 import { useAuth } from '../../features/auth/AuthProvider';
+import { shouldLoadProtectedResources } from '../../features/auth/auth-navigation';
 import {
   apiMembershipToItem,
   buildMembershipInput,
@@ -202,7 +203,7 @@ export function MembershipProvider({ children }: PropsWithChildren) {
     setIsLoading(emptyState.isLoading);
     setIsGymOptionsLoading(emptyState.isGymOptionsLoading);
     setPresentationNow(new Date());
-    if (authStatus === 'authenticated') {
+    if (shouldLoadProtectedResources(authStatus)) {
       void refreshMemberships();
       void refreshGymOptions();
     }
