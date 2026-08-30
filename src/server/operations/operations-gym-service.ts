@@ -1,8 +1,8 @@
 import 'server-only';
 
-import { and, asc, count, desc, eq, ilike, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { getDatabase } from '../db/client';
-import { auditEvents, gymBrands, gymPrices, gyms, regions } from '../db/schema';
+import { auditEvents, gymPrices, gyms } from '../db/schema';
 import { ApiError } from '../http/api-error';
 import { auditEventValues } from '../observability/audit';
 import type {
@@ -19,13 +19,9 @@ type GymFields = CreateOperationsGymInput | UpdateOperationsGymInput;
 
 function gymValues(input: GymFields) {
   return {
-    brandId: input.brandId,
     name: input.name,
     branchName: input.branchName,
     address: input.address,
-    regionCode: input.regionCode,
-    latitude: input.latitude,
-    longitude: input.longitude,
     phone: input.phone,
     websiteUrl: input.websiteUrl,
     instagramUrl: input.instagramUrl,
@@ -34,18 +30,8 @@ function gymValues(input: GymFields) {
     parkingInfo: input.parkingInfo,
     calendarColor: input.calendarColor,
     calendarTextColor: input.calendarTextColor,
+    facilities: input.facilities,
   };
-}
-
-async function validateReferences(transaction: Transaction, input: GymFields) {
-  if (input.brandId) {
-    const [brand] = await transaction.select({ id: gymBrands.id }).from(gymBrands).where(eq(gymBrands.id, input.brandId)).limit(1);
-    if (!brand) throw new ApiError(400, 'INVALID_GYM_BRAND', '등록된 브랜드를 선택해주세요.');
-  }
-  if (input.regionCode) {
-    const [region] = await transaction.select({ code: regions.code }).from(regions).where(eq(regions.code, input.regionCode)).limit(1);
-    if (!region) throw new ApiError(400, 'INVALID_GYM_REGION', '등록된 지역을 선택해주세요.');
-  }
 }
 
 async function replacePrice(transaction: Transaction, gymId: string, type: 'day_pass' | 'shoe_rental', price: GymFields['dayPassPrice']) {
@@ -77,13 +63,9 @@ async function lockedGym(transaction: Transaction, gymId: string, expectedUpdate
 async function loadOperationsGym(database: Database | Transaction, gymId: string) {
   const [gym] = await database.select({
     id: gyms.id,
-    brandId: gyms.brandId,
     name: gyms.name,
     branchName: gyms.branchName,
     address: gyms.address,
-    regionCode: gyms.regionCode,
-    latitude: gyms.latitude,
-    longitude: gyms.longitude,
     phone: gyms.phone,
     websiteUrl: gyms.websiteUrl,
     instagramUrl: gyms.instagramUrl,
@@ -93,6 +75,7 @@ async function loadOperationsGym(database: Database | Transaction, gymId: string
     operationStatus: gyms.operationStatus,
     calendarColor: gyms.calendarColor,
     calendarTextColor: gyms.calendarTextColor,
+    facilities: gyms.facilities,
     lastVerifiedAt: gyms.lastVerifiedAt,
     createdAt: gyms.createdAt,
     updatedAt: gyms.updatedAt,
@@ -140,19 +123,8 @@ export async function getOperationsGym(gymId: string) {
   return loadOperationsGym(getDatabase(), gymId);
 }
 
-export async function listOperationsGymOptions() {
-  const database = getDatabase();
-  const [brands, regionRows] = await Promise.all([
-    database.select({ id: gymBrands.id, name: gymBrands.name }).from(gymBrands).orderBy(asc(gymBrands.name)),
-    database.select({ code: regions.code, name: regions.name, level: regions.level, parentCode: regions.parentCode })
-      .from(regions).orderBy(asc(regions.sortOrder), asc(regions.name)),
-  ]);
-  return { brands, regions: regionRows };
-}
-
 export async function createOperationsGym(input: CreateOperationsGymInput) {
   return getDatabase().transaction(async (transaction) => {
-    await validateReferences(transaction, input);
     const [created] = await transaction.insert(gyms).values({ ...gymValues(input), operationStatus: input.operationStatus }).returning({ id: gyms.id });
     await Promise.all([
       replacePrice(transaction, created.id, 'day_pass', input.dayPassPrice),
@@ -169,7 +141,6 @@ export async function createOperationsGym(input: CreateOperationsGymInput) {
 export async function updateOperationsGym(gymId: string, input: UpdateOperationsGymInput) {
   return getDatabase().transaction(async (transaction) => {
     await lockedGym(transaction, gymId, input.expectedUpdatedAt);
-    await validateReferences(transaction, input);
     await transaction.update(gyms).set({
       ...gymValues(input),
       updatedAt: sql`greatest(clock_timestamp(), ${gyms.updatedAt} + interval '1 millisecond')`,

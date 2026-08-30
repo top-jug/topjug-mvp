@@ -15,13 +15,9 @@ import {
 } from '../../src/server/operations/operations-gym-service';
 
 const baseInput = (suffix: string) => ({
-  brandId: null,
   name: `운영 암장 ${suffix}`,
   branchName: null,
   address: '서울특별시 종로구 테스트로 1',
-  regionCode: null,
-  latitude: 37.5,
-  longitude: 127,
   phone: null,
   websiteUrl: 'https://example.com',
   instagramUrl: null,
@@ -30,6 +26,7 @@ const baseInput = (suffix: string) => ({
   parkingInfo: null,
   calendarColor: '#2563eb',
   calendarTextColor: '#ffffff',
+  facilities: ['샤워실', '주차'],
   dayPassPrice: { amount: 20000, rawText: '20,000원' },
   shoeRentalPrice: null,
 });

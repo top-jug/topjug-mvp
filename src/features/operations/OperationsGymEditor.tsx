@@ -6,12 +6,10 @@ import { ApiClientError } from '../../lib/api/error';
 import {
   createOperationsGym,
   getOperationsGym,
-  getOperationsGymOptions,
   GymOperationStatus,
   operationStatusLabels,
   OperationsGym,
   OperationsGymFields,
-  OperationsGymOptions,
   updateOperationsGym,
   updateOperationsGymStatus,
   verifyOperationsGym,
@@ -21,13 +19,9 @@ const inputClass = 'mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-w
 const textareaClass = `${inputClass} min-h-24 py-3`;
 
 const emptyFields: OperationsGymFields = {
-  brandId: null,
   name: '',
   branchName: null,
   address: '',
-  regionCode: null,
-  latitude: null,
-  longitude: null,
   phone: null,
   websiteUrl: null,
   instagramUrl: null,
@@ -36,6 +30,7 @@ const emptyFields: OperationsGymFields = {
   parkingInfo: null,
   calendarColor: null,
   calendarTextColor: null,
+  facilities: [],
   dayPassPrice: null,
   shoeRentalPrice: null,
 };
@@ -56,7 +51,7 @@ export function OperationsGymEditor() {
   const [fields, setFields] = useState<OperationsGymFields>(emptyFields);
   const [gym, setGym] = useState<OperationsGym | null>(null);
   const [status, setStatus] = useState<GymOperationStatus>('active');
-  const [options, setOptions] = useState<OperationsGymOptions>({ brands: [], regions: [] });
+  const [facilitiesText, setFacilitiesText] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -67,13 +62,13 @@ export function OperationsGymEditor() {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    Promise.all([getOperationsGymOptions(controller.signal), gymId ? getOperationsGym(gymId, controller.signal) : Promise.resolve(null)])
-      .then(([nextOptions, nextGym]) => {
-        setOptions(nextOptions);
+    (gymId ? getOperationsGym(gymId, controller.signal) : Promise.resolve(null))
+      .then((nextGym) => {
         if (nextGym) {
           const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, lastVerifiedAt: _lastVerifiedAt, operationStatus, ...nextFields } = nextGym;
           setGym(nextGym);
           setFields(nextFields);
+          setFacilitiesText(nextFields.facilities.join(', '));
           setStatus(operationStatus);
         }
       })
@@ -102,7 +97,8 @@ export function OperationsGymEditor() {
 
   function normalizedFields(): OperationsGymFields {
     const normalizePrice = (price: OperationsGymFields['dayPassPrice']) => price?.rawText.trim() ? { ...price, rawText: price.rawText.trim() } : null;
-    return { ...fields, dayPassPrice: normalizePrice(fields.dayPassPrice), shoeRentalPrice: normalizePrice(fields.shoeRentalPrice) };
+    const facilities = [...new Set(facilitiesText.split(',').map((item) => item.trim()).filter(Boolean))];
+    return { ...fields, facilities, dayPassPrice: normalizePrice(fields.dayPassPrice), shoeRentalPrice: normalizePrice(fields.shoeRentalPrice) };
   }
 
   function showError(nextError: unknown) {
@@ -163,15 +159,12 @@ export function OperationsGymEditor() {
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><h3 className="text-lg font-black">기본 정보</h3><div className="mt-5 grid gap-4 md:grid-cols-2">
           <Field label="암장명 *"><input required value={fields.name} onChange={(event) => change('name', event.target.value)} className={inputClass} /></Field>
           <Field label="지점명"><input value={fields.branchName ?? ''} onChange={(event) => change('branchName', event.target.value || null)} className={inputClass} /></Field>
-          <Field label="브랜드"><select value={fields.brandId ?? ''} onChange={(event) => change('brandId', event.target.value || null)} className={inputClass}><option value="">브랜드 없음</option>{options.brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}</select></Field>
-          <Field label="운영 지역"><select value={fields.regionCode ?? ''} onChange={(event) => change('regionCode', event.target.value || null)} className={inputClass}><option value="">지역 미지정</option>{options.regions.map((region) => <option key={region.code} value={region.code}>{'　'.repeat(Math.max(0, region.level - 1))}{region.name}</option>)}</select></Field>
           <div className="md:col-span-2"><Field label="주소 *"><input required value={fields.address} onChange={(event) => change('address', event.target.value)} className={inputClass} /></Field></div>
-          <Field label="위도" hint="위도와 경도는 함께 입력하세요."><input type="number" step="any" value={fields.latitude ?? ''} onChange={(event) => change('latitude', event.target.value === '' ? null : Number(event.target.value))} className={inputClass} /></Field>
-          <Field label="경도"><input type="number" step="any" value={fields.longitude ?? ''} onChange={(event) => change('longitude', event.target.value === '' ? null : Number(event.target.value))} className={inputClass} /></Field>
           <Field label="전화번호"><input value={fields.phone ?? ''} onChange={(event) => change('phone', event.target.value || null)} className={inputClass} /></Field>
           <Field label="찾아오는 길"><input value={fields.nearbyDirections ?? ''} onChange={(event) => change('nearbyDirections', event.target.value || null)} className={inputClass} /></Field>
           <Field label="웹사이트" hint="https:// 주소만 입력할 수 있습니다."><input type="url" value={fields.websiteUrl ?? ''} onChange={(event) => change('websiteUrl', event.target.value || null)} className={inputClass} placeholder="https://" /></Field>
           <Field label="인스타그램" hint="https:// 주소만 입력할 수 있습니다."><input type="url" value={fields.instagramUrl ?? ''} onChange={(event) => change('instagramUrl', event.target.value || null)} className={inputClass} placeholder="https://" /></Field>
+          <div className="md:col-span-2"><Field label="보유시설" hint="쉼표로 구분해 입력하세요. 예: 샤워실, 주차, 라커"><input value={facilitiesText} onChange={(event) => { setFacilitiesText(event.target.value); setDirty(true); setSaved(false); }} className={inputClass} /></Field></div>
         </div></section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><h3 className="text-lg font-black">운영 안내</h3><div className="mt-5 grid gap-4 md:grid-cols-2"><Field label="운영시간 안내"><textarea value={fields.operatingHoursNote ?? ''} onChange={(event) => change('operatingHoursNote', event.target.value || null)} className={textareaClass} /></Field><Field label="주차 안내"><textarea value={fields.parkingInfo ?? ''} onChange={(event) => change('parkingInfo', event.target.value || null)} className={textareaClass} /></Field></div></section>

@@ -7,13 +7,9 @@ import {
 } from '../../src/server/operations/operations-gym-validation';
 
 const validGym = {
-  brandId: null,
   name: '테스트 클라이밍',
   branchName: null,
   address: '서울특별시 종로구 테스트로 1',
-  regionCode: null,
-  latitude: 37.5,
-  longitude: 127,
   phone: null,
   websiteUrl: 'https://example.com',
   instagramUrl: null,
@@ -22,6 +18,7 @@ const validGym = {
   parkingInfo: null,
   calendarColor: '#2563eb',
   calendarTextColor: '#ffffff',
+  facilities: ['샤워실', '주차'],
   dayPassPrice: { amount: 20000, rawText: '20,000원' },
   shoeRentalPrice: null,
 };
@@ -32,11 +29,11 @@ test('operations gym validation accepts a complete base-information payload', ()
   assert.equal(parsed.dayPassPrice?.amount, 20000);
 });
 
-test('operations gym validation rejects half coordinates, insecure URLs, and invalid colors', () => {
-  assert.equal(createOperationsGymSchema.safeParse({ ...validGym, longitude: null }).success, false);
+test('operations gym validation rejects insecure URLs, invalid colors, and invalid facilities', () => {
   assert.equal(createOperationsGymSchema.safeParse({ ...validGym, websiteUrl: 'http://example.com' }).success, false);
   assert.equal(createOperationsGymSchema.safeParse({ ...validGym, websiteUrl: 'https://' }).success, false);
   assert.equal(createOperationsGymSchema.safeParse({ ...validGym, calendarColor: '#fff' }).success, false);
+  assert.equal(createOperationsGymSchema.safeParse({ ...validGym, facilities: [''] }).success, false);
 });
 
 test('operations gym updates require an RFC3339 version and status updates are strict', () => {

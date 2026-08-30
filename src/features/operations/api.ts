@@ -33,10 +33,6 @@ export type OperationsGymSummary = {
 export type OperationsGymPrice = { amount: number | null; rawText: string } | null;
 
 export type OperationsGym = OperationsGymSummary & {
-  brandId: string | null;
-  regionCode: string | null;
-  latitude: number | null;
-  longitude: number | null;
   phone: string | null;
   websiteUrl: string | null;
   instagramUrl: string | null;
@@ -45,6 +41,7 @@ export type OperationsGym = OperationsGymSummary & {
   parkingInfo: string | null;
   calendarColor: string | null;
   calendarTextColor: string | null;
+  facilities: string[];
   dayPassPrice: OperationsGymPrice;
   shoeRentalPrice: OperationsGymPrice;
   createdAt: string;
@@ -55,11 +52,6 @@ export type OperationsGymFields = Omit<OperationsGym,
     branchName: string | null;
     address: string;
   };
-
-export type OperationsGymOptions = {
-  brands: Array<{ id: string; name: string }>;
-  regions: Array<{ code: string; name: string; level: number; parentCode: string | null }>;
-};
 
 export async function listOperationsGyms(
   query: { q?: string; operationStatus?: GymOperationStatus; page: number; limit?: number },
@@ -73,10 +65,6 @@ export async function listOperationsGyms(
 
 export async function getOperationsGym(gymId: string, signal?: AbortSignal) {
   return (await apiRequest<ApiDataResponse<OperationsGym>>(`/ops/gyms/${gymId}`, { signal })).data;
-}
-
-export async function getOperationsGymOptions(signal?: AbortSignal) {
-  return (await apiRequest<ApiDataResponse<OperationsGymOptions>>('/ops/gyms/options', { signal })).data;
 }
 
 export async function createOperationsGym(input: OperationsGymFields & { operationStatus: GymOperationStatus }) {
