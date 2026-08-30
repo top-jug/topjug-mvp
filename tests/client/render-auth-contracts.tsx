@@ -4,6 +4,7 @@ import { AppDataProviders } from '../../src/app/App';
 import { AppRouter } from '../../src/app/router';
 import { AuthContext, type AuthContextValue } from '../../src/features/auth/AuthProvider';
 import type { AuthStatus, AuthUser } from '../../src/features/auth/types';
+import { apiClient } from '../../src/lib/api/client';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 Object.assign(globalThis, { window: globalThis });
@@ -126,26 +127,13 @@ async function renderedRoutes() {
 
 async function renderedProviderWiring() {
   const requests: string[] = [];
-  const expectedProtectedPaths = ['/api/v1/me/saved-gyms', '/api/v1/memberships', '/api/v1/records'];
-  let resolveProtectedRequests!: () => void;
-  const protectedRequestsObserved = new Promise<void>((resolve) => {
-    resolveProtectedRequests = resolve;
-  });
-  const resolveWhenComplete = () => {
-    if (expectedProtectedPaths.every((path) => requests.some((url) => url.includes(path)))) {
-      resolveProtectedRequests();
-    }
-  };
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
     const url = String(input);
     requests.push(url);
-    resolveWhenComplete();
-    const payload = url.includes('/auth/refresh')
-      ? { data: { accessToken: 'test-access-token', accessTokenExpiresIn: 300 } }
-      : url.includes('/records')
-        ? { data: [], meta: { nextCursor: null } }
-        : { data: [] };
+    const payload = url.includes('/records')
+      ? { data: [], meta: { nextCursor: null } }
+      : { data: [] };
     return new Response(JSON.stringify(payload), { status: 200, headers: { 'content-type': 'application/json' } });
   };
 
@@ -159,6 +147,9 @@ async function renderedProviderWiring() {
   });
   const unauthenticatedRequests = [...requests];
 
+  // Provider behavior is under test, not session restoration. A token makes this
+  // independent of Node's optional Web Locks and browser storage implementations.
+  apiClient.setAccessToken('provider-wiring-test-token');
   await act(async () => {
     renderer!.update(
       <AuthContext.Provider value={authValue('authenticated')}>
@@ -166,10 +157,10 @@ async function renderedProviderWiring() {
       </AuthContext.Provider>,
     );
   });
-  await act(async () => protectedRequestsObserved);
 
   const authenticatedRequests = requests.slice(unauthenticatedRequests.length);
   renderer!.unmount();
+  apiClient.clearSession();
   globalThis.fetch = originalFetch;
   return { unauthenticatedRequests, authenticatedRequests };
 }
