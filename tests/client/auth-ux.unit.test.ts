@@ -18,6 +18,10 @@ import {
   runWithAuthSessionLock,
   type SessionLockManager,
 } from '../../src/lib/api/session-lock';
+import { ApiClientError } from '../../src/lib/api/error';
+import { authNavigationState, intendedPath } from '../../src/features/auth/navigation';
+import { formatRemainingTime, remainingSeconds, verificationErrorMessage } from '../../src/features/auth/verification';
+import { getPasswordRequirementState } from '../../src/lib/auth/password-policy';
 
 class MemoryStorage {
   private readonly values = new Map<string, string>();
@@ -50,9 +54,47 @@ test('registration confirmation is omitted from the API input', () => {
       email: 'climber@example.com',
       password: 'long-enough-password',
       passwordConfirmation: 'long-enough-password',
+      emailVerificationToken: 'verification-token',
     }),
-    { displayName: 'Climber', email: 'climber@example.com', password: 'long-enough-password' },
+    { displayName: 'Climber', email: 'climber@example.com', password: 'long-enough-password', emailVerificationToken: 'verification-token' },
   );
+});
+
+test('registration and reset share password requirement state', () => {
+  assert.deepEqual(getPasswordRequirementState('Password1'), {
+    hasMinimumLength: true,
+    hasMaximumLength: true,
+    hasUppercase: true,
+    hasDigit: true,
+    hasSpecialCharacter: false,
+    hasRequiredComposition: true,
+  });
+  assert.equal(getPasswordRequirementState('lowercase').hasRequiredComposition, false);
+});
+
+test('verification helpers expose expiry, rate limit, and delivery states', () => {
+  assert.equal(remainingSeconds(11_001, 1_001), 10);
+  assert.equal(remainingSeconds(1_000, 1_001), 0);
+  assert.equal(formatRemainingTime(605), '10:05');
+  assert.equal(
+    verificationErrorMessage(new ApiClientError('limited', 429, 'EMAIL_VERIFICATION_RATE_LIMITED', null, '42')),
+    '요청이 너무 많습니다. 42초 후 다시 시도해주세요.',
+  );
+  assert.equal(
+    verificationErrorMessage(new ApiClientError('failed', 503, 'EMAIL_DELIVERY_FAILED')),
+    '인증 이메일을 보낼 수 없습니다. 잠시 후 다시 시도해주세요.',
+  );
+  assert.match(
+    verificationErrorMessage(new ApiClientError('invalid', 400, 'INVALID_EMAIL_VERIFICATION')),
+    /만료/,
+  );
+});
+
+test('auth navigation preserves only safe protected destinations', () => {
+  assert.equal(intendedPath({ from: '/records?month=8' }), '/records?month=8');
+  assert.equal(intendedPath({ from: '//example.com' }), '/');
+  assert.equal(intendedPath({ from: 'https://example.com' }), '/');
+  assert.deepEqual(authNavigationState({ from: '/profile', resetComplete: true }), { from: '/profile' });
 });
 
 test('authenticated session events are uniquely published and strictly recognized', () => {
