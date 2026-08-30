@@ -14,6 +14,10 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import { RequireAuth } from '../features/auth/RequireAuth';
 import PublicRecordSharePage from './pages/PublicRecordSharePage';
+import { RequireOperationsAdmin } from '../features/operations/RequireOperationsAdmin';
+import { OperationsLayout } from '../features/operations/OperationsLayout';
+import { OperationsDashboard } from '../features/operations/OperationsDashboard';
+import { OperationsComingSoon } from '../features/operations/OperationsComingSoon';
 
 function PreviewLayout() {
   return (
@@ -26,6 +30,13 @@ function PreviewLayout() {
 export function AppRouter() {
   return (
     <Routes>
+      <Route element={<RequireOperationsAdmin />}>
+        <Route path="/ops" element={<OperationsLayout />}>
+          <Route index element={<OperationsDashboard />} />
+          <Route path="gyms" element={<OperationsComingSoon title="암장 관리" />} />
+          <Route path="gym-tags" element={<OperationsComingSoon title="태그 관리" />} />
+        </Route>
+      </Route>
       <Route element={<PreviewLayout />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

@@ -88,6 +88,8 @@ After completion or cancellation, active-session transitions return `ACTIVE_RECO
 - Every refresh rotates the token. Reusing a revoked token revokes the whole token family.
 - PostgreSQL stores refresh token SHA-256 hashes, never raw tokens.
 - Passwords use Argon2id with OWASP-aligned memory and iteration settings.
+- New registrations always receive the `user` role. Operations routes resolve the current `users.role` from PostgreSQL on every request instead of trusting a role claim in the access token.
+- The first `operations_admin` account is created only with the audited, interactive bootstrap command documented in the [operations console runbook](../admin/operations-console.md). There is no administrator-management API or screen in the MVP.
 - Login errors do not reveal whether an email exists. Attempts use atomic email and client-address limits; registration uses client-address and global limits before Argon2 work.
 - Concurrent or later reuse of a rotated refresh token revokes the token family and requires a new login.
 - JWTs, passwords, refresh tokens, and raw login identifiers must never enter logs or audit metadata.
@@ -129,6 +131,7 @@ npm run dev:local
 npm run test:integration:local
 npm run test:http:local
 npm run lint:openapi
+npm run ops:admin:create:local -- --email admin@example.com --display-name "운영자"
 npm run typecheck
 npm test
 npm run build
@@ -142,3 +145,4 @@ Do not edit generated SQL migration files after they have been applied. Change `
 - [OpenAPI contract](./openapi.yaml)
 - [Low-cost RDS plan](./rds.md)
 - [Production database and media runbook](../operations/production-data.md)
+- [Operations console and initial administrator runbook](../admin/operations-console.md)

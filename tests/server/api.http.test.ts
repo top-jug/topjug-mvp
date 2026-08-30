@@ -80,23 +80,48 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
     assert.match(registerSetCookie, /Max-Age=\d+/i);
     const refreshCookie = registerSetCookie.split(';')[0];
     assert.match(refreshCookie ?? '', /^topjug_refresh=/);
-    const registerBody = await register.json() as { data: { accessToken: string; user: { id: string } } };
+    const registerBody = await register.json() as { data: { accessToken: string; user: { id: string; role: string } } };
+    assert.equal(registerBody.data.user.role, 'user');
+
+    const login = await jsonRequest('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password: 'correct horse battery staple' }),
+    });
+    assert.equal(login.status, 200);
+    assert.equal((await login.json() as { data: { user: { role: string } } }).data.user.role, 'user');
 
     const me = await jsonRequest('/me', {
       headers: { authorization: `Bearer ${registerBody.data.accessToken}` },
     });
     assert.equal(me.status, 200);
+    assert.equal((await me.json() as { data: { role: string } }).data.role, 'user');
+
+    const missingOperationsToken = await jsonRequest('/ops/session');
+    assert.equal(missingOperationsToken.status, 401);
+    const authorization = { authorization: `Bearer ${registerBody.data.accessToken}` };
+    const forbiddenOperations = await jsonRequest('/ops/session', { headers: authorization });
+    assert.equal(forbiddenOperations.status, 403);
+    assert.equal((await forbiddenOperations.json() as { error: { code: string } }).error.code, 'OPERATIONS_ADMIN_REQUIRED');
+
+    await database.update(users).set({ role: 'operations_admin' }).where(eq(users.id, registerBody.data.user.id));
+    const allowedOperations = await jsonRequest('/ops/session', { headers: authorization });
+    assert.equal(allowedOperations.status, 200);
+    assert.deepEqual(await allowedOperations.json(), {
+      data: { userId: registerBody.data.user.id, role: 'operations_admin' },
+    });
+
+    await database.update(users).set({ role: 'user' }).where(eq(users.id, registerBody.data.user.id));
+    const demotedOperations = await jsonRequest('/ops/session', { headers: authorization });
+    assert.equal(demotedOperations.status, 403);
 
     const unauthorizedRecentGyms = await jsonRequest('/me/recent-gyms');
     assert.equal(unauthorizedRecentGyms.status, 401);
 
-    const authorization = { authorization: `Bearer ${registerBody.data.accessToken}` };
     const regionCatalog = await jsonRequest('/regions');
     assert.equal(regionCatalog.status, 200);
     const regionCatalogBody = await regionCatalog.json() as { data: Array<{ code: string; level: number; parentCode: string | null }> };
     assert.equal(regionCatalogBody.data.filter((region) => region.level === 1).length, 17);
     assert.ok(regionCatalogBody.data.some((region) => region.code === '11110' && region.parentCode === '11'));
-
     const incomingRequestId = randomUUID();
     const gymList = await jsonRequest(`/gyms?q=${encodeURIComponent(suffix)}`, {
       headers: { 'x-request-id': incomingRequestId },
