@@ -32,6 +32,12 @@ ops/ec2/                EC2 runtime and deployment configuration
 
 `app/[[...path]]`가 기존 React Router 앱을 CSR로 감쌉니다. 백엔드 기능을 추가할 때 Route Handler에는 HTTP 처리만 두고 비즈니스 규칙은 `src/server` 아래의 독립 모듈에 둡니다.
 
+## Brand Assets
+
+공식 아이콘 원본은 [`public/brand/topjug-icon-source.jpg`](./public/brand/topjug-icon-source.jpg)입니다. 웹 favicon, 로그인·공유 화면, PWA 아이콘은 이 파일에서 생성하며 암장 로고에는 적용하지 않습니다.
+
+네이티브 wrapper를 추가할 때도 이 원본에서 iOS AppIcon과 Android launcher/round/maskable 리소스를 생성합니다. 플랫폼 생성기는 원본 비율을 유지해야 하며 Android adaptive icon의 주요 도형은 중앙 safe zone 안에 두어야 합니다. 현재 웹 파생 파일은 `public/icons/`에 있고 maskable 파일은 같은 원본을 75%로 축소한 뒤 흰 배경으로 패딩했습니다.
+
 현재 서버 endpoint는 인증, 암장, 저장 암장, 회원권, 세팅 일정, 기록 lifecycle, 공유 API를 포함합니다. 전체 계약은 [`docs/backend/openapi.yaml`](./docs/backend/openapi.yaml)을 기준으로 연동합니다.
 
 ```text

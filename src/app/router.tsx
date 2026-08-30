@@ -4,7 +4,7 @@ import GymDetailPage from './pages/GymDetailPage';
 import MembershipPage from './pages/MembershipPage';
 import GymSearchPage from './pages/GymSearchPage';
 import ProfilePage from './pages/ProfilePage';
-import HomeScreen from '../features/home/HomeScreen';
+import RootScreen from '../features/onboarding/RootScreen';
 import RecordStartPage from './pages/RecordStartPage';
 import RecordPage from './pages/RecordPage';
 import MyRecordsPage from './pages/MyRecordsPage';
@@ -27,6 +27,7 @@ export function AppRouter() {
   return (
     <Routes>
       <Route element={<PreviewLayout />}>
+        <Route path="/" element={<RootScreen />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/gyms" element={<GymSearchPage />} />
@@ -35,7 +36,6 @@ export function AppRouter() {
         <Route path="/schedule/:calendarView" element={<CalendarPage />} />
         <Route path="/shares/:token" element={<PublicRecordSharePage />} />
         <Route element={<RequireAuth />}>
-          <Route path="/" element={<HomeScreen />} />
           <Route path="/gyms/saved" element={<GymSearchPage initialView="saved" />} />
           <Route path="/record/start" element={<RecordStartPage />} />
           <Route path="/record" element={<RecordPage />} />
