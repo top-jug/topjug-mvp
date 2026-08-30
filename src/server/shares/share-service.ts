@@ -90,7 +90,6 @@ export async function getRecordShare(token: string) {
       endedAt: climbingRecords.endedAt,
       rating: climbingRecords.rating,
       mode: climbingRecords.mode,
-      sessionType: climbingRecords.sessionType,
       accessType: climbingRecords.accessType,
       activeDurationSeconds: climbingRecords.activeDurationSeconds,
     },
