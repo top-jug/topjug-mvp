@@ -1,6 +1,7 @@
 import 'server-only';
 
-import { appendFile, chmod, mkdir } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { chmod, lstat, mkdir, open } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import type { EmailVerificationPurpose } from '../db/schema';
@@ -52,16 +53,36 @@ async function deliverWithSes(message: EmailChallengeMessage) {
   }));
 }
 
-async function deliverToFile(message: EmailChallengeMessage) {
-  const sinkPath = join(process.cwd(), '.topjug', 'mail-sink.jsonl');
-  await mkdir(dirname(sinkPath), { recursive: true, mode: 0o700 });
-  await appendFile(sinkPath, `${JSON.stringify({ ...message, createdAt: new Date().toISOString() })}\n`, { mode: 0o600 });
-  await chmod(sinkPath, 0o600);
+export async function deliverEmailChallengeToFile(
+  message: EmailChallengeMessage,
+  sinkPath = join(process.cwd(), '.topjug', 'mail-sink.jsonl'),
+) {
+  const sinkDirectory = dirname(sinkPath);
+  await mkdir(sinkDirectory, { recursive: true, mode: 0o700 });
+  const directoryStat = await lstat(sinkDirectory);
+  if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
+    throw new Error('Email sink directory must be a real directory.');
+  }
+  await chmod(sinkDirectory, 0o700);
+
+  const handle = await open(
+    sinkPath,
+    constants.O_APPEND | constants.O_CREAT | constants.O_WRONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    0o600,
+  );
+  try {
+    const fileStat = await handle.stat();
+    if (!fileStat.isFile() || fileStat.nlink !== 1) throw new Error('Email sink must be a single-link regular file.');
+    await handle.chmod(0o600);
+    await handle.appendFile(`${JSON.stringify({ ...message, createdAt: new Date().toISOString() })}\n`);
+  } finally {
+    await handle.close();
+  }
 }
 
 export const deliverEmailChallenge: EmailChallengeDelivery = async (message) => {
   if (getDeliveryMode() === 'ses') await deliverWithSes(message);
-  else await deliverToFile(message);
+  else await deliverEmailChallengeToFile(message);
 };
 
 export function assertEmailDeliveryConfigured() {

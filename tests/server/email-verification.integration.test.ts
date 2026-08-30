@@ -11,7 +11,7 @@ import {
 } from '../../src/server/auth/email-verification-service';
 import { verifyPassword } from '../../src/server/auth/password';
 import { closeDatabase, getDatabase } from '../../src/server/db/client';
-import { auditEvents, emailVerificationChallenges, loginAttempts, users } from '../../src/server/db/schema';
+import { auditEvents, emailVerificationChallenges, users } from '../../src/server/db/schema';
 import { ApiError } from '../../src/server/http/api-error';
 
 process.env.JWT_ACCESS_SECRET = 'test-access-secret-that-is-at-least-32-bytes';
@@ -25,6 +25,8 @@ test('email challenges enforce delivery, attempts, one-time consumption, and ses
   const failedEmail = `delivery-failure-${suffix}@example.com`;
   const attemptsEmail = `attempts-${suffix}@example.com`;
   const expiredEmail = `expired-${suffix}@example.com`;
+  const preservedEmail = `preserved-${suffix}@example.com`;
+  const purposeLimitEmail = `purpose-limit-${suffix}@example.com`;
   let userId: string | undefined;
 
   try {
@@ -44,6 +46,75 @@ test('email challenges enforce delivery, attempts, one-time consumption, and ses
       () => confirmEmailVerification({ email: expiredEmail, purpose: 'register', code: '123456' }, `expired-code-${suffix}`),
       (error: unknown) => error instanceof ApiError && error.code === 'INVALID_EMAIL_VERIFICATION',
     );
+
+    let preservedCode = '';
+    await requestEmailVerification({ email: preservedEmail, purpose: 'register' }, `preserved-first-${suffix}`, async (message) => {
+      preservedCode = message.code;
+    });
+    await assert.rejects(
+      () => requestEmailVerification({ email: preservedEmail, purpose: 'register' }, `preserved-failed-${suffix}`, async () => {
+        throw new Error('simulated replacement delivery failure');
+      }),
+      (error: unknown) => error instanceof ApiError && error.code === 'EMAIL_DELIVERY_FAILED',
+    );
+    await requestEmailVerification({ email: preservedEmail, purpose: 'register' }, `preserved-second-${suffix}`, async () => {});
+    const preservedVerification = await confirmEmailVerification(
+      { email: preservedEmail, purpose: 'register', code: preservedCode },
+      `preserved-confirm-${suffix}`,
+    );
+    assert.match(preservedVerification.verificationToken, /^[A-Za-z0-9_-]{43}$/);
+    const preservedChallenges = await database.select().from(emailVerificationChallenges)
+      .where(eq(emailVerificationChallenges.email, preservedEmail));
+    assert.equal(preservedChallenges.filter((challenge) => challenge.verifiedAt !== null).length, 1);
+    assert.equal(preservedChallenges.every((challenge) => challenge.verifiedAt || challenge.consumedAt), true);
+
+    const purposeRegistrationCodes = new Set<string>();
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await requestEmailVerification(
+        { email: purposeLimitEmail, purpose: 'register' },
+        `purpose-address-${suffix}`,
+        async (message) => { purposeRegistrationCodes.add(message.code); },
+      );
+    }
+    await assert.rejects(
+      () => requestEmailVerification(
+        { email: purposeLimitEmail, purpose: 'register' },
+        `purpose-address-${suffix}`,
+        async () => {},
+      ),
+      (error: unknown) => error instanceof ApiError && error.code === 'EMAIL_VERIFICATION_RATE_LIMITED',
+    );
+    let purposeResetCode = '';
+    await requestEmailVerification(
+      { email: purposeLimitEmail, purpose: 'reset_password' },
+      `purpose-address-${suffix}`,
+      async (message) => { purposeResetCode = message.code; },
+    );
+    let purposeIncorrectCode = '000000';
+    while (purposeRegistrationCodes.has(purposeIncorrectCode)) {
+      purposeIncorrectCode = (Number(purposeIncorrectCode) + 1).toString().padStart(6, '0');
+    }
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await assert.rejects(
+        () => confirmEmailVerification(
+          { email: purposeLimitEmail, purpose: 'register', code: purposeIncorrectCode },
+          `purpose-confirm-${suffix}`,
+        ),
+        (error: unknown) => error instanceof ApiError && error.code === 'INVALID_EMAIL_VERIFICATION',
+      );
+    }
+    await assert.rejects(
+      () => confirmEmailVerification(
+        { email: purposeLimitEmail, purpose: 'register', code: purposeIncorrectCode },
+        `purpose-confirm-${suffix}`,
+      ),
+      (error: unknown) => error instanceof ApiError && error.code === 'EMAIL_VERIFICATION_RATE_LIMITED',
+    );
+    const purposeResetVerification = await confirmEmailVerification(
+      { email: purposeLimitEmail, purpose: 'reset_password', code: purposeResetCode },
+      `purpose-confirm-${suffix}`,
+    );
+    assert.match(purposeResetVerification.verificationToken, /^[A-Za-z0-9_-]{43}$/);
     await assert.rejects(
       () => resetPassword({ password: 'Changed1!', emailVerificationToken: expiredToken }, `expired-token-${suffix}`),
       (error: unknown) => error instanceof ApiError && error.code === 'INVALID_EMAIL_VERIFICATION',
@@ -143,7 +214,8 @@ test('email challenges enforce delivery, attempts, one-time consumption, and ses
     await database.delete(emailVerificationChallenges).where(eq(emailVerificationChallenges.email, failedEmail));
     await database.delete(emailVerificationChallenges).where(eq(emailVerificationChallenges.email, attemptsEmail));
     await database.delete(emailVerificationChallenges).where(eq(emailVerificationChallenges.email, expiredEmail));
-    await database.delete(loginAttempts);
+    await database.delete(emailVerificationChallenges).where(eq(emailVerificationChallenges.email, preservedEmail));
+    await database.delete(emailVerificationChallenges).where(eq(emailVerificationChallenges.email, purposeLimitEmail));
     await closeDatabase();
   }
 });

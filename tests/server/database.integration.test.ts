@@ -5,7 +5,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { registerUser, rotateRefreshToken } from '../../src/server/auth/auth-service';
 import { hashVerificationToken } from '../../src/server/auth/email-verification-service';
 import { closeDatabase, getDatabase } from '../../src/server/db/client';
-import { auditEvents, climbingRecords, emailVerificationChallenges, gymGrades, gyms, gymSectors, gymWalls, loginAttempts, memberships, membershipUsages, users } from '../../src/server/db/schema';
+import { auditEvents, climbingRecords, emailVerificationChallenges, gymGrades, gyms, gymSectors, gymWalls, memberships, membershipUsages, users } from '../../src/server/db/schema';
 import { ApiError } from '../../src/server/http/api-error';
 import { runWithRequestContext } from '../../src/server/observability/request-context';
 import { createRecord, getRecord, listRecords } from '../../src/server/records/record-service';
@@ -65,13 +65,13 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
         password: 'Correct horse battery staple1',
         displayName: 'First',
         emailVerificationToken: firstVerificationToken,
-      }, 'integration-first');
+      }, `integration-first-${suffix}`);
       const second = await registerUser({
         email: secondEmail,
         password: 'Correct horse battery staple1',
         displayName: 'Second',
         emailVerificationToken: secondVerificationToken,
-      }, 'integration-second');
+      }, `integration-second-${suffix}`);
 
       const tiedRecordIds = [randomUUID(), randomUUID()].sort();
       await database.insert(climbingRecords).values([
@@ -297,7 +297,6 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
     await database.delete(users).where(eq(users.email, `second-${suffix}@example.com`));
     await database.delete(gyms).where(inArray(gyms.id, recentGyms.map((recentGym) => recentGym.id)));
     await database.delete(gyms).where(eq(gyms.id, gym.id));
-    await database.delete(loginAttempts);
     await closeDatabase();
   }
 });

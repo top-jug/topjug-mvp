@@ -5,6 +5,7 @@ import { and, count, eq, gte, inArray, sql } from 'drizzle-orm';
 import { getDatabase } from '../db/client';
 import { loginAttempts } from '../db/schema';
 import { ApiError } from '../http/api-error';
+import type { EmailVerificationPurpose } from '../db/schema';
 
 const WINDOW_MS = 15 * 60 * 1000;
 
@@ -79,17 +80,25 @@ export async function consumeLogoutAttempts(clientAddress: string, refreshToken:
   ]);
 }
 
-export async function consumeEmailVerificationRequestAttempts(email: string, clientAddress: string) {
+export async function consumeEmailVerificationRequestAttempts(
+  email: string,
+  purpose: EmailVerificationPurpose,
+  clientAddress: string,
+) {
   await consumeAttempts([
-    { value: `email-verification-request:address:${clientAddress}`, maxAttempts: 20, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
-    { value: `email-verification-request:email:${email}`, maxAttempts: 3, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+    { value: `email-verification-request:${purpose}:address:${clientAddress}`, maxAttempts: 20, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+    { value: `email-verification-request:${purpose}:email:${email}`, maxAttempts: 3, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
   ]);
 }
 
-export async function consumeEmailVerificationConfirmAttempts(email: string, clientAddress: string) {
+export async function consumeEmailVerificationConfirmAttempts(
+  email: string,
+  purpose: EmailVerificationPurpose,
+  clientAddress: string,
+) {
   await consumeAttempts([
-    { value: `email-verification-confirm:address:${clientAddress}`, maxAttempts: 30, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
-    { value: `email-verification-confirm:email:${email}`, maxAttempts: 10, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+    { value: `email-verification-confirm:${purpose}:address:${clientAddress}`, maxAttempts: 30, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+    { value: `email-verification-confirm:${purpose}:email:${email}`, maxAttempts: 10, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
   ]);
 }
 

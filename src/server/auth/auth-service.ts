@@ -12,6 +12,7 @@ import { LoginInput, RegisterInput, ResetPasswordInput } from './auth-validation
 import { auditEventValues, writeAuditEvent, writeRequiredAuditEvent } from '../observability/audit';
 import { setRequestActor } from '../observability/request-context';
 import { withConsumedEmailVerification } from './email-verification-service';
+import { lockAuthUser } from './auth-lock';
 
 function publicUser(user: typeof users.$inferSelect) {
   return {
@@ -76,6 +77,7 @@ export async function resetPassword(input: ResetPasswordInput, clientAddress: st
       return;
     }
 
+    await lockAuthUser(transaction, user.id);
     const now = new Date();
     await transaction.update(users).set({ passwordHash, emailVerifiedAt: user.emailVerifiedAt ?? now, updatedAt: now })
       .where(eq(users.id, user.id));
@@ -135,6 +137,7 @@ export async function rotateRefreshToken(refreshToken: string) {
   const database = getDatabase();
 
   const result = await database.transaction(async (transaction) => {
+    await lockAuthUser(transaction, claims.userId);
     const rows = await transaction
       .select()
       .from(refreshSessions)

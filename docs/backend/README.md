@@ -2,6 +2,8 @@
 
 TopJug MVP backend runs in the existing Next.js application. Route Handlers only translate HTTP requests; domain and persistence logic stays under `src/server`.
 
+> Deployment boundary: `/auth/register` requires an email verification token. This backend commit must reach production atomically with the stacked issue #87 registration UI; deploying it alone breaks new-account creation. Production email activation also remains gated on issue #82.
+
 ## Current scope
 
 - PostgreSQL 16 and Drizzle ORM
@@ -23,7 +25,7 @@ TopJug MVP backend runs in the existing Next.js application. Route Handlers only
 5. Import the 31 selected gyms and their S3 logos with `npm run db:import:gyms:local`. The researched `더클라임 신사` row is intentionally excluded. Users are created through `/api/v1/auth/register`.
 6. Start the application with `npm run dev:local`. Integration and HTTP tests create their own grade, wall, and sector fixtures; local manual record testing requires equivalent rows for the selected gym.
 
-The local environment example configures delivery to the permission-restricted `.topjug/mail-sink.jsonl` file. Request a code through `/api/v1/auth/email-verifications`, read the latest local sink entry, and confirm it without AWS credentials. Never use the file adapter in production; production readiness accepts only `EMAIL_DELIVERY_MODE=ses` with `EMAIL_FROM_ADDRESS`. Production activation and SES permissions remain dependent on issue #82.
+The local environment example configures delivery to the permission-restricted `.topjug/mail-sink.jsonl` file. Request a code through `/api/v1/auth/email-verifications`, read the latest local sink entry, and confirm it without AWS credentials. Never use the file adapter in production; production readiness accepts only `EMAIL_DELIVERY_MODE=ses` with `EMAIL_FROM_ADDRESS`. The sink refuses symlinked paths and enforces `0700` directory and `0600` file modes.
 
 The `local` profile uses PostgreSQL and MinIO from `compose.yaml`; the Next.js process remains on the host for fast reloads. MinIO creates a public `topjug-media` bucket for the initial S3-compatible logo import. Stop local infrastructure with `npm run local:down`. `DATABASE_URL` is read lazily on the first API request, so a missing local database does not prevent the existing frontend from rendering.
 
@@ -93,7 +95,9 @@ After completion or cancellation, active-session transitions return `ACTIVE_RECO
 - Passwords use Argon2id with OWASP-aligned memory and iteration settings.
 - New registration and reset passwords are 8-128 characters and must contain at least two of uppercase ASCII letters, digits, or ASCII special characters. Login continues to accept existing passwords.
 - Email codes expire after 10 minutes, allow five incorrect attempts, and are bound to the normalized email and `register` or `reset_password` purpose. Verified tokens expire after 15 minutes and are consumed atomically with registration or reset.
+- Requesting another code does not invalidate delivered codes. Only successful ownership proof retires sibling codes; failed delivery retires only its pending challenge. Request and confirmation rate limits are isolated by purpose.
 - Password reset revokes every refresh session. Stateless access tokens already issued before reset cannot be revoked and retain a residual lifetime of at most 15 minutes.
+- Password reset and refresh rotation take the same transaction-scoped user lock, so a concurrent rotation cannot create a session after reset revocation.
 - Verification requests do not disclose account existence. A challenge is marked delivered only after the configured adapter succeeds; delivery failures return `EMAIL_DELIVERY_FAILED`, invalidate the challenge, and are never reported as accepted.
 - Login errors do not reveal whether an email exists. Attempts use atomic email and client-address limits; registration uses client-address and global limits before Argon2 work.
 - Concurrent or later reuse of a rotated refresh token revokes the token family and requires a new login.
@@ -112,6 +116,8 @@ The `production` profile requires `SSM_PARAMETER_PREFIX=/topjug/prod`. Next.js l
 ```
 
 The runtime URL uses the restricted `topjug_app` role; the migration URL uses the schema owner and is readable only by the GitHub OIDC deployment role. The EC2 role has explicit read access to the four runtime parameters, not the whole production path. CI applies packaged Drizzle migrations through a short-lived SSM database tunnel before sending the release command, then deployment checks `/api/ready`, which verifies secrets and the runtime database connection.
+
+Production systemd config sets `EMAIL_DELIVERY_MODE=ses` and `EMAIL_FROM_ADDRESS=no-reply@topjug.kr`; these non-secret settings are not stored in SSM. The infrastructure stack provisions the SES identity, DKIM DNS records, runtime send permission, and deployment-role inspection permission. CI gates upload and migration on production access, identity, and DKIM readiness. The EC2 release script then performs a live send to the SES success simulator before switching the current release symlink. This activation path depends on #82 and must be released together with #87.
 
 Initial gym data is a controlled one-time operation, not part of every deployment. Production RDS is private, so run the bundled importer on EC2 through SSM with `SSM_PARAMETER_PREFIX`, `MEDIA_S3_BUCKET`, `MEDIA_PUBLIC_BASE_URL`, and an explicit `--apply`. Grant media write access only for the import and remove it afterward. The importer verifies the expected 31 gyms, 7 brands, 31 assets, and 93 media roles; a second run must upload no objects. See the [production database and media runbook](../operations/production-data.md).
 

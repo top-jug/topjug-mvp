@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "build": "next build",
-    "build:migrate": "esbuild scripts/migrate.mjs scripts/cleanup-security-data.mjs scripts/import-initial-gyms.ts scripts/provision-runtime-db-role.mjs --bundle --platform=node --format=cjs --target=node20 --outdir=.migration --out-extension:.js=.cjs",
+    "build:migrate": "esbuild scripts/migrate.mjs scripts/cleanup-security-data.mjs scripts/import-initial-gyms.ts scripts/provision-runtime-db-role.mjs scripts/verify-production-email.mjs --bundle --platform=node --format=cjs --target=node20 --outdir=.migration --out-extension:.js=.cjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:local": "node --env-file=.env.local scripts/migrate.mjs",

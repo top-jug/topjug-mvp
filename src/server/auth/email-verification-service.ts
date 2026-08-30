@@ -58,26 +58,16 @@ export async function requestEmailVerification(
   clientAddress: string,
   delivery: EmailChallengeDelivery = deliverEmailChallenge,
 ) {
-  await consumeEmailVerificationRequestAttempts(input.email, clientAddress);
+  await consumeEmailVerificationRequestAttempts(input.email, input.purpose, clientAddress);
   const database = getDatabase();
   const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + EMAIL_CODE_TTL_SECONDS * 1000);
-  const [challenge] = await database.transaction(async (transaction) => {
-    const lockKey = verificationLockKey(input.email, input.purpose);
-    await transaction.execute(sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
-    await transaction.update(emailVerificationChallenges).set({ consumedAt: now }).where(and(
-      eq(emailVerificationChallenges.email, input.email),
-      eq(emailVerificationChallenges.purpose, input.purpose),
-      isNull(emailVerificationChallenges.consumedAt),
-    ));
-    return transaction.insert(emailVerificationChallenges).values({
-      email: input.email,
-      purpose: input.purpose,
-      codeHash: hashVerificationCode(input.email, input.purpose, code),
-      expiresAt,
-    }).returning({ id: emailVerificationChallenges.id });
-  });
+  const expiresAt = new Date(Date.now() + EMAIL_CODE_TTL_SECONDS * 1000);
+  const [challenge] = await database.insert(emailVerificationChallenges).values({
+    email: input.email,
+    purpose: input.purpose,
+    codeHash: hashVerificationCode(input.email, input.purpose, code),
+    expiresAt,
+  }).returning({ id: emailVerificationChallenges.id });
 
   try {
     await delivery({ to: input.email, purpose: input.purpose, code });
@@ -121,44 +111,53 @@ export async function requestEmailVerification(
 }
 
 export async function confirmEmailVerification(input: ConfirmEmailVerificationInput, clientAddress: string) {
-  await consumeEmailVerificationConfirmAttempts(input.email, clientAddress);
+  await consumeEmailVerificationConfirmAttempts(input.email, input.purpose, clientAddress);
   const database = getDatabase();
   const result = await database.transaction(async (transaction) => {
     const lockKey = verificationLockKey(input.email, input.purpose);
     await transaction.execute(sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
-    const [challenge] = await transaction.select().from(emailVerificationChallenges).where(and(
+    const challenges = await transaction.select().from(emailVerificationChallenges).where(and(
       eq(emailVerificationChallenges.email, input.email),
       eq(emailVerificationChallenges.purpose, input.purpose),
       isNotNull(emailVerificationChallenges.deliveredAt),
       isNull(emailVerificationChallenges.verifiedAt),
       isNull(emailVerificationChallenges.consumedAt),
       gt(emailVerificationChallenges.expiresAt, new Date()),
-    )).orderBy(desc(emailVerificationChallenges.createdAt)).limit(1);
+    )).orderBy(desc(emailVerificationChallenges.createdAt));
 
-    if (!challenge || challenge.attempts >= MAX_CODE_ATTEMPTS) {
+    const submittedHash = hashVerificationCode(input.email, input.purpose, input.code);
+    const challenge = challenges.find((candidate) => hashesMatch(candidate.codeHash, submittedHash));
+
+    if (!challenge) {
+      const newestChallenge = challenges[0];
+      if (newestChallenge) {
+        const attempts = newestChallenge.attempts + 1;
+        await transaction.update(emailVerificationChallenges)
+          .set({ attempts, consumedAt: attempts >= MAX_CODE_ATTEMPTS ? new Date() : null })
+          .where(eq(emailVerificationChallenges.id, newestChallenge.id));
+      }
       await transaction.insert(auditEvents).values(auditEventValues({
-        action: 'auth.email_verification_confirmed', outcome: 'failure', metadata: { purpose: input.purpose, reason: 'invalid' },
-      }));
-      return null;
-    }
-    if (!hashesMatch(challenge.codeHash, hashVerificationCode(input.email, input.purpose, input.code))) {
-      const attempts = challenge.attempts + 1;
-      await transaction.update(emailVerificationChallenges)
-        .set({ attempts, consumedAt: attempts >= MAX_CODE_ATTEMPTS ? new Date() : null })
-        .where(eq(emailVerificationChallenges.id, challenge.id));
-      await transaction.insert(auditEvents).values(auditEventValues({
-        action: 'auth.email_verification_confirmed', outcome: 'failure', resourceType: 'email_verification_challenge',
-        resourceId: challenge.id, metadata: { purpose: input.purpose, reason: 'invalid_code' },
+        action: 'auth.email_verification_confirmed', outcome: 'failure',
+        resourceType: newestChallenge ? 'email_verification_challenge' : undefined,
+        resourceId: newestChallenge?.id,
+        metadata: { purpose: input.purpose, reason: newestChallenge ? 'invalid_code' : 'invalid' },
       }));
       return null;
     }
 
     const verificationToken = randomBytes(32).toString('base64url');
+    const verifiedAt = new Date();
     await transaction.update(emailVerificationChallenges).set({
-      verifiedAt: new Date(),
+      verifiedAt,
       tokenHash: hashVerificationToken(verificationToken),
       expiresAt: new Date(Date.now() + VERIFIED_EMAIL_TOKEN_TTL_SECONDS * 1000),
     }).where(and(eq(emailVerificationChallenges.id, challenge.id), isNull(emailVerificationChallenges.verifiedAt)));
+    await transaction.update(emailVerificationChallenges).set({ consumedAt: verifiedAt }).where(and(
+      eq(emailVerificationChallenges.email, input.email),
+      eq(emailVerificationChallenges.purpose, input.purpose),
+      isNull(emailVerificationChallenges.verifiedAt),
+      isNull(emailVerificationChallenges.consumedAt),
+    ));
     await transaction.insert(auditEvents).values(auditEventValues({
       action: 'auth.email_verification_confirmed', resourceType: 'email_verification_challenge',
       resourceId: challenge.id, metadata: { purpose: input.purpose },
