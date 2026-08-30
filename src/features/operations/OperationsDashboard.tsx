@@ -46,7 +46,7 @@ export function OperationsDashboard() {
         <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
         <div>
           <h2 className="text-sm font-black">이번 이슈의 범위</h2>
-          <p className="mt-1 text-sm leading-6 text-blue-900/70">권한 검증과 반응형 콘솔 셸만 제공합니다. 암장 변경, 사진 업로드, 공지사항, 실제 알림 전송은 아직 활성화되지 않았습니다.</p>
+          <p className="mt-1 text-sm leading-6 text-blue-900/70">암장 기본 정보와 운영 상태를 관리하고 마지막 확인 시각을 기록할 수 있습니다. 사진, 공지사항, 실제 알림 전송은 아직 활성화되지 않았습니다.</p>
         </div>
       </section>
     </div>

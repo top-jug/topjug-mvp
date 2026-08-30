@@ -18,6 +18,8 @@ import { RequireOperationsAdmin } from '../features/operations/RequireOperations
 import { OperationsLayout } from '../features/operations/OperationsLayout';
 import { OperationsDashboard } from '../features/operations/OperationsDashboard';
 import { OperationsComingSoon } from '../features/operations/OperationsComingSoon';
+import { OperationsGymList } from '../features/operations/OperationsGymList';
+import { OperationsGymEditor } from '../features/operations/OperationsGymEditor';
 
 function PreviewLayout() {
   return (
@@ -33,7 +35,9 @@ export function AppRouter() {
       <Route element={<RequireOperationsAdmin />}>
         <Route path="/ops" element={<OperationsLayout />}>
           <Route index element={<OperationsDashboard />} />
-          <Route path="gyms" element={<OperationsComingSoon title="암장 관리" />} />
+          <Route path="gyms" element={<OperationsGymList />} />
+          <Route path="gyms/new" element={<OperationsGymEditor />} />
+          <Route path="gyms/:gymId" element={<OperationsGymEditor />} />
           <Route path="gym-tags" element={<OperationsComingSoon title="태그 관리" />} />
         </Route>
       </Route>

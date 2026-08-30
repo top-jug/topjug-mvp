@@ -5,6 +5,7 @@ import { RecordDraftProvider } from './providers/RecordDraftProvider';
 import { SavedGymsProvider } from './providers/SavedGymsProvider';
 import { RecordHistoryProvider } from './providers/RecordHistoryProvider';
 import { AuthProvider } from '../features/auth/AuthProvider';
+import { Toaster } from './components/ui/sonner';
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
             <RecordHistoryProvider>
               <RecordDraftProvider>
                 <AppRouter />
+                <Toaster position="top-center" richColors />
               </RecordDraftProvider>
             </RecordHistoryProvider>
           </MembershipProvider>
