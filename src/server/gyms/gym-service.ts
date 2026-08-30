@@ -24,6 +24,7 @@ import { ApiError } from '../http/api-error';
 import { publicMediaUrl } from '../media/media-url';
 import { normalizeGymSearchTokens } from './gym-search';
 import { ListGymsInput } from './gym-validation';
+import { regionSubtreeCodes } from '../regions/region-service';
 
 function mediaReference(asset: {
   id: string;
@@ -42,7 +43,7 @@ export async function listGyms(input: ListGymsInput) {
       or(ilike(gyms.name, `%${token}%`), ilike(gyms.branchName, `%${token}%`), ilike(gyms.address, `%${token}%`))!
     )))!);
   }
-  if (input.regionCode) conditions.push(eq(gyms.regionCode, input.regionCode));
+  if (input.regionCode) conditions.push(inArray(gyms.regionCode, await regionSubtreeCodes(input.regionCode)));
   if (input.facility) conditions.push(sql`${input.facility} = ANY(${gyms.facilities})`);
   if (input.tag) conditions.push(exists(
     database.select({ value: sql`1` })
@@ -136,7 +137,7 @@ export async function getGym(gymId: string) {
       calendarColor: gyms.calendarColor,
       calendarTextColor: gyms.calendarTextColor,
       brand: { id: gymBrands.id, name: gymBrands.name, websiteUrl: gymBrands.websiteUrl, instagramUrl: gymBrands.instagramUrl },
-      region: { code: regions.code, name: regions.name, parentCode: regions.parentCode },
+      region: { code: regions.code, name: regions.name, level: regions.level, parentCode: regions.parentCode, sortOrder: regions.sortOrder },
       createdAt: gyms.createdAt,
       updatedAt: gyms.updatedAt,
     })

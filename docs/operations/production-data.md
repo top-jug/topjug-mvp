@@ -118,6 +118,8 @@ Required controls:
 7. Execute it a second time and require `uploadedObjects: 0` and `reusedObjects: 31`.
 8. Delete the temporary IAM policy, EC2 files, and every version of the deployment-bucket source artifacts.
 
+The dry-run requires all 31 deterministic source external IDs to have a reviewed mapping. Apply mode additionally requires every mapped code to exist at level 2 with a level-1 parent. Both insert and update paths set `gyms.region_code`; importer verification requires `assigned_regions=31`.
+
 The importer must report:
 
 ```text
@@ -138,11 +140,13 @@ After import and deployment:
 
 1. `GET https://topjug.kr/api/health` returns 200.
 2. `GET https://topjug.kr/api/v1/gyms?limit=100` returns exactly 31 initial gyms.
-3. Every gym detail has one logo, cover, and first photo relationship.
-4. Every `https://media.topjug.kr/gyms/initial/.../logo.jpg` returns 200 with `image/jpeg`.
-5. The equivalent direct S3 URL returns 403.
-6. The EC2 role has no media-bucket write policy after import.
-7. The deployment-bucket import prefix has no retained versions or delete markers.
+3. `GET https://topjug.kr/api/v1/regions` contains 17 level-1 regions and only level-2 rows with valid parents.
+4. All 31 source gyms have a non-null level-2 `region_code`; `regionCode=11` includes Seoul districts and `regionCode=11110` only includes 종로구.
+5. Every gym detail has one logo, cover, and first photo relationship.
+6. Every `https://media.topjug.kr/gyms/initial/.../logo.jpg` returns 200 with `image/jpeg`.
+7. The equivalent direct S3 URL returns 403.
+8. The EC2 role has no media-bucket write policy after import.
+9. The deployment-bucket import prefix has no retained versions or delete markers.
 
 Production verification completed on 2026-08-23:
 

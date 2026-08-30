@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClientError } from '../../app/api/api-client';
 import { ApiGymSummary, listGyms } from '../../app/api/gym-api';
+import { ApiRegion, listRegions } from '../../app/api/region-api';
 import BottomTabBar from '../../app/components/layout/BottomTabBar';
 import TopTabHeader from '../../app/components/layout/TopTabHeader';
 import { useSavedGyms } from '../../app/providers/SavedGymsProvider';
-import { ALL_GYM_REGIONS, GYM_SEARCH_REGIONS, GYM_SEARCH_TABS, gymMatchesRegion } from './gym-search-options';
+import { GYM_SEARCH_TABS, regionSelectionLabel } from './gym-search-options';
 import GymSearchInput from './components/GymSearchInput';
 import GymSearchList from './components/GymSearchList';
 import GymSearchTabs from './components/GymSearchTabs';
@@ -35,7 +36,9 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
   const [selectedTabs, setSelectedTabs] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showRegionFilter, setShowRegionFilter] = useState(false);
-  const [selectedRegion, setSelectedRegion] = useState(ALL_GYM_REGIONS);
+  const [selectedRegionCode, setSelectedRegionCode] = useState<string | null>(null);
+  const [regions, setRegions] = useState<ApiRegion[]>([]);
+  const [regionError, setRegionError] = useState<string | null>(null);
   const [gyms, setGyms] = useState<ApiGymSummary[]>([]);
   const [isLoadingGyms, setIsLoadingGyms] = useState(true);
   const [gymError, setGymError] = useState<string | null>(null);
@@ -57,6 +60,20 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
 
   useEffect(() => {
     const controller = new AbortController();
+    void listRegions(controller.signal)
+      .then((response) => {
+        setRegions(response.data);
+        setRegionError(null);
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setRegionError(listErrorMessage(error));
+      });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setIsLoadingGyms(true);
       setGymError(null);
@@ -64,6 +81,7 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
       try {
         const response = await listGyms({
           q: searchQuery.trim() || undefined,
+          regionCode: selectedRegionCode ?? undefined,
           facility: selectedTabs[0] ? FACILITY_CODES[selectedTabs[0]] : undefined,
           limit: 100,
           signal: controller.signal,
@@ -83,12 +101,12 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [requestVersion, searchQuery, selectedTabs]);
+  }, [requestVersion, searchQuery, selectedRegionCode, selectedTabs]);
 
   const filteredGyms = useMemo(() => gyms.filter((gym) => {
     const matchesFacilities = selectedTabs.every((tab) => gym.facilities.includes(FACILITY_CODES[tab]));
-    return gymMatchesRegion(gym, selectedRegion) && matchesFacilities;
-  }), [gyms, selectedRegion, selectedTabs]);
+    return matchesFacilities;
+  }), [gyms, selectedTabs]);
 
   const visibleGyms = filteredGyms.slice(0, visibleCount);
 
@@ -127,7 +145,7 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
             <GymSearchTabs
               selectedTabs={selectedTabs}
               tabs={GYM_SEARCH_TABS}
-              regionLabel={selectedRegion}
+              regionLabel={regionSelectionLabel(regions, selectedRegionCode)}
               onSelectTab={handleSelectTab}
               onOpenRegion={() => setShowRegionFilter(true)}
             />
@@ -140,12 +158,13 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
           <>
             {showRegionFilter && (
               <RegionFilterModal
-                selectedRegion={selectedRegion}
-                regions={GYM_SEARCH_REGIONS}
+                selectedRegionCode={selectedRegionCode}
+                regions={regions}
+                error={regionError}
                 onClose={() => setShowRegionFilter(false)}
-                onSelectRegion={(region) => {
+                onApply={(regionCode) => {
                   setVisibleCount(PAGE_SIZE);
-                  setSelectedRegion(region);
+                  setSelectedRegionCode(regionCode);
                   setShowRegionFilter(false);
                 }}
               />

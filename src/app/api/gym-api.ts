@@ -101,6 +101,7 @@ export interface GymSettingEvent {
 }
 
 export interface ApiGymDetail extends ApiGymSummary {
+  region: import('./region-api').ApiRegion | null;
   phone: string | null;
   websiteUrl: string | null;
   instagramUrl: string | null;

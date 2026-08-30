@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const listGymsSchema = z.object({
   q: z.string().trim().max(100).optional(),
-  regionCode: z.string().trim().max(40).optional(),
+  regionCode: z.string().trim().min(1).max(40).optional(),
   facility: z.string().trim().max(40).optional(),
   tag: z.string().trim().max(40).optional(),
   operationStatus: z.enum(['active', 'temporarily_closed', 'closed', 'opening_soon']).default('active'),

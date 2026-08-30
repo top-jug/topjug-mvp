@@ -4,7 +4,7 @@ import { basename, extname, join, relative, resolve } from "node:path";
 import { HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import { parse } from "csv-parse/sync";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { strFromU8, unzipSync } from "fflate";
 import postgres from "postgres";
@@ -15,7 +15,9 @@ import {
   gyms,
   gymSources,
   mediaAssets,
+  regions,
 } from "../src/server/db/schema";
+import { INITIAL_GYM_REGION_BY_EXTERNAL_ID, initialGymRegionCode } from "../src/server/regions/initial-gym-regions";
 
 const SOURCE_NAME = "topjug_initial_research_2026-08-23";
 const DEFAULT_ARCHIVE = "../암장최초데이터베이스.zip";
@@ -234,6 +236,7 @@ function parseRows(csv: string) {
       brand,
       branchName,
       address,
+      regionCode: initialGymRegionCode(externalId),
       phone: normalizedText(row["전화번호"]) || null,
       instagramUrl: instagramUrl(normalizedText(row["인스타"])),
       operatingHoursNote: normalizedText(row["영업시간"]) || null,
@@ -266,6 +269,10 @@ async function main() {
   const { csvName, csv } = csvFromNestedArchive(await readFile(archivePath));
   const researchedRows = parseRows(csv);
   const rows = researchedRows.filter((row) => !EXCLUDED_GYMS.has(row.location));
+  const missingRegionMappings = rows.filter((row) => !row.regionCode).map((row) => row.location);
+  const unexpectedRegionMappings = Object.keys(INITIAL_GYM_REGION_BY_EXTERNAL_ID).filter(
+    (externalId) => !rows.some((row) => row.externalId === externalId),
+  );
   const logoFiles = await logoByExternalId(logoDirectory, rows);
   const missingLogos = rows
     .filter((row) => !logoFiles.has(row.externalId))
@@ -281,6 +288,8 @@ async function main() {
   if (logoFiles.size !== EXPECTED_IMPORTED_GYMS) throw new Error(`Expected ${EXPECTED_IMPORTED_GYMS} logos, received ${logoFiles.size}.`);
   if (missingLogos.length > 0)
     throw new Error(`Missing logos: ${missingLogos.join(", ")}`);
+  if (missingRegionMappings.length > 0) throw new Error(`Missing region mappings: ${missingRegionMappings.join(", ")}`);
+  if (unexpectedRegionMappings.length > 0) throw new Error(`Region mappings without imported gyms: ${unexpectedRegionMappings.join(", ")}`);
   if (dryRun) {
     console.log(
       JSON.stringify(
@@ -293,6 +302,7 @@ async function main() {
           brands: brandCount,
           logos: logoFiles.size,
           missingLogos,
+          regionAssignments: rows.length,
         },
         null,
         2,
@@ -325,6 +335,14 @@ async function main() {
   let reusedObjects = 0;
 
   try {
+    const catalogRegions = await database
+      .select({ code: regions.code, level: regions.level, parentCode: regions.parentCode })
+      .from(regions)
+      .where(inArray(regions.code, [...new Set(Object.values(INITIAL_GYM_REGION_BY_EXTERNAL_ID))]));
+    const validRegionCodes = new Set(catalogRegions.filter((region) => region.level === 2 && region.parentCode).map((region) => region.code));
+    const invalidRegionCodes = [...new Set(rows.map((row) => row.regionCode))].filter((code) => !validRegionCodes.has(code!));
+    if (invalidRegionCodes.length > 0) throw new Error(`Region catalog is missing valid second-level codes: ${invalidRegionCodes.join(", ")}`);
+
     for (const [externalId, sourcePath] of logoFiles) {
       const body = await readFile(sourcePath);
       const storageKey = `gyms/initial/${externalId}/logo.jpg`;
@@ -383,6 +401,7 @@ async function main() {
               name: row.location,
               branchName: row.branchName,
               address: row.address,
+              regionCode: row.regionCode,
               phone: row.phone,
               instagramUrl: row.instagramUrl,
               operatingHoursNote: row.operatingHoursNote,
@@ -401,6 +420,7 @@ async function main() {
               name: row.location,
               branchName: row.branchName,
               address: row.address,
+              regionCode: row.regionCode,
               phone: row.phone,
               instagramUrl: row.instagramUrl,
               operatingHoursNote: row.operatingHoursNote,
@@ -421,14 +441,14 @@ async function main() {
             sourceName: SOURCE_NAME,
             externalId: row.externalId,
             lastCheckedAt: now,
-            metadata: { importFile: csvName, needsReview: true },
+            metadata: { importFile: csvName, needsReview: false, regionMappingReviewed: true },
           })
           .onConflictDoUpdate({
             target: [gymSources.sourceName, gymSources.externalId],
             set: {
               gymId,
               lastCheckedAt: now,
-              metadata: { importFile: csvName, needsReview: true },
+              metadata: { importFile: csvName, needsReview: false, regionMappingReviewed: true },
             },
           });
 
@@ -523,6 +543,7 @@ async function main() {
         logos: number;
         covers: number;
         photos: number;
+        assigned_regions: number;
       }>(sql`
         select
           count(distinct source.gym_id)::int as gyms,
@@ -530,7 +551,8 @@ async function main() {
           count(distinct asset.id)::int as assets,
           count(*) filter (where media.type = 'logo')::int as logos,
           count(*) filter (where media.type = 'cover')::int as covers,
-          count(*) filter (where media.type = 'photo')::int as photos
+          count(*) filter (where media.type = 'photo')::int as photos,
+          count(distinct source.gym_id) filter (where gym.region_code is not null)::int as assigned_regions
         from gym_sources source
         join gyms gym on gym.id = source.gym_id
         join gym_media media on media.gym_id = source.gym_id
@@ -558,6 +580,7 @@ async function main() {
         summary.logos !== expected ||
         summary.covers !== expected ||
         summary.photos !== expected ||
+        summary.assigned_regions !== expected ||
         sharedAssetSummary.gyms !== expected
       ) {
         throw new Error(`Post-import verification failed: ${JSON.stringify({ ...summary, sharedAssetGyms: sharedAssetSummary.gyms })}`);
