@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { getKakaoMapScriptSrc, isValidKakaoMapPoint } from '../gym-detail-controls';
+import {
+  getKakaoMapScriptSrc,
+  hasKakaoLocationSource,
+  isValidKakaoMapPoint,
+  normalizeKakaoMapAddress,
+} from '../gym-detail-controls';
 
 interface KakaoLocationMapProps {
   appKey: string | null | undefined;
   latitude: number | null | undefined;
   longitude: number | null | undefined;
+  address?: string | null;
   title: string;
   isActive: boolean;
 }
@@ -22,11 +28,24 @@ interface KakaoMarkerInstance {
   setMap: (map: KakaoMapInstance | null) => void;
 }
 
+interface KakaoAddressResult {
+  x: string;
+  y: string;
+}
+
 interface KakaoMaps {
   load: (callback: () => void) => void;
   LatLng: new (latitude: number, longitude: number) => KakaoLatLng;
   Map: new (container: HTMLElement, options: { center: KakaoLatLng; level: number; scrollwheel: boolean }) => KakaoMapInstance;
   Marker: new (options: { map: KakaoMapInstance; position: KakaoLatLng; title: string }) => KakaoMarkerInstance;
+  services: {
+    Status: {
+      OK: string;
+    };
+    Geocoder: new () => {
+      addressSearch: (address: string, callback: (result: KakaoAddressResult[], status: string) => void) => void;
+    };
+  };
 }
 
 declare global {
@@ -70,14 +89,31 @@ function loadKakaoMaps(appKey: string) {
   return promise;
 }
 
-export default function KakaoLocationMap({ appKey, latitude, longitude, title, isActive }: KakaoLocationMapProps) {
+function resolveAddressPoint(maps: KakaoMaps, address: string) {
+  return new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
+    const geocoder = new maps.services.Geocoder();
+    geocoder.addressSearch(address, (result, status) => {
+      const first = result[0];
+      const latitude = Number(first?.y);
+      const longitude = Number(first?.x);
+      if (status !== maps.services.Status.OK || !isValidKakaoMapPoint(latitude, longitude)) {
+        reject(new Error('Kakao address geocoding failed.'));
+        return;
+      }
+      resolve({ latitude, longitude });
+    });
+  });
+}
+
+export default function KakaoLocationMap({ appKey, latitude, longitude, address, title, isActive }: KakaoLocationMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<KakaoMapStatus>('idle');
-  const hasValidPoint = isValidKakaoMapPoint(latitude, longitude);
+  const addressQuery = normalizeKakaoMapAddress(address);
+  const hasLocationSource = hasKakaoLocationSource({ latitude, longitude, address });
   const normalizedAppKey = appKey?.trim() ?? '';
 
   useEffect(() => {
-    if (!isActive || !hasValidPoint || !normalizedAppKey || !containerRef.current) return;
+    if (!isActive || !hasLocationSource || !normalizedAppKey || !containerRef.current) return;
 
     let isMounted = true;
     let marker: KakaoMarkerInstance | null = null;
@@ -88,7 +124,16 @@ export default function KakaoLocationMap({ appKey, latitude, longitude, title, i
         if (!isMounted || !containerRef.current || !window.kakao?.maps) return;
 
         const { maps } = window.kakao;
-        const position = new maps.LatLng(latitude!, longitude!);
+        const explicitPoint = isValidKakaoMapPoint(latitude, longitude)
+          ? { latitude: latitude!, longitude: longitude! }
+          : null;
+        return explicitPoint ?? resolveAddressPoint(maps, addressQuery!);
+      })
+      .then((point) => {
+        if (!point || !isMounted || !containerRef.current || !window.kakao?.maps) return;
+
+        const { maps } = window.kakao;
+        const position = new maps.LatLng(point.latitude, point.longitude);
         const map = new maps.Map(containerRef.current, {
           center: position,
           level: 3,
@@ -111,10 +156,10 @@ export default function KakaoLocationMap({ appKey, latitude, longitude, title, i
       isMounted = false;
       marker?.setMap(null);
     };
-  }, [hasValidPoint, isActive, latitude, longitude, normalizedAppKey, title]);
+  }, [addressQuery, hasLocationSource, isActive, latitude, longitude, normalizedAppKey, title]);
 
-  if (!hasValidPoint) {
-    return <MapState message="좌표 정보가 없어 위치 지도를 열 수 없습니다." />;
+  if (!hasLocationSource) {
+    return <MapState message="좌표 또는 주소 정보가 없어 위치 지도를 열 수 없습니다." />;
   }
 
   if (!normalizedAppKey) {
@@ -137,4 +182,3 @@ function MapState({ message }: { message: string }) {
     </div>
   );
 }
-
