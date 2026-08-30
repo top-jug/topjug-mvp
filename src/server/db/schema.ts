@@ -91,6 +91,32 @@ export const loginAttempts = pgTable(
   ],
 );
 
+export type EmailVerificationPurpose = 'register' | 'reset_password';
+
+export const emailVerificationChallenges = pgTable(
+  'email_verification_challenges',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    purpose: text('purpose').$type<EmailVerificationPurpose>().notNull(),
+    codeHash: text('code_hash').notNull(),
+    tokenHash: text('token_hash'),
+    attempts: integer('attempts').notNull().default(0),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('email_verification_email_purpose_idx').on(table.email, table.purpose, table.createdAt),
+    index('email_verification_expires_idx').on(table.expiresAt),
+    uniqueIndex('email_verification_token_uidx').on(table.tokenHash).where(sql`${table.tokenHash} IS NOT NULL`),
+    check('email_verification_purpose_check', sql`${table.purpose} IN ('register', 'reset_password')`),
+    check('email_verification_attempts_check', sql`${table.attempts} BETWEEN 0 AND 5`),
+  ],
+);
+
 export const auditEvents = pgTable(
   'audit_events',
   {

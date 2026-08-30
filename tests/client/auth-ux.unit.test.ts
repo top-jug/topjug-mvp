@@ -38,9 +38,9 @@ function controlledWait() {
 }
 
 test('registration rejects short and mismatched passwords before submission', () => {
-  assert.equal(validateRegistrationPasswords('short', 'short'), '비밀번호는 12자 이상 입력해주세요.');
-  assert.equal(validateRegistrationPasswords('long-enough-password', 'different-password'), '비밀번호가 일치하지 않습니다.');
-  assert.equal(validateRegistrationPasswords('long-enough-password', 'long-enough-password'), null);
+  assert.equal(validateRegistrationPasswords('short', 'short'), '비밀번호는 8자 이상 입력해주세요.');
+  assert.equal(validateRegistrationPasswords('Long-enough-password', 'Different-password'), '비밀번호가 일치하지 않습니다.');
+  assert.equal(validateRegistrationPasswords('Long-enough-password', 'Long-enough-password'), null);
 });
 
 test('registration confirmation is omitted from the API input', () => {

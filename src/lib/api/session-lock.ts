@@ -165,7 +165,9 @@ export async function runWithAuthSessionLock<T>(
       new Promise<never>((_resolve, reject) => controller.signal.addEventListener('abort', () => reject(controller.signal.reason), { once: true })),
     ]);
   };
-  const manager = lockManager ?? (typeof navigator !== 'undefined' ? navigator.locks as unknown as SessionLockManager : undefined);
+  const manager = lockManager ?? (!storageLeaseOptions && typeof navigator !== 'undefined'
+    ? navigator.locks as unknown as SessionLockManager
+    : undefined);
   let webLockStarted = false;
 
   try {

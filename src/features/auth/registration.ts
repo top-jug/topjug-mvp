@@ -1,11 +1,13 @@
 import type { RegisterInput } from './types';
+import { validatePasswordPolicy } from '../../lib/auth/password-policy';
 
 export type RegistrationFormValues = RegisterInput & {
   passwordConfirmation: string;
 };
 
 export function validateRegistrationPasswords(password: string, passwordConfirmation: string) {
-  if (password.length < 12) return '비밀번호는 12자 이상 입력해주세요.';
+  const policyError = validatePasswordPolicy(password);
+  if (policyError) return policyError;
   if (password !== passwordConfirmation) return '비밀번호가 일치하지 않습니다.';
   return null;
 }

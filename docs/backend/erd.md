@@ -8,6 +8,7 @@ erDiagram
   regions o|--o{ users : home_region
   regions o|--o{ gyms : locates
   users ||--o{ refresh_sessions : authenticates
+  email_verification_challenges }o--o| users : may_verify
   users o|--o{ audit_events : acts
   users o|--o{ media_assets : owns
   users ||--o{ saved_gyms : saves
@@ -59,6 +60,18 @@ erDiagram
     text email UK
     text password_hash
     text home_region_code FK
+  }
+  email_verification_challenges {
+    uuid id PK
+    text email
+    text purpose
+    text code_hash
+    text token_hash UK
+    integer attempts
+    timestamptz expires_at
+    timestamptz delivered_at
+    timestamptz verified_at
+    timestamptz consumed_at
   }
   media_assets {
     uuid id PK

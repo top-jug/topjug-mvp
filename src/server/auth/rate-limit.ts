@@ -79,6 +79,26 @@ export async function consumeLogoutAttempts(clientAddress: string, refreshToken:
   ]);
 }
 
+export async function consumeEmailVerificationRequestAttempts(email: string, clientAddress: string) {
+  await consumeAttempts([
+    { value: `email-verification-request:address:${clientAddress}`, maxAttempts: 20, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+    { value: `email-verification-request:email:${email}`, maxAttempts: 3, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+  ]);
+}
+
+export async function consumeEmailVerificationConfirmAttempts(email: string, clientAddress: string) {
+  await consumeAttempts([
+    { value: `email-verification-confirm:address:${clientAddress}`, maxAttempts: 30, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+    { value: `email-verification-confirm:email:${email}`, maxAttempts: 10, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+  ]);
+}
+
+export async function consumePasswordResetAttempts(clientAddress: string) {
+  await consumeAttempts([
+    { value: `password-reset:address:${clientAddress}`, maxAttempts: 10, errorCode: 'PASSWORD_RESET_RATE_LIMITED' },
+  ]);
+}
+
 export async function clearLoginAttempts(keyHashes: string[]) {
   await getDatabase().delete(loginAttempts).where(inArray(loginAttempts.keyHash, keyHashes));
 }

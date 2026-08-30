@@ -44,3 +44,4 @@ coverage/
 *.local
 *.tsbuildinfo
 .vercel
+.topjug/

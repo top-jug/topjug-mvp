@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { isApiClientError } from '../../lib/api';
 import { useAuth } from './AuthProvider';
 import { toRegisterInput, validateRegistrationPasswords } from './registration';
+import { PASSWORD_MIN_LENGTH } from '../../lib/auth/password-policy';
 
 type Props = {
   mode: 'login' | 'register';
@@ -111,13 +112,13 @@ export function AuthScreen({ mode }: Props) {
                 <input
                   required
                   type={!isLogin && showPassword ? 'text' : 'password'}
-                  minLength={isLogin ? 1 : 12}
+                  minLength={isLogin ? 1 : PASSWORD_MIN_LENGTH}
                   maxLength={128}
                   autoComplete={isLogin ? 'current-password' : 'new-password'}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   className={`h-13 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 text-base text-neutral-950 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 ${isLogin ? '' : 'pr-20'}`}
-                  placeholder={isLogin ? '비밀번호' : '12자 이상 입력'}
+                  placeholder={isLogin ? '비밀번호' : '8-128자, 대문자/숫자/특수문자 중 2가지'}
                 />
                 {!isLogin && (
                   <button
@@ -139,7 +140,7 @@ export function AuthScreen({ mode }: Props) {
                 <input
                   required
                   type={showPassword ? 'text' : 'password'}
-                  minLength={12}
+                  minLength={PASSWORD_MIN_LENGTH}
                   maxLength={128}
                   autoComplete="new-password"
                   value={passwordConfirmation}
