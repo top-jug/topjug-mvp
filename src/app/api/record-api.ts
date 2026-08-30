@@ -5,6 +5,12 @@ interface ApiGymRef {
   id: string;
   name: string;
   branchName: string | null;
+  logo?: {
+    id: string;
+    storageKey: string;
+    contentType: string;
+    url: string | null;
+  } | null;
 }
 
 interface ApiMembershipRef {

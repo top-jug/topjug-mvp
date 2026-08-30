@@ -147,8 +147,12 @@ function normalizeGymSummary(gym: ApiGymSummary): ApiGymSummary {
 
 export async function listGyms(input: ListGymsInput = {}) {
   const { signal, ...query } = input;
+  const normalizedQuery = {
+    ...query,
+    q: query.q?.trim() || undefined,
+  };
   const response = await apiRequest<{ data: ApiGymSummary[] }>(
-    `/api/v1/gyms${queryString({ ...query, limit: query.limit ?? 100 })}`,
+    `/api/v1/gyms${queryString({ ...normalizedQuery, limit: normalizedQuery.limit ?? 100 })}`,
     { auth: false, signal },
   );
   return { data: response.data.map(normalizeGymSummary) };

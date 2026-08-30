@@ -22,6 +22,7 @@ import {
 } from '../db/schema';
 import { ApiError } from '../http/api-error';
 import { publicMediaUrl } from '../media/media-url';
+import { normalizeGymSearchTokens } from './gym-search';
 import { ListGymsInput } from './gym-validation';
 
 function mediaReference(asset: {
@@ -35,7 +36,12 @@ function mediaReference(asset: {
 export async function listGyms(input: ListGymsInput) {
   const database = getDatabase();
   const conditions = [eq(gyms.operationStatus, input.operationStatus)];
-  if (input.q) conditions.push(or(ilike(gyms.name, `%${input.q}%`), ilike(gyms.branchName, `%${input.q}%`), ilike(gyms.address, `%${input.q}%`))!);
+  const searchTokens = normalizeGymSearchTokens(input.q);
+  if (searchTokens.length > 0) {
+    conditions.push(and(...searchTokens.map((token) => (
+      or(ilike(gyms.name, `%${token}%`), ilike(gyms.branchName, `%${token}%`), ilike(gyms.address, `%${token}%`))!
+    )))!);
+  }
   if (input.regionCode) conditions.push(eq(gyms.regionCode, input.regionCode));
   if (input.facility) conditions.push(sql`${input.facility} = ANY(${gyms.facilities})`);
   if (input.tag) conditions.push(exists(

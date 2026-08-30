@@ -20,6 +20,7 @@ import {
 import { loadRecordCalendarMonth, type RecordCalendarSnapshot } from './record-calendar';
 import {
   ALL_CALENDAR_STATUSES,
+  createAllCalendarStatuses,
   filterCalendarData,
   getCalendarGyms,
   reconcileActiveGyms,
@@ -71,7 +72,7 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
   const [activeSlide, setActiveSlide] = useState(0);
   const [filterGymsByMode, setFilterGymsByMode] = useState<Record<CalendarViewMode, CalendarGym[]>>({ record: [], setting: [] });
   const [gymSelectionPreferences, setGymSelectionPreferences] = useState<ActiveGyms>({});
-  const [activeStatuses, setActiveStatuses] = useState<ActiveStatuses>({ ...ALL_CALENDAR_STATUSES });
+  const [activeStatuses, setActiveStatuses] = useState<ActiveStatuses>(createAllCalendarStatuses);
   const [settingSnapshot, setSettingSnapshot] = useState<CalendarSnapshot | null>(null);
   const [settingRequestKey, setSettingRequestKey] = useState(0);
   const [recordSnapshot, setRecordSnapshot] = useState<RecordCalendarSnapshot | null>(null);
@@ -216,6 +217,16 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
     setActiveStatuses((previous) => ({ ...previous, [status]: !previous[status] }));
   };
 
+  const toggleAllStatuses = () => {
+    const allSelected = Object.keys(ALL_CALENDAR_STATUSES).every((status) => activeStatuses[status as CalendarStatus]);
+    setActiveStatuses(allSelected ? { scheduled: false, completed: false, cancelled: false } : createAllCalendarStatuses());
+  };
+
+  const resetFilters = () => {
+    setGymSelectionPreferences((previous) => ({ ...previous, ...createActiveGyms(filterGyms) }));
+    setActiveStatuses(createAllCalendarStatuses());
+  };
+
   const applyGymSearch = (query: string) => {
     const keyword = query.trim().toLowerCase();
 
@@ -281,8 +292,10 @@ export default function CalendarScreen({ viewMode, onViewModeChange, onNavigate,
         activeGyms={activeGyms}
         onToggleGym={toggleGym}
         onToggleAll={toggleAllGyms}
+        onResetFilters={resetFilters}
         activeStatuses={viewMode === 'setting' ? activeStatuses : undefined}
         onToggleStatus={viewMode === 'setting' ? toggleStatus : undefined}
+        onToggleAllStatuses={viewMode === 'setting' ? toggleAllStatuses : undefined}
       />
 
       <main>

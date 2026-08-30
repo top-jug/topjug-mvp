@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router';
 import { useRecordHistory } from '../providers/RecordHistoryProvider';
 import { getRecordTotals } from '../../features/record/record-summary';
 import { useNavigateBack } from '../navigation';
+import { recordSessionTypeLabel } from '../../features/record/session-labels';
 
 export default function MyRecordsPage() {
   const navigate = useNavigate();
@@ -87,6 +88,7 @@ export default function MyRecordsPage() {
                           <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-700">완등 {totals.success}</span>
                           <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-700">시도 {totals.attempt}</span>
                           <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-700">{record.rating === null ? '미평가' : `★ ${record.rating}`}</span>
+                          <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-700">{recordSessionTypeLabel(record.sessionType)}</span>
                         </div>
                       </div>
                     </div>

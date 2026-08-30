@@ -14,6 +14,7 @@ import {
   presentGymContacts,
   presentOperatingHourOverrides,
   presentWeeklyOperatingHours,
+  selectGymDetailMediaPresentation,
   selectInitialGymSettingMonth,
   shiftGymSettingMonth,
   type GymSettingMonth,
@@ -70,21 +71,15 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
 
   const presentation = useMemo(() => {
     if (!gym) return null;
-    const logo = gym.media.find((media) => media.type === 'logo');
-    const cover = gym.media.find((media) => media.type === 'cover') ?? gym.cover;
-    const photos = gym.media.filter((media) => media.type === 'photo' && media.url).map((media) => media.url!);
-    const photoFallback = cover?.url ?? logo?.url;
-    const mapImage = gym.media.find((media) => media.type === 'map' && media.url)?.url
-      ?? gym.walls.find((wall) => wall.mapMedia?.url)?.mapMedia?.url
-      ?? null;
+    const media = selectGymDetailMediaPresentation(gym);
     const focusMonth = calendarMonth ?? selectInitialGymSettingMonth(gym.settingEvents);
     const calendar = buildGymSettingCalendar(gym.settingEvents, focusMonth);
 
     return {
       title: displayGymName(gym),
-      logoUrl: logo?.url ?? null,
-      photos: photos.length > 0 ? photos : photoFallback ? [photoFallback] : [],
-      mapImage,
+      logoUrl: media.logoUrl,
+      photos: media.photos,
+      mapImage: media.locationMapImage,
       mapHref: buildGymMapLink(gym.latitude, gym.longitude),
       calendar,
       focusMonth,
@@ -131,7 +126,7 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
           photos={presentation.photos}
           mapImage={presentation.mapImage}
           mapHref={presentation.mapHref}
-          mapLinkLabel={`Google 지도에서 ${presentation.title} 위치 보기`}
+          mapLinkLabel={`카카오맵에서 ${presentation.title} 위치 보기`}
           calendarDays={presentation.calendar.days}
           eventDays={presentation.calendar.eventDays}
           monthLabel={presentation.calendar.monthLabel}

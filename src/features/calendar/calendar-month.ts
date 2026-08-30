@@ -6,11 +6,23 @@ export interface CalendarMonthCell {
 }
 
 export type CalendarWeekdayKind = 'weekday' | 'saturday' | 'sunday';
+export type CalendarDateTone = 'selected-today' | 'selected' | 'today' | 'saturday' | 'sunday' | 'weekday';
 
 export function getCalendarWeekdayKind(columnIndex: number): CalendarWeekdayKind {
   if (columnIndex === 0) return 'sunday';
   if (columnIndex === 6) return 'saturday';
   return 'weekday';
+}
+
+export function getCalendarDateTone(input: {
+  isSelected: boolean;
+  isToday: boolean;
+  weekdayKind: CalendarWeekdayKind;
+}): CalendarDateTone {
+  if (input.isSelected && input.isToday) return 'selected-today';
+  if (input.isSelected) return 'selected';
+  if (input.isToday) return 'today';
+  return input.weekdayKind;
 }
 
 export function getLocalCalendarDate(now = new Date()) {

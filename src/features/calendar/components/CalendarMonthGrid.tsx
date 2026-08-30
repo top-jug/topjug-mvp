@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { CalendarEntry } from '../../../entities/calendar/types';
-import { getCalendarWeekdayKind } from '../calendar-month';
+import { getCalendarDateTone, getCalendarWeekdayKind, type CalendarDateTone } from '../calendar-month';
 import CalendarEntryStack from './CalendarEntryStack';
 
 export interface CalendarGridCell {
@@ -33,6 +33,15 @@ function chunkCells(cells: CalendarGridCell[], size = 7) {
 
   return rows;
 }
+
+const DATE_TONE_CLASSES: Record<CalendarDateTone, string> = {
+  'selected-today': 'w-6 h-6 rounded-full bg-[#0C447C] text-white flex items-center justify-center font-bold ring-2 ring-blue-200',
+  selected: 'w-6 h-6 rounded-full bg-[#185FA5] text-white flex items-center justify-center font-bold',
+  today: 'w-6 h-6 rounded-full bg-[#E6F1FB] text-[#0C447C] flex items-center justify-center font-bold ring-1 ring-[#185FA5]',
+  saturday: 'text-[#185FA5]',
+  sunday: 'text-[#E24B4A]',
+  weekday: 'text-neutral-900',
+};
 
 export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
   const {
@@ -103,6 +112,7 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
                     const isSelected = date.day === selectedDate && date.month === selectedMonth && date.year === selectedYear;
                     const isToday = date.day === today.getDate() && date.month === today.getMonth() + 1 && date.year === today.getFullYear();
                     const weekdayKind = getCalendarWeekdayKind(index % 7);
+                    const dateTone = getCalendarDateTone({ isSelected, isToday, weekdayKind });
 
                     if (typeof date.day !== 'number') {
                       return <div key={date.key} className="min-h-[48px] rounded-md p-1" aria-hidden="true" />;
@@ -120,29 +130,19 @@ export default function CalendarMonthGrid(props: CalendarMonthGridProps) {
                           event.preventDefault();
                           onOpenDateMenu(date.year, date.month, day);
                         }}
-                        className={`min-h-[48px] rounded-md p-1 flex flex-col justify-between transition-colors ${isSelected ? 'bg-[#E6F1FB]' : 'hover:bg-white'}`}
+                        className={`flex min-h-[48px] flex-col justify-between rounded-md p-1 transition-colors ${isSelected ? 'bg-[#E6F1FB] ring-1 ring-blue-100' : 'hover:bg-white'}`}
                         disabled={!isDateInteractionEnabled}
                       >
                         <div className="flex flex-col items-center gap-0.5">
-<div
-                              className={`text-[13px] ${
-                                isToday
-                                  ? 'w-6 h-6 rounded-full bg-[#185FA5] text-white flex items-center justify-center font-medium'
-                                  : weekdayKind === 'saturday'
-                                    ? 'text-[#185FA5]'
-                                    : weekdayKind === 'sunday'
-                                      ? 'text-[#E24B4A]'
-                                      : 'text-neutral-900'
-                             }`}
-                            >
-                              {day}
-                            </div>
-                            <CalendarEntryStack
-                              entries={visibleEntries}
-                              className="mt-0.5 gap-0.5"
-                              logoClassName="h-5 w-5"
-                              hiddenCountClassName="rounded bg-neutral-100 px-1 py-0.5 text-[9px] font-medium text-neutral-500"
-                            />
+                          <div className={`text-[13px] ${DATE_TONE_CLASSES[dateTone]}`}>
+                            {day}
+                          </div>
+                          <CalendarEntryStack
+                            entries={visibleEntries}
+                            className="mt-0.5 gap-0.5"
+                            logoClassName="h-5 w-5"
+                            hiddenCountClassName="rounded bg-neutral-100 px-1 py-0.5 text-[9px] font-medium text-neutral-500"
+                          />
                         </div>
                       </button>
                     );

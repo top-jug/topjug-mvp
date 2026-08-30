@@ -2,6 +2,7 @@ import { UIEvent, useLayoutEffect, useRef } from 'react';
 import { ImageWithFallback } from '../../../app/components/figma/ImageWithFallback';
 import { CalendarData, CalendarGym } from '../../../entities/calendar/types';
 import { getCalendarSlideStateKey, reconcileCalendarSlide } from '../calendar-state';
+import { recordSessionTypeLabel } from '../../record/session-labels';
 
 interface CalendarDetailSectionProps {
   mode: 'record' | 'setting';
@@ -32,7 +33,6 @@ export default function CalendarDetailSection({ mode, year, month, selectedDate,
     )),
   });
   const emptyLabel = mode === 'record' ? '이 날짜에 등록된 기록이 없습니다.' : '이 날짜에 등록된 세팅 정보가 없습니다.';
-  const sessionLabels = { free: '자유 세션', training: '집중 훈련', project: '프로젝트' } as const;
 
   useLayoutEffect(() => {
     const previousKey = previousSlideStateKeyRef.current;
@@ -120,9 +120,13 @@ export default function CalendarDetailSection({ mode, year, month, selectedDate,
                     >
                       <div className="flex items-start justify-between gap-3 mb-3 mt-2">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-[28px] font-bold flex-shrink-0" style={{ backgroundColor: gymInfo.lightBg, color: gymInfo.darkText }}>
-                            {entry.gym.slice(0, 1)}
-                          </div>
+                          {entry.logoUrl ? (
+                            <ImageWithFallback src={entry.logoUrl} alt={`${entry.gym} 로고`} className="h-14 w-14 flex-shrink-0 rounded-2xl border border-neutral-200 bg-neutral-50 object-contain" />
+                          ) : (
+                            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-[28px] font-bold flex-shrink-0" style={{ backgroundColor: gymInfo.lightBg, color: gymInfo.darkText }}>
+                              {entry.gym.slice(0, 1)}
+                            </div>
+                          )}
                           <div className="min-w-0">
                             <div className="text-[14px] font-semibold truncate">{entry.gym}</div>
                             <div className="text-[13px] text-neutral-500">운동 기록</div>
@@ -139,7 +143,7 @@ export default function CalendarDetailSection({ mode, year, month, selectedDate,
                         </div>
                         <div className="rounded-xl bg-white border border-neutral-200 px-3 py-2">
                           <div className="text-[12px] text-neutral-500 mb-1">세션 상태</div>
-                          <div className="text-[14px] font-medium text-neutral-900">{entry.sessionType ? sessionLabels[entry.sessionType] : '운동 완료'}</div>
+                          <div className="text-[14px] font-medium text-neutral-900">{recordSessionTypeLabel(entry.sessionType)}</div>
                         </div>
                       </div>
                       <div className="rounded-xl border border-neutral-200 px-3 py-3 text-[13px] text-neutral-600 leading-6">

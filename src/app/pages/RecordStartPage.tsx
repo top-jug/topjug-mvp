@@ -15,18 +15,13 @@ import DatePickerModal from '../../features/record/components/modals/DatePickerM
 import GymSelectModal from '../../features/record/components/modals/GymSelectModal';
 import PassSelectModal from '../../features/record/components/modals/PassSelectModal';
 import { shiftRecordMonth } from '../../features/record/record-date';
+import { RECORD_SESSION_TYPE_OPTIONS } from '../../features/record/session-labels';
 
 const MONTH_NAMES = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
 const TIME_WHEEL_ITEM_HEIGHT = 44;
 const TIME_WHEEL_VISIBLE_HEIGHT = 220;
 const TIME_WHEEL_PADDING = (TIME_WHEEL_VISIBLE_HEIGHT - TIME_WHEEL_ITEM_HEIGHT) / 2;
 const TIME_PERIODS = ['오전', '오후'] as const;
-const SESSION_TYPES = [
-  { value: 'free', label: '자유' },
-  { value: 'training', label: '훈련' },
-  { value: 'project', label: '프로젝트' },
-] as const;
-
 function parseRecordDate(value: string) {
   const [yearPart, monthPart, dayPart] = value.split('.').map(Number);
   if (!yearPart || !monthPart || !dayPart) return { year: new Date().getFullYear(), month: new Date().getMonth(), day: new Date().getDate() };
@@ -309,7 +304,7 @@ export default function RecordStartPage() {
               </div>
               <div className="mb-3 mt-5 text-[13px] text-neutral-500">세션 종류</div>
               <div className="grid grid-cols-3 gap-2">
-                {SESSION_TYPES.map((option) => <button key={option.value} onClick={() => setSessionType(option.value)} className={`min-h-11 rounded-full text-[14px] font-medium ${sessionType === option.value ? 'bg-blue-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>{option.label}</button>)}
+                {RECORD_SESSION_TYPE_OPTIONS.map((option) => <button key={option.value} onClick={() => setSessionType(option.value)} className={`min-h-11 rounded-full text-[14px] font-medium ${sessionType === option.value ? 'bg-blue-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>{option.label}</button>)}
               </div>
             </div>
 

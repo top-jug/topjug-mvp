@@ -51,7 +51,8 @@ test('critical mobile class contracts remain attached to shared and record layou
   assert.match(calendarSearchMenu, /maxHeightClassName="mobile-bottom-sheet-max-h-70"/);
   assert.match(bottomSheet, /className=\{`mobile-bottom-sheet fixed inset-x-0 bottom-0/);
   assert.match(calendarTopBar, /aria-label=\{`기간 선택: \$\{periodLabel\}`\}/);
-  assert.match(calendarTopBar, /min-\[360px\]:hidden[\s\S]*hidden truncate whitespace-nowrap[\s\S]*min-\[360px\]:inline/);
+  assert.doesNotMatch(calendarTopBar, /min-\[360px\]:hidden[\s\S]*periodLabel/);
+  assert.match(calendarTopBar, /truncate whitespace-nowrap text-\[13px\][\s\S]*\{periodLabel\}/);
   assert.match(homeShell, /flex-1 truncate[\s\S]*aria-label=\{actionLabel \?\? `\$\{title\} 더보기`\}[\s\S]*shrink-0[\s\S]*whitespace-nowrap/);
   assert.match(records, /mobile-safe-top sticky top-0/);
   assert.equal((result.match(/mobile-safe-top sticky top-0/g) ?? []).length, 2);
