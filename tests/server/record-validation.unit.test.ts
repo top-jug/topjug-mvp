@@ -22,7 +22,7 @@ test('record creation accepts normalized domain values', () => {
   assert.equal(createRecordSchema.safeParse(validRecord).success, true);
 });
 
-test('record writes accept and ignore omitted and legacy session types', () => {
+test('record writes reject removed session types', () => {
   for (const schema of [createRecordSchema, startRecordSessionSchema]) {
     const base = schema === createRecordSchema
       ? validRecord
@@ -33,12 +33,8 @@ test('record writes accept and ignore omitted and legacy session types', () => {
           mode: validRecord.mode,
         };
 
-    for (const sessionType of [undefined, 'free', 'training', 'project'] as const) {
-      const input = sessionType === undefined ? base : { ...base, sessionType };
-      const result = schema.safeParse(input);
-      assert.equal(result.success, true, `expected ${sessionType ?? 'omitted'} to be accepted`);
-      if (result.success) assert.equal('sessionType' in result.data, false);
-    }
+    assert.equal(schema.safeParse(base).success, true);
+    assert.equal(schema.safeParse({ ...base, sessionType: 'free' }).success, false);
   }
 });
 

@@ -174,7 +174,19 @@ export async function createRecord(userId: string, input: CreateRecordInput) {
         mode: input.mode,
         note: input.note ?? null,
       })
-      .returning();
+      .returning({
+        id: climbingRecords.id,
+        startedAt: climbingRecords.startedAt,
+        endedAt: climbingRecords.endedAt,
+        rating: climbingRecords.rating,
+        mode: climbingRecords.mode,
+        accessType: climbingRecords.accessType,
+        status: climbingRecords.status,
+        activeDurationSeconds: climbingRecords.activeDurationSeconds,
+        note: climbingRecords.note,
+        createdAt: climbingRecords.createdAt,
+        updatedAt: climbingRecords.updatedAt,
+      });
 
     const counts = input.counts.length > 0
       ? await transaction.insert(recordCounts).values(
@@ -223,7 +235,6 @@ export async function createRecord(userId: string, input: CreateRecordInput) {
       mode: record.mode,
       accessType: record.accessType,
       status: record.status,
-      sessionType: record.sessionType,
       activeDurationSeconds: record.activeDurationSeconds,
       note: record.note,
       sends: counts.reduce((total, count) => total + count.sends, 0),
@@ -302,7 +313,6 @@ export async function listRecords(userId: string, input: ListRecordsInput) {
       mode: climbingRecords.mode,
       accessType: climbingRecords.accessType,
       status: climbingRecords.status,
-      sessionType: climbingRecords.sessionType,
       activeDurationSeconds: climbingRecords.activeDurationSeconds,
       note: climbingRecords.note,
       sends: sql<number>`coalesce(sum(${recordCounts.sends}), 0)`.mapWith(Number),
@@ -353,7 +363,6 @@ export async function getRecord(userId: string, recordId: string, audit = true, 
       mode: climbingRecords.mode,
       accessType: climbingRecords.accessType,
       status: climbingRecords.status,
-      sessionType: climbingRecords.sessionType,
       activeDurationSeconds: climbingRecords.activeDurationSeconds,
       note: climbingRecords.note,
       createdAt: climbingRecords.createdAt,
