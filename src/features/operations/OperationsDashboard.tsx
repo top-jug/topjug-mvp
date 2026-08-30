@@ -1,9 +1,8 @@
-import { ArrowRight, Building2, CalendarClock, CheckCircle2, ShieldCheck, Tags } from 'lucide-react';
+import { ArrowRight, Building2, ShieldCheck, Tags } from 'lucide-react';
 import { Link } from 'react-router';
 
 const workAreas = [
-  { title: '암장 정보', description: '기본 정보와 운영 상태를 관리합니다.', path: '/ops/gyms', icon: Building2 },
-  { title: '운영 일정', description: '영업시간과 세팅 일정을 관리합니다.', path: '/ops/gyms', icon: CalendarClock },
+  { title: '암장 관리', description: '기본 정보와 운영 상태를 관리합니다.', path: '/ops/gyms', icon: Building2 },
   { title: '암장 태그', description: '검색과 분류에 쓰는 태그를 관리합니다.', path: '/ops/gym-tags', icon: Tags },
 ];
 
@@ -26,7 +25,6 @@ export function OperationsDashboard() {
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">Workspace</p>
             <h2 id="work-areas-title" className="mt-1 text-xl font-black tracking-tight">운영 작업</h2>
           </div>
-          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">기반 준비 완료</span>
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {workAreas.map(({ title, description, path, icon: Icon }) => (
@@ -39,14 +37,6 @@ export function OperationsDashboard() {
               <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
             </Link>
           ))}
-        </div>
-      </section>
-
-      <section className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-5 text-blue-950">
-        <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
-        <div>
-          <h2 className="text-sm font-black">이번 이슈의 범위</h2>
-          <p className="mt-1 text-sm leading-6 text-blue-900/70">암장 기본 정보와 운영 상태를 관리하고 마지막 확인 시각을 기록할 수 있습니다. 사진, 공지사항, 실제 알림 전송은 아직 활성화되지 않았습니다.</p>
         </div>
       </section>
     </div>
