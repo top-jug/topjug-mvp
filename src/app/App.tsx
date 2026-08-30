@@ -1,4 +1,5 @@
 import { BrowserRouter } from 'react-router';
+import type { PropsWithChildren } from 'react';
 import { MembershipProvider } from './providers/MembershipProvider';
 import { AppRouter } from './router';
 import { RecordDraftProvider } from './providers/RecordDraftProvider';
@@ -10,16 +11,22 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <SavedGymsProvider>
-          <MembershipProvider>
-            <RecordHistoryProvider>
-              <RecordDraftProvider>
-                <AppRouter />
-              </RecordDraftProvider>
-            </RecordHistoryProvider>
-          </MembershipProvider>
-        </SavedGymsProvider>
+        <AppDataProviders>
+          <AppRouter />
+        </AppDataProviders>
       </AuthProvider>
     </BrowserRouter>
+  );
+}
+
+export function AppDataProviders({ children }: PropsWithChildren) {
+  return (
+    <SavedGymsProvider>
+      <MembershipProvider>
+        <RecordHistoryProvider>
+          <RecordDraftProvider>{children}</RecordDraftProvider>
+        </RecordHistoryProvider>
+      </MembershipProvider>
+    </SavedGymsProvider>
   );
 }

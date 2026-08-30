@@ -1,9 +1,11 @@
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'error';
+export type UserRole = 'user' | 'operations_admin';
 
 export type AuthUser = {
   id: string;
   email: string;
   displayName: string;
+  role: UserRole;
   homeRegionCode: string | null;
   emailVerifiedAt: string | null;
   createdAt: string;

@@ -2,6 +2,7 @@ import { createContext, PropsWithChildren, useCallback, useContext, useEffect, u
 import { ClimbingRecord } from '../../entities/record/types';
 import { listRecords, mapApiRecordSummary } from '../api/record-api';
 import { useAuth } from '../../features/auth/AuthProvider';
+import { shouldLoadProtectedResources } from '../../features/auth/auth-navigation';
 import { createRecordHistoryAccountResetState, createRecordListFailure } from '../../features/record/record-async-state';
 
 interface RecordHistoryContextValue {
@@ -83,7 +84,7 @@ export function RecordHistoryProvider({ children }: PropsWithChildren) {
     setPaginationError(reset.paginationError);
     setIsLoadingMore(reset.isLoadingMore);
     setIsLoading(reset.isLoading);
-    if (authStatus === 'authenticated') {
+    if (shouldLoadProtectedResources(authStatus)) {
       void fetchRecords({ replace: true });
       return () => {
         requestIdRef.current += 1;

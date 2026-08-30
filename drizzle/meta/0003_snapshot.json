@@ -1,5 +1,5 @@
 {
-  "id": "a0e6e78b-ff39-4571-9d37-ffc59001ec7f",
+  "id": "835080e8-7e08-4251-bf26-e67c617b2229",
   "prevId": "4bdddeba-fbee-4936-90da-da98c699f54a",
   "version": "7",
   "dialect": "postgresql",
@@ -437,156 +437,6 @@
         "climbing_records_rating_check": {
           "name": "climbing_records_rating_check",
           "value": "\"climbing_records\".\"rating\" IS NULL OR (\n      \"climbing_records\".\"rating\" >= 0.5 AND \"climbing_records\".\"rating\" <= 5 AND mod(\"climbing_records\".\"rating\", 0.5) = 0\n    )"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.email_verification_challenges": {
-      "name": "email_verification_challenges",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "purpose": {
-          "name": "purpose",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "code_hash": {
-          "name": "code_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attempts": {
-          "name": "attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "delivered_at": {
-          "name": "delivered_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "verified_at": {
-          "name": "verified_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "consumed_at": {
-          "name": "consumed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "email_verification_email_purpose_idx": {
-          "name": "email_verification_email_purpose_idx",
-          "columns": [
-            {
-              "expression": "email",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "purpose",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "email_verification_expires_idx": {
-          "name": "email_verification_expires_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "email_verification_token_uidx": {
-          "name": "email_verification_token_uidx",
-          "columns": [
-            {
-              "expression": "token_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"email_verification_challenges\".\"token_hash\" IS NOT NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "email_verification_purpose_check": {
-          "name": "email_verification_purpose_check",
-          "value": "\"email_verification_challenges\".\"purpose\" IN ('register', 'reset_password')"
-        },
-        "email_verification_attempts_check": {
-          "name": "email_verification_attempts_check",
-          "value": "\"email_verification_challenges\".\"attempts\" BETWEEN 0 AND 5"
         }
       },
       "isRLSEnabled": false
@@ -3556,6 +3406,14 @@
           "primaryKey": false,
           "notNull": true
         },
+        "role": {
+          "name": "role",
+          "type": "user_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'user'"
+        },
         "email_verified_at": {
           "name": "email_verified_at",
           "type": "timestamp with time zone",
@@ -3739,6 +3597,14 @@
         "scheduled",
         "completed",
         "cancelled"
+      ]
+    },
+    "public.user_role": {
+      "name": "user_role",
+      "schema": "public",
+      "values": [
+        "user",
+        "operations_admin"
       ]
     }
   },

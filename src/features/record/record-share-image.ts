@@ -5,7 +5,7 @@ const CANVAS_WIDTH = 1080;
 const CANVAS_HEIGHT = 1350;
 const INK_COLOR = '#171717';
 
-export function createRecordShareImage(record: ClimbingRecord, options: RecordShareOptions) {
+export async function createRecordShareImage(record: ClimbingRecord, options: RecordShareOptions) {
   const canvas = document.createElement('canvas');
   canvas.width = CANVAS_WIDTH;
   canvas.height = CANVAS_HEIGHT;
@@ -14,15 +14,12 @@ export function createRecordShareImage(record: ClimbingRecord, options: RecordSh
   if (!context) throw new Error('Canvas is not available');
 
   const model = createRecordShareModel(record, options);
+  const brandIcon = await loadBrandIcon();
 
   context.fillStyle = '#F5F7FA';
   context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-  drawRoundRect(context, 70, 55, 68, 68, 20, '#2563EB');
-  context.fillStyle = '#FFFFFF';
-  context.font = '900 36px Pretendard, system-ui, sans-serif';
-  context.textAlign = 'center';
-  context.fillText('T', 104, 101);
+  context.drawImage(brandIcon, 70, 55, 68, 68);
   context.fillStyle = INK_COLOR;
   context.font = '900 32px Pretendard, system-ui, sans-serif';
   context.textAlign = 'left';
@@ -88,6 +85,12 @@ export function createRecordShareImage(record: ClimbingRecord, options: RecordSh
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Image creation failed'))), 'image/png');
   });
+}
+
+function loadBrandIcon() {
+  const image = new Image();
+  image.src = '/icons/icon-192.png';
+  return image.decode().then(() => image);
 }
 
 function drawStat(context: CanvasRenderingContext2D, label: string, value: string, x: number, y: number) {

@@ -3,6 +3,7 @@ import 'server-only';
 import { timingSafeEqual } from 'node:crypto';
 import { and, count, eq, gte, isNull } from 'drizzle-orm';
 import { getDatabase } from '../db/client';
+import { databaseErrorCode } from '../db/errors';
 import { auditEvents, climbingRecords, memberships, refreshSessions, regions, savedGyms, users } from '../db/schema';
 import { ApiError } from '../http/api-error';
 import { hashPassword, verifyPassword } from './password';
@@ -19,6 +20,7 @@ function publicUser(user: typeof users.$inferSelect) {
     id: user.id,
     email: user.email,
     displayName: user.displayName,
+    role: user.role,
     homeRegionCode: user.homeRegionCode,
     emailVerifiedAt: user.emailVerifiedAt,
     createdAt: user.createdAt,
@@ -35,7 +37,7 @@ export async function registerUser(input: RegisterInput, clientAddress: string) 
       const emailVerifiedAt = new Date();
       const [createdUser] = await transaction
         .insert(users)
-        .values({ email: input.email, displayName: input.displayName, passwordHash, emailVerifiedAt })
+        .values({ email: input.email, displayName: input.displayName, passwordHash, role: 'user', emailVerifiedAt })
         .returning();
       const createdTokens = await createTokenPair(createdUser.id);
       await transaction.insert(refreshSessions).values({
@@ -58,7 +60,7 @@ export async function registerUser(input: RegisterInput, clientAddress: string) 
     setRequestActor(user.id);
     return { user: publicUser(user), tokens };
   } catch (error) {
-    if (typeof error === 'object' && error && 'code' in error && error.code === '23505') {
+    if (databaseErrorCode(error) === '23505') {
       throw new ApiError(409, 'ACCOUNT_UNAVAILABLE', '이 이메일로 계정을 만들 수 없습니다.');
     }
     throw error;

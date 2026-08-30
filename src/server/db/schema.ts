@@ -22,6 +22,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 export const membershipType = pgEnum('membership_type', ['count', 'period']);
+export const userRole = pgEnum('user_role', ['user', 'operations_admin']);
 export const recordMode = pgEnum('record_mode', ['easy', 'normal']);
 export const auditOutcome = pgEnum('audit_outcome', ['success', 'failure']);
 export const gymOperationStatus = pgEnum('gym_operation_status', ['active', 'temporarily_closed', 'closed', 'opening_soon']);
@@ -52,6 +53,7 @@ export const users = pgTable('users', {
   displayName: text('display_name').notNull(),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
+  role: userRole('role').notNull().default('user'),
   emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
   homeRegionCode: text('home_region_code').references(() => regions.code, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

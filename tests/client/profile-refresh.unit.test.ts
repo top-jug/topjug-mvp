@@ -8,6 +8,7 @@ const user: AuthUser = {
   id: 'user-1',
   email: 'climber@example.com',
   displayName: 'Climber',
+  role: 'user',
   homeRegionCode: null,
   emailVerifiedAt: null,
   createdAt: '2026-08-24T00:00:00.000Z',

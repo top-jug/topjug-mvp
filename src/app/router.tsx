@@ -4,7 +4,7 @@ import GymDetailPage from './pages/GymDetailPage';
 import MembershipPage from './pages/MembershipPage';
 import GymSearchPage from './pages/GymSearchPage';
 import ProfilePage from './pages/ProfilePage';
-import HomeScreen from '../features/home/HomeScreen';
+import RootScreen from '../features/onboarding/RootScreen';
 import RecordStartPage from './pages/RecordStartPage';
 import RecordPage from './pages/RecordPage';
 import MyRecordsPage from './pages/MyRecordsPage';
@@ -15,6 +15,10 @@ import RegisterPage from './pages/RegisterPage';
 import { RequireAuth } from '../features/auth/RequireAuth';
 import PublicRecordSharePage from './pages/PublicRecordSharePage';
 import PasswordResetPage from './pages/PasswordResetPage';
+import { RequireOperationsAdmin } from '../features/operations/RequireOperationsAdmin';
+import { OperationsLayout } from '../features/operations/OperationsLayout';
+import { OperationsDashboard } from '../features/operations/OperationsDashboard';
+import { OperationsComingSoon } from '../features/operations/OperationsComingSoon';
 
 function PreviewLayout() {
   return (
@@ -27,7 +31,15 @@ function PreviewLayout() {
 export function AppRouter() {
   return (
     <Routes>
+      <Route element={<RequireOperationsAdmin />}>
+        <Route path="/ops" element={<OperationsLayout />}>
+          <Route index element={<OperationsDashboard />} />
+          <Route path="gyms" element={<OperationsComingSoon title="암장 관리" />} />
+          <Route path="gym-tags" element={<OperationsComingSoon title="태그 관리" />} />
+        </Route>
+      </Route>
       <Route element={<PreviewLayout />}>
+        <Route path="/" element={<RootScreen />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/password-reset" element={<PasswordResetPage />} />
@@ -37,7 +49,6 @@ export function AppRouter() {
         <Route path="/schedule/:calendarView" element={<CalendarPage />} />
         <Route path="/shares/:token" element={<PublicRecordSharePage />} />
         <Route element={<RequireAuth />}>
-          <Route path="/" element={<HomeScreen />} />
           <Route path="/gyms/saved" element={<GymSearchPage initialView="saved" />} />
           <Route path="/record/start" element={<RecordStartPage />} />
           <Route path="/record" element={<RecordPage />} />

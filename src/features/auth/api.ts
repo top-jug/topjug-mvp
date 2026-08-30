@@ -7,7 +7,7 @@ import type { AuthUser, EmailVerificationPurpose, LoginInput, PasswordResetInput
 export const LOGOUT_PENDING_KEY = 'topjug.logout-pending';
 
 type AuthResponse = ApiDataResponse<{
-  user: Pick<AuthUser, 'id' | 'email' | 'displayName' | 'homeRegionCode' | 'emailVerifiedAt' | 'createdAt'>;
+  user: Pick<AuthUser, 'id' | 'email' | 'displayName' | 'role' | 'homeRegionCode' | 'emailVerifiedAt' | 'createdAt'>;
   accessToken: string;
   accessTokenExpiresIn: number;
 }>;

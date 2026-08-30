@@ -99,7 +99,9 @@ After completion or cancellation, active-session transitions return `ACTIVE_RECO
 - Password reset revokes every refresh session. Stateless access tokens already issued before reset cannot be revoked and retain a residual lifetime of at most 15 minutes.
 - Password reset, login session issuance, and refresh rotation take the same transaction-scoped user lock. Login re-reads and verifies the current password while holding that lock, so neither login nor rotation can create a session after a concurrent reset revocation.
 - Verification requests do not disclose account existence. A challenge is marked delivered only after the configured adapter succeeds; delivery failures return `EMAIL_DELIVERY_FAILED`, invalidate the challenge, and are never reported as accepted.
-- Login errors do not reveal whether an email exists. Registration and password reset each atomically consume independent 15-minute limits before Argon2 work: 10 attempts per client address and 100 attempts globally. The reset limits do not use account or email keys, and registration exhaustion does not consume the reset budget.
+- New registrations always receive the `user` role. Operations routes resolve the current `users.role` from PostgreSQL on every request instead of trusting a role claim in the access token.
+- The first `operations_admin` account is created only with the audited, interactive bootstrap command documented in the [operations console runbook](../admin/operations-console.md). There is no administrator-management API or screen in the MVP.
+- Login errors do not reveal whether an email exists. Attempts use atomic email and client-address limits. Registration and password reset each atomically consume independent 15-minute limits before Argon2 work: 10 attempts per client address and 100 attempts globally. The reset limits do not use account or email keys, and registration exhaustion does not consume the reset budget.
 - Concurrent or later reuse of a rotated refresh token revokes the token family and requires a new login.
 - JWTs, passwords, refresh tokens, and raw login identifiers must never enter logs or audit metadata.
 
@@ -143,6 +145,7 @@ npm run dev:local
 npm run test:integration:local
 npm run test:http:local
 npm run lint:openapi
+npm run ops:admin:create:local -- --email admin@example.com --display-name "운영자"
 npm run typecheck
 npm test
 npm run build
@@ -156,3 +159,4 @@ Do not edit generated SQL migration files after they have been applied. Change `
 - [OpenAPI contract](./openapi.yaml)
 - [Low-cost RDS plan](./rds.md)
 - [Production database and media runbook](../operations/production-data.md)
+- [Operations console and initial administrator runbook](../admin/operations-console.md)

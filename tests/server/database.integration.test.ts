@@ -72,6 +72,8 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
         displayName: 'Second',
         emailVerificationToken: secondVerificationToken,
       }, `integration-second-${suffix}`);
+      assert.equal(first.user.role, 'user');
+      assert.equal(second.user.role, 'user');
 
       const tiedRecordIds = [randomUUID(), randomUUID()].sort();
       await database.insert(climbingRecords).values([
@@ -137,7 +139,11 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
       });
       assert.equal(record.sends, 3);
       assert.equal(record.attempts, 5);
-      assert.equal(record.sessionType, 'free');
+      assert.equal('sessionType' in record, false);
+      const [persistedRecord] = await database.select({ sessionType: climbingRecords.sessionType })
+        .from(climbingRecords).where(eq(climbingRecords.id, record.id));
+      assert.ok(persistedRecord);
+      assert.equal(persistedRecord.sessionType, 'free');
 
       const membership = await createMembership(first.user.id, {
         name: 'Integration Count Pass',
@@ -159,7 +165,7 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
         mode: 'normal',
         counts: [{ gymGradeId: grade.id, gymSectorId: sector.id, attempts: 4, sends: 2 }],
       });
-      assert.equal(membershipRecord.sessionType, 'free');
+      assert.equal('sessionType' in membershipRecord, false);
       const [updatedMembership] = await database.select({ remainingUses: memberships.remainingUses, updatedAt: memberships.updatedAt })
         .from(memberships).where(eq(memberships.id, membership.id));
       const [usage] = await database.select().from(membershipUsages)
@@ -242,7 +248,7 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
         mode: 'normal',
       });
       assert.ok(live);
-      assert.equal(live.sessionType, 'free');
+      assert.equal('sessionType' in live, false);
       assert.equal((await getActiveRecordSession(first.user.id))?.id, live.id);
       await assert.rejects(
         () => startRecordSession(first.user.id, {

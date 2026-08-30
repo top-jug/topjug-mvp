@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { useAuth } from './AuthProvider';
+import { loginRedirectState } from './auth-navigation';
 
 export function RequireAuth() {
   const { status, error, retry } = useAuth();
@@ -32,7 +33,7 @@ export function RequireAuth() {
   }
 
   if (status === 'unauthenticated') {
-    return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
+    return <Navigate to="/login" replace state={loginRedirectState(location)} />;
   }
 
   return <Outlet />;
