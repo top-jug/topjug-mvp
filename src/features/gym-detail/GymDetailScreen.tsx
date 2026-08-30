@@ -127,6 +127,10 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
           mapImage={presentation.mapImage}
           mapHref={presentation.mapHref}
           mapLinkLabel={`카카오맵에서 ${presentation.title} 위치 보기`}
+          mapAppKey={process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY}
+          latitude={gym.latitude}
+          longitude={gym.longitude}
+          gymTitle={presentation.title}
           calendarDays={presentation.calendar.days}
           eventDays={presentation.calendar.eventDays}
           monthLabel={presentation.calendar.monthLabel}

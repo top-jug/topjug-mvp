@@ -40,17 +40,23 @@ export function gymDetailSlideLabel(index: number, slideCount = GYM_DETAIL_SLIDE
   return `${title}, ${safeIndex + 1}/${slideCount}`;
 }
 
+export function isValidKakaoMapPoint(latitude: number | null | undefined, longitude: number | null | undefined) {
+  return typeof latitude === 'number'
+    && typeof longitude === 'number'
+    && Number.isFinite(latitude)
+    && Number.isFinite(longitude)
+    && latitude >= -90
+    && latitude <= 90
+    && longitude >= -180
+    && longitude <= 180;
+}
+
+export function getKakaoMapScriptSrc(appKey: string) {
+  return `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false`;
+}
+
 export function buildGymMapLink(latitude: number | null | undefined, longitude: number | null | undefined) {
-  if (
-    typeof latitude !== 'number'
-    || typeof longitude !== 'number'
-    || !Number.isFinite(latitude)
-    || !Number.isFinite(longitude)
-    || latitude < -90
-    || latitude > 90
-    || longitude < -180
-    || longitude > 180
-  ) return null;
+  if (!isValidKakaoMapPoint(latitude, longitude)) return null;
 
   return `https://map.kakao.com/link/map/${latitude},${longitude}`;
 }
