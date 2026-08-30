@@ -3,8 +3,12 @@ import test from 'node:test';
 import { buildSettingCalendarData, SettingEvent } from '../../src/features/calendar/setting-calendar';
 import {
   ALL_CALENDAR_STATUSES,
+  areAllCalendarGymsSelected,
+  areAllCalendarStatusesSelected,
+  createAllCalendarStatuses,
   filterCalendarData,
   getCalendarGyms,
+  hasCalendarFilters,
   reconcileActiveGyms,
 } from '../../src/features/calendar/calendar-filters';
 import {
@@ -14,6 +18,7 @@ import {
   reconcileCalendarSlide,
   resolveCalendarSnapshot,
 } from '../../src/features/calendar/calendar-state';
+import { getCalendarDateTone } from '../../src/features/calendar/calendar-month';
 
 function event(overrides: Partial<SettingEvent> = {}): SettingEvent {
   return {
@@ -129,6 +134,25 @@ test('status filtering includes cancelled events only when selected and retains 
   assert.deepEqual(filterCalendarData(data, { 'gym-1': true }, ALL_CALENDAR_STATUSES)[2].map((entry) => entry.status), ['scheduled', 'cancelled']);
 });
 
+test('calendar filter reset state tracks gym and status groups independently', () => {
+  const gyms = [
+    { id: 'gym-1', name: '첫번째 암장', color: '#185FA5', lightBg: '#E6F1FB', darkText: '#0C447C' },
+    { id: 'gym-2', name: '두번째 암장', color: '#2F855A', lightBg: '#EAF7EF', darkText: '#1F6B45' },
+  ];
+  const allGyms = { 'gym-1': true, 'gym-2': true };
+  const partialGyms = { ...allGyms, 'gym-2': false };
+  const allStatuses = createAllCalendarStatuses();
+  const partialStatuses = { ...allStatuses, cancelled: false };
+
+  assert.equal(areAllCalendarGymsSelected(allGyms, gyms), true);
+  assert.equal(areAllCalendarGymsSelected(partialGyms, gyms), false);
+  assert.equal(areAllCalendarStatusesSelected(allStatuses), true);
+  assert.equal(areAllCalendarStatusesSelected(partialStatuses), false);
+  assert.equal(hasCalendarFilters(allGyms, gyms, allStatuses), false);
+  assert.equal(hasCalendarFilters(partialGyms, gyms, allStatuses), true);
+  assert.equal(hasCalendarFilters(allGyms, gyms, partialStatuses), true);
+});
+
 test('calendar state distinguishes loading, source empty, filtered empty, error, and ready', () => {
   const source = { 2: [{ gym: '암장', gymId: 'gym-1', wall: '세팅' }] };
   assert.equal(getCalendarViewState(true, null, {}, {}), 'loading');
@@ -137,6 +161,13 @@ test('calendar state distinguishes loading, source empty, filtered empty, error,
   assert.equal(getCalendarViewState(false, 'failed', source, source), 'error');
   assert.equal(getCalendarViewState(false, null, source, source), 'ready');
   assert.equal(getCalendarViewState(true, null, source, source), 'ready');
+});
+
+test('calendar date tones prioritize selected and today states before weekend colors', () => {
+  assert.equal(getCalendarDateTone({ isSelected: true, isToday: true, weekdayKind: 'sunday' }), 'selected-today');
+  assert.equal(getCalendarDateTone({ isSelected: true, isToday: false, weekdayKind: 'saturday' }), 'selected');
+  assert.equal(getCalendarDateTone({ isSelected: false, isToday: true, weekdayKind: 'weekday' }), 'today');
+  assert.equal(getCalendarDateTone({ isSelected: false, isToday: false, weekdayKind: 'sunday' }), 'sunday');
 });
 
 test('matching refreshes retain data while another month and stale request are rejected', () => {

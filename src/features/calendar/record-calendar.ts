@@ -49,6 +49,7 @@ export function buildRecordCalendarData(records: ApiRecordSummary[], year: numbe
       attempts: record.attempts,
       rating: record.rating,
       sessionType: record.sessionType,
+      ...(record.gym.logo?.url ? { logoUrl: record.gym.logo.url } : {}),
     };
     calendarData[day] = [...(calendarData[day] ?? []), entry];
   });

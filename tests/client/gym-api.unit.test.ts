@@ -54,6 +54,18 @@ test('gym list query preserves required contract fields and normalizes optional 
   assert.equal(response.data[0].cover, null);
 });
 
+test('gym list query sends multi-token Korean region intent to the server', async () => {
+  let requestedUrl = '';
+  mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+    requestedUrl = String(input);
+    return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+
+  await listGyms({ q: ' 서울 종로 ', limit: 100 });
+
+  assert.match(requestedUrl, /q=%EC%84%9C%EC%9A%B8\+%EC%A2%85%EB%A1%9C/);
+});
+
 test('gym detail adapter preserves operation, special hours, parking, and contact fields', async () => {
   mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({
     data: {

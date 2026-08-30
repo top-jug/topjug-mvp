@@ -54,6 +54,32 @@ export interface PresentedWeeklyOperatingHours {
   note: string[];
 }
 
+export interface GymDetailMediaPresentation {
+  logoUrl: string | null;
+  photos: string[];
+  locationMapImage: string | null;
+}
+
+function uniqueUrls(urls: Array<string | null | undefined>) {
+  return [...new Set(urls.filter((url): url is string => Boolean(url)))];
+}
+
+export function selectGymDetailMediaPresentation(gym: Pick<ApiGymDetail, 'cover' | 'media'>): GymDetailMediaPresentation {
+  const logo = gym.media.find((media) => media.type === 'logo' && media.url);
+  const logoStorageKey = logo?.storageKey ?? null;
+  const photoMedia = gym.media
+    .filter((media) => (media.type === 'cover' || media.type === 'photo') && media.url)
+    .filter((media) => !logoStorageKey || media.storageKey !== logoStorageKey);
+  const cover = gym.cover?.url && gym.cover.storageKey !== logoStorageKey ? gym.cover : null;
+  const locationMapImage = gym.media.find((media) => media.type === 'map' && media.url)?.url ?? null;
+
+  return {
+    logoUrl: logo?.url ?? null,
+    photos: uniqueUrls([cover?.url, ...photoMedia.map((media) => media.url)]),
+    locationMapImage,
+  };
+}
+
 export function presentWeeklyOperatingHours(hours: GymOperatingHours[], note: string | null): PresentedWeeklyOperatingHours {
   return {
     hours: hours.flatMap((entry) => {

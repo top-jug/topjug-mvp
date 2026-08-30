@@ -18,7 +18,7 @@ import {
 function record(overrides: Partial<ApiRecordSummary> = {}): ApiRecordSummary {
   return {
     id: 'real-record-id',
-    gym: { id: 'gym-1', name: '더클라임', branchName: '강남' },
+    gym: { id: 'gym-1', name: '더클라임', branchName: '강남', logo: null },
     membership: null,
     accessType: 'day_pass',
     status: 'completed',
@@ -38,6 +38,28 @@ function record(overrides: Partial<ApiRecordSummary> = {}): ApiRecordSummary {
 
 test('record calendar initializes from the supplied local current date', () => {
   assert.deepEqual(getLocalCalendarDate(new Date(2027, 0, 31, 23, 30)), { year: 2027, month: 1, day: 31 });
+});
+
+test('record calendar carries real gym logo URLs when the record API provides them', () => {
+  const startedAt = new Date(2026, 7, 24, 10).toISOString();
+  const data = buildRecordCalendarData([
+    record({
+      startedAt,
+      gym: {
+        id: 'gym-1',
+        name: '더클라임',
+        branchName: '강남',
+        logo: {
+          id: 'logo-1',
+          storageKey: 'gyms/gym-1/logo.jpg',
+          contentType: 'image/jpeg',
+          url: 'https://cdn.example.com/gym-logo.jpg',
+        },
+      },
+    }),
+  ], 2026, 8);
+
+  assert.equal(data[24][0].logoUrl, 'https://cdn.example.com/gym-logo.jpg');
 });
 
 test('API record summaries map to their local day with real IDs and details', () => {
@@ -62,7 +84,7 @@ test('API record summaries map to their local day with real IDs and details', ()
 test('record gym names do not repeat a branch already included in the name', () => {
   const startedAt = new Date(2026, 7, 24, 10).toISOString();
   const data = buildRecordCalendarData([
-    record({ gym: { id: 'gym-1', name: '더클라임 강남', branchName: '강남' }, startedAt }),
+    record({ gym: { id: 'gym-1', name: '더클라임 강남', branchName: '강남', logo: null }, startedAt }),
   ], 2026, 8);
 
   assert.equal(data[24][0].gym, '더클라임 강남');

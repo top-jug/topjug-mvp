@@ -9,6 +9,10 @@ export const ALL_CALENDAR_STATUSES: ActiveStatuses = {
   cancelled: true,
 };
 
+export function createAllCalendarStatuses(): ActiveStatuses {
+  return { ...ALL_CALENDAR_STATUSES };
+}
+
 export function getCalendarGyms(calendarData: CalendarData): CalendarGym[] {
   const gyms = new Map<string, CalendarGym>();
 
@@ -28,6 +32,19 @@ export function getCalendarGyms(calendarData: CalendarData): CalendarGym[] {
 
 export function reconcileActiveGyms(previous: ActiveGyms, availableGyms: CalendarGym[]): ActiveGyms {
   return Object.fromEntries(availableGyms.map((gym) => [gym.id, previous[gym.id] ?? true]));
+}
+
+export function areAllCalendarGymsSelected(activeGyms: ActiveGyms, gyms: CalendarGym[]) {
+  return gyms.length === 0 || gyms.every((gym) => activeGyms[gym.id]);
+}
+
+export function areAllCalendarStatusesSelected(activeStatuses: ActiveStatuses) {
+  return Object.keys(ALL_CALENDAR_STATUSES).every((status) => activeStatuses[status as CalendarStatus]);
+}
+
+export function hasCalendarFilters(activeGyms: ActiveGyms, gyms: CalendarGym[], activeStatuses?: ActiveStatuses) {
+  return !areAllCalendarGymsSelected(activeGyms, gyms)
+    || Boolean(activeStatuses && !areAllCalendarStatusesSelected(activeStatuses));
 }
 
 export function filterCalendarData(

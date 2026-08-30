@@ -1,4 +1,4 @@
-export const GYM_DETAIL_SLIDE_TITLES = ['암장 캘린더', '암장 사진', '지도'] as const;
+export const GYM_DETAIL_SLIDE_TITLES = ['암장 캘린더', '암장 사진', '위치 지도'] as const;
 
 export function clampCarouselSlide(index: number, slideCount: number) {
   if (slideCount <= 0) return 0;
@@ -52,5 +52,5 @@ export function buildGymMapLink(latitude: number | null | undefined, longitude: 
     || longitude > 180
   ) return null;
 
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${latitude},${longitude}`)}`;
+  return `https://map.kakao.com/link/map/${latitude},${longitude}`;
 }

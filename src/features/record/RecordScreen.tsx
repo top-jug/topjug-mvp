@@ -10,8 +10,7 @@ import RecordSectorPanel from './components/RecordSectorPanel';
 import { useRecordScreen } from './hooks/useRecordScreen';
 import { createRecordHistoryGuard } from './record-history-guard';
 import { getRecordActionAvailability } from './record-session-model';
-
-const SESSION_LABELS = { free: '자유', training: '훈련', project: '프로젝트' } as const;
+import { recordSessionTypeLabel } from './session-labels';
 
 export default function RecordScreen({
   onClose,
@@ -121,7 +120,7 @@ export default function RecordScreen({
         <div className="border border-neutral-200 rounded-2xl my-4 px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-[15px] font-bold">난이도 체계</h3>
-            <span className="text-[12px] text-neutral-500">{mode === 'easy' ? '이지 모드' : '일반 모드'} · {SESSION_LABELS[sessionType]}</span>
+            <span className="text-[12px] text-neutral-500">{mode === 'easy' ? '이지 모드' : '일반 모드'} · {recordSessionTypeLabel(sessionType)}</span>
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
             {difficulties.map((difficulty) => <div key={difficulty.id} title={`${difficulty.name} ${difficulty.grade}`} className="h-7 w-7 rounded-full border border-black/10" style={{ backgroundColor: difficulty.color }} />)}

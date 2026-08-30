@@ -6,9 +6,11 @@ import {
   auditEvents,
   climbingRecords,
   gymGrades,
+  gymMedia,
   gyms,
   gymSectors,
   gymWalls,
+  mediaAssets,
   membershipGyms,
   memberships,
   membershipUsages,
@@ -16,8 +18,48 @@ import {
   users,
 } from '../db/schema';
 import { ApiError } from '../http/api-error';
+import { publicMediaUrl } from '../media/media-url';
 import { CreateRecordInput, ListRecordsInput } from './record-validation';
 import { auditEventValues, writeAuditEvent } from '../observability/audit';
+
+function mediaReference(asset: {
+  id: string;
+  storageKey: string;
+  contentType: string;
+}) {
+  return { ...asset, url: publicMediaUrl(asset.storageKey) };
+}
+
+async function getGymLogos(gymIds: string[]) {
+  if (gymIds.length === 0) return new Map<string, ReturnType<typeof mediaReference>>();
+
+  const logos = await getDatabase()
+    .select({
+      gymId: gymMedia.gymId,
+      id: mediaAssets.id,
+      storageKey: mediaAssets.storageKey,
+      contentType: mediaAssets.contentType,
+    })
+    .from(gymMedia)
+    .innerJoin(mediaAssets, eq(gymMedia.mediaAssetId, mediaAssets.id))
+    .where(and(inArray(gymMedia.gymId, gymIds), eq(gymMedia.type, 'logo'), eq(mediaAssets.status, 'ready')))
+    .orderBy(gymMedia.sortOrder);
+
+  const logoByGym = new Map<string, ReturnType<typeof mediaReference>>();
+  for (const logo of logos) {
+    if (!logoByGym.has(logo.gymId)) logoByGym.set(logo.gymId, mediaReference(logo));
+  }
+
+  return logoByGym;
+}
+
+async function attachGymLogos<T extends { gym: { id: string } }>(records: T[]) {
+  const logoByGym = await getGymLogos([...new Set(records.map((record) => record.gym.id))]);
+  return records.map((record) => ({
+    ...record,
+    gym: { ...record.gym, logo: logoByGym.get(record.gym.id) ?? null },
+  }));
+}
 
 export async function createRecord(userId: string, input: CreateRecordInput) {
   const database = getDatabase();
@@ -212,7 +254,7 @@ export async function createRecord(userId: string, input: CreateRecordInput) {
     return result;
   });
 
-  return record;
+  return (await attachGymLogos([record]))[0];
 }
 
 function decodeCursor(cursor: string) {
@@ -278,7 +320,8 @@ export async function listRecords(userId: string, input: ListRecordsInput) {
     .limit(input.limit + 1);
 
   const hasNextPage = rows.length > input.limit;
-  const data = hasNextPage ? rows.slice(0, input.limit) : rows;
+  const pageRows = hasNextPage ? rows.slice(0, input.limit) : rows;
+  const data = await attachGymLogos(pageRows);
 
   const result = {
     data,
@@ -358,7 +401,7 @@ export async function getRecord(userId: string, recordId: string, audit = true, 
     (summary, count) => ({ sends: summary.sends + count.sends, attempts: summary.attempts + count.attempts }),
     { sends: 0, attempts: 0 },
   );
-  const record = { ...records[0], ...totals, counts };
+  const [record] = await attachGymLogos([{ ...records[0], ...totals, counts }]);
   if (audit) await writeAuditEvent({ action: 'record.read', resourceType: 'climbing_record', resourceId: recordId });
   return record;
 }

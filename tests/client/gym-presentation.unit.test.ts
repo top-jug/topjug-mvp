@@ -18,6 +18,7 @@ import {
   presentGymContacts,
   presentOperatingHourOverrides,
   presentWeeklyOperatingHours,
+  selectGymDetailMediaPresentation,
   selectInitialGymSettingMonth,
   shiftGymSettingMonth,
 } from '../../src/features/gym-detail/gym-presentation';
@@ -62,7 +63,7 @@ test('gym detail carousel maps navigation keys and exposes numbered labels', () 
   assert.equal(carouselSlideForKey('End', 0, 3), 2);
   assert.equal(carouselSlideForKey('Enter', 1, 3), null);
   assert.equal(gymDetailSlideLabel(0), '암장 캘린더, 1/3');
-  assert.equal(gymDetailSlideLabel(2), '지도, 3/3');
+  assert.equal(gymDetailSlideLabel(2), '위치 지도, 3/3');
 });
 
 test('programmatic carousel scroll ignores transient slides until its target is observed', () => {
@@ -85,12 +86,35 @@ test('calendar controls consume only horizontal arrow keys from outer carousel m
 });
 
 test('gym map links are offered only for complete valid coordinates', () => {
-  assert.equal(buildGymMapLink(37.5665, 126.978), 'https://www.google.com/maps/search/?api=1&query=37.5665%2C126.978');
+  assert.equal(buildGymMapLink(37.5665, 126.978), 'https://map.kakao.com/link/map/37.5665,126.978');
   assert.equal(buildGymMapLink(null, 126.978), null);
   assert.equal(buildGymMapLink(37.5665, null), null);
   assert.equal(buildGymMapLink(Number.NaN, 126.978), null);
   assert.equal(buildGymMapLink(91, 126.978), null);
   assert.equal(buildGymMapLink(37.5665, -181), null);
+});
+
+test('gym detail media keeps logos separate from real photos and location maps', () => {
+  const logo = { id: 'logo', type: 'logo' as const, storageKey: 'gyms/logo.png', contentType: 'image/png', url: '/media/logo.png', altText: null, sortOrder: 0 };
+  const duplicateCover = { ...logo, id: 'cover-logo', type: 'cover' as const };
+  const realCover = { id: 'cover', type: 'cover' as const, storageKey: 'gyms/cover.jpg', contentType: 'image/jpeg', url: '/media/cover.jpg', altText: null, sortOrder: 1 };
+  const realPhoto = { id: 'photo', type: 'photo' as const, storageKey: 'gyms/photo.jpg', contentType: 'image/jpeg', url: '/media/photo.jpg', altText: null, sortOrder: 2 };
+  const sectorMap = { id: 'sector-map', type: 'sector_map' as const, storageKey: 'gyms/sector.png', contentType: 'image/png', url: '/media/sector.png', altText: null, sortOrder: 3 };
+  const locationMap = { id: 'map', type: 'map' as const, storageKey: 'gyms/location.png', contentType: 'image/png', url: '/media/location.png', altText: null, sortOrder: 4 };
+
+  assert.deepEqual(selectGymDetailMediaPresentation({
+    cover: duplicateCover,
+    media: [logo, duplicateCover, realCover, realPhoto, sectorMap, locationMap],
+  }), {
+    logoUrl: '/media/logo.png',
+    photos: ['/media/cover.jpg', '/media/photo.jpg'],
+    locationMapImage: '/media/location.png',
+  });
+  assert.deepEqual(selectGymDetailMediaPresentation({ cover: duplicateCover, media: [logo, duplicateCover, sectorMap] }), {
+    logoUrl: '/media/logo.png',
+    photos: [],
+    locationMapImage: null,
+  });
 });
 
 test('special-date hours group open ranges and make closure precedence explicit', () => {
