@@ -57,6 +57,5 @@ export interface ClimbingRecord {
   startedAt?: string;
   endedAt?: string | null;
   accessType?: 'day_pass' | 'membership' | 'other';
-  sessionType?: 'free' | 'training' | 'project';
   createdAt: string;
 }
