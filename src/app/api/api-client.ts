@@ -25,10 +25,16 @@ export function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Pr
   });
 }
 
-export function queryString(params: Record<string, string | number | null | undefined>) {
+export function queryString(params: Record<string, string | number | readonly string[] | null | undefined>) {
   const query = new URLSearchParams();
 
   Object.entries(params).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item !== '') query.append(key, item);
+      });
+      return;
+    }
     if (value !== null && value !== undefined && value !== '') {
       query.set(key, String(value));
     }

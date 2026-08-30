@@ -187,6 +187,25 @@ paths:
           $ref: '#/components/responses/ServiceUnavailable'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /regions:
+    get:
+      operationId: listRegions
+      summary: List the canonical physical administrative-region catalog
+      description: Returns first-level provinces and metropolitan cities followed by their second-level cities, counties, and districts.
+      security: []
+      responses:
+        '200':
+          description: Canonical regions ordered by level, sort order, and name
+          headers: *standardResponseHeaders
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Region' } }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /gyms:
     get:
       operationId: listGyms
@@ -194,8 +213,16 @@ paths:
       security: []
       parameters:
         - { name: q, in: query, schema: { type: string, maxLength: 100 } }
-        - { name: regionCode, in: query, schema: { type: string, maxLength: 40 } }
-        - { name: facility, in: query, schema: { type: string, maxLength: 40 } }
+        - name: regionCode
+          in: query
+          description: Canonical physical region code. Matches the selected region and every descendant.
+          schema: { type: string, minLength: 1, maxLength: 40 }
+        - name: facility
+          in: query
+          description: Repeat to require every selected facility. All values are applied before the result limit.
+          style: form
+          explode: true
+          schema: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 40 } }
         - { name: tag, in: query, schema: { type: string, maxLength: 40 } }
         - name: operationStatus
           in: query
@@ -1088,6 +1115,15 @@ components:
         type: { type: string, enum: [logo, cover, photo, map, sector_map] }
         altText: { type: [string, 'null'] }
         sortOrder: { type: integer, minimum: 0 }
+    Region:
+      type: object
+      required: [code, name, level, parentCode, sortOrder]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 40 }
+        name: { type: string }
+        level: { type: integer, enum: [1, 2] }
+        parentCode: { type: [string, 'null'] }
+        sortOrder: { type: integer, minimum: 0 }
     GymSummary:
       type: object
       required: [id, name, branchName, address, regionCode, operationStatus, facilities, cover]
@@ -1145,8 +1181,10 @@ components:
       allOf:
         - $ref: '#/components/schemas/GymSummary'
         - type: object
-          required: [operatingHoursNote, parkingInfo, media, operatingHours, operatingHourOverrides, prices, grades, walls, settingEvents, sources]
+          required: [region, operatingHoursNote, parkingInfo, media, operatingHours, operatingHourOverrides, prices, grades, walls, settingEvents, sources]
           properties:
+            region:
+              oneOf: [{ $ref: '#/components/schemas/Region' }, { type: 'null' }]
             phone: { type: [string, 'null'] }
             websiteUrl: { type: [string, 'null'], format: uri }
             instagramUrl: { type: [string, 'null'], format: uri }
