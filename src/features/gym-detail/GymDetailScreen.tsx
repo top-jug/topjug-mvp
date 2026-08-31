@@ -141,6 +141,18 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
           onSlideChange={setCurrentSlide}
         />
         {presentation.grades.length > 0 && <GymDifficultySection grades={presentation.grades} />}
+        {gym.tags.length > 0 && (
+          <section className="px-5 mb-5" aria-labelledby="gym-keywords-heading">
+            <h2 id="gym-keywords-heading" className="mb-2 text-[14px] font-bold text-neutral-900">암장 키워드</h2>
+            <div className="flex flex-wrap gap-2">
+              {gym.tags.map((tag) => (
+                <span key={tag.code} className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-[12px] font-semibold text-blue-700">
+                  {tag.label}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
         <GymInfoSection
           address={gym.address}
           nearby={gym.nearbyDirections ?? ''}
