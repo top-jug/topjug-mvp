@@ -44,7 +44,7 @@ A repeated email is rejected and no second account or audit row is created. Succ
 Sign in with the existing `ops-review@example.com` operations administrator, open `/ops/gyms`, choose a gym, and select **운영시간 관리**.
 
 - Weekly hours support a closed day or up to eight ordered, non-overlapping intervals per weekday.
-- Date exceptions replace the weekly schedule for that date and can be removed to restore the weekly schedule.
+- Date exceptions take priority over the weekly schedule for that date. An existing date exception must be deleted before registering a different one.
 - Range exceptions expand to one row set per date for at most 92 days. Existing exceptions return `OPERATING_HOUR_OVERRIDE_EXISTS`; the console only replaces them after the operator chooses the explicit overwrite action.
 - Every mutation uses the gym `updatedAt` version, updates the public gym detail immediately, and records `ops.gym.hours.update` in the audit log.
 

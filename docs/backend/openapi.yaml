@@ -359,15 +359,16 @@ paths:
       - { $ref: '#/components/parameters/GymIdPath' }
       - { name: date, in: path, required: true, schema: { type: string, format: date } }
     put:
-      operationId: replaceOperationsHourOverride
-      summary: Replace the complete operating-hours exception for one date
+      operationId: createOperationsHourOverride
+      summary: Create the complete operating-hours exception for one date
+      description: Returns OPERATING_HOUR_OVERRIDE_EXISTS when the date already has an exception; delete it before registering a different exception.
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/ReplaceOperatingHourOverrideRequest' } } }
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateOperatingHourOverrideRequest' } } }
       responses:
         '200':
-          description: Replaced date exception
+          description: Created date exception
           headers: *standardResponseHeaders
           content: { application/json: { schema: { $ref: '#/components/schemas/OperationsGymHoursResponse' } } }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -1468,7 +1469,7 @@ components:
           maxItems: 7
           items: { $ref: '#/components/schemas/WeeklyOperatingDayInput' }
         expectedUpdatedAt: { type: string, format: date-time }
-    ReplaceOperatingHourOverrideRequest:
+    CreateOperatingHourOverrideRequest:
       type: object
       additionalProperties: false
       description: A closed exception has no intervals; an open exception has one to eight ordered, non-overlapping intervals.

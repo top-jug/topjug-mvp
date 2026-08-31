@@ -4,7 +4,7 @@ import {
   batchOperatingHourOverridesSchema,
   createOperationsGymSchema,
   parseOperatingHoursInput,
-  replaceOperatingHourOverrideSchema,
+  createOperatingHourOverrideSchema,
   replaceWeeklyOperatingHoursSchema,
   updateOperationsGymSchema,
   updateOperationsGymStatusSchema,
@@ -71,24 +71,24 @@ test('operating-hours validation rejects contradictory, overlapping, and overlon
     note: null,
     expectedUpdatedAt,
   };
-  assert.equal(replaceOperatingHourOverrideSchema.safeParse(contradictory).success, false);
+  assert.equal(createOperatingHourOverrideSchema.safeParse(contradictory).success, false);
   assert.throws(
-    () => parseOperatingHoursInput(replaceOperatingHourOverrideSchema, contradictory),
+    () => parseOperatingHoursInput(createOperatingHourOverrideSchema, contradictory),
     (error: unknown) => error instanceof ApiError && error.code === 'INVALID_OPERATING_HOURS',
   );
-  assert.equal(replaceOperatingHourOverrideSchema.safeParse({
+  assert.equal(createOperatingHourOverrideSchema.safeParse({
     isClosed: false,
     intervals: [],
     note: null,
     expectedUpdatedAt,
   }).success, false);
-  assert.equal(replaceOperatingHourOverrideSchema.safeParse({
+  assert.equal(createOperatingHourOverrideSchema.safeParse({
     isClosed: false,
     intervals: [{ opensAt: '22:00', closesAt: '10:00' }],
     note: null,
     expectedUpdatedAt,
   }).success, false);
-  assert.equal(replaceOperatingHourOverrideSchema.safeParse({
+  assert.equal(createOperatingHourOverrideSchema.safeParse({
     isClosed: false,
     intervals: [
       { opensAt: '10:00', closesAt: '18:00' },

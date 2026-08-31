@@ -121,7 +121,7 @@ export const replaceWeeklyOperatingHoursSchema = z.object({
   }
 });
 
-export const replaceOperatingHourOverrideSchema = z.object({
+export const createOperatingHourOverrideSchema = z.object({
   ...operatingScheduleFields,
   note: nullableText(300),
   expectedUpdatedAt: z.string().datetime({ offset: true }),
@@ -166,6 +166,6 @@ export type UpdateOperationsGymStatusInput = z.infer<typeof updateOperationsGymS
 export type VerifyOperationsGymInput = z.infer<typeof verifyOperationsGymSchema>;
 export type ListOperationsGymsInput = z.infer<typeof listOperationsGymsSchema>;
 export type ReplaceWeeklyOperatingHoursInput = z.infer<typeof replaceWeeklyOperatingHoursSchema>;
-export type ReplaceOperatingHourOverrideInput = z.infer<typeof replaceOperatingHourOverrideSchema>;
+export type CreateOperatingHourOverrideInput = z.infer<typeof createOperatingHourOverrideSchema>;
 export type DeleteOperatingHourOverrideInput = z.infer<typeof deleteOperatingHourOverrideSchema>;
 export type BatchOperatingHourOverridesInput = z.infer<typeof batchOperatingHourOverridesSchema>;

@@ -9,7 +9,7 @@ import {
   getOperationsGym,
   OperationsGym,
   OperationsGymHours,
-  replaceOperationsHourOverride,
+  createOperationsHourOverride,
   replaceOperationsWeeklyHours,
 } from './api';
 import {
@@ -160,7 +160,11 @@ export function OperationsHoursEditor() {
   function showError(nextError: unknown, scope: 'weekly' | 'override' | 'list') {
     const failure = presentOperationsHoursFailure(nextError);
     if (scope === 'override' && failure.kind === 'existing_override') {
-      setBatchConflict(failure.message);
+      if (rangeMode) {
+        setBatchConflict(failure.message);
+      } else {
+        setOverrideFailure({ ...failure, kind: 'error' });
+      }
       toast.warning(failure.message);
       return;
     }
@@ -197,7 +201,7 @@ export function OperationsHoursEditor() {
           overwriteExisting,
           expectedUpdatedAt: gym.updatedAt,
         })
-        : await replaceOperationsHourOverride(gymId, override.date, schedule, gym.updatedAt);
+        : await createOperationsHourOverride(gymId, override.date, schedule, gym.updatedAt);
       applyHours(next);
       setOverride(emptyOverride(override.date));
       setEndDate(override.date);
@@ -220,17 +224,6 @@ export function OperationsHoursEditor() {
       setSaved(true);
       toast.success('예외 운영시간을 삭제했습니다.');
     } catch (nextError) { showError(nextError, 'list'); } finally { setSaving(false); }
-  }
-
-  function editOverride(item: EditableOverride) {
-    setRangeMode(false);
-    setOverride({ ...item, intervals: item.intervals.map((interval) => ({ ...interval })) });
-    setEndDate(item.date);
-    setOverrideDirty(false);
-    setOverrideFailure(null);
-    setListFailure(null);
-    setBatchConflict('');
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   }
 
   if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">운영시간을 불러오는 중입니다.</div>;
@@ -269,15 +262,15 @@ export function OperationsHoursEditor() {
           <label className="mt-4 block text-sm font-bold text-slate-700">예외 사유 메모<textarea value={override.note ?? ''} maxLength={300} onChange={(event) => { setOverride((current) => ({ ...current, note: event.target.value || null })); setOverrideDirty(true); setOverrideFailure(null); setSaved(false); }} className={`${inputClass} mt-1 min-h-24 py-3`} placeholder="예: 공휴일 단축 운영" /></label>
           <FailureNotice failure={overrideFailure} reload={() => void load()} />
           {batchConflict && <div role="alert" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-bold text-amber-900"><p>{batchConflict}</p><button type="button" disabled={saving} onClick={() => void saveOverride(true)} className={`${buttonClass} mt-3 bg-amber-700 text-white`}>표시된 날짜 포함 덮어쓰기</button></div>}
-          <button type="button" disabled={saving || !override.date || (rangeMode && !endDate)} onClick={() => void saveOverride(false)} className={`${buttonClass} mt-5 w-full bg-blue-600 text-white`}><Save className="h-4 w-4" />{saving ? '저장 중…' : rangeMode ? '기간 예외 저장' : '날짜 예외 저장'}</button>
+          <button type="button" disabled={saving || !override.date || (rangeMode && !endDate)} onClick={() => void saveOverride(false)} className={`${buttonClass} mt-5 w-full bg-blue-600 text-white`}><Save className="h-4 w-4" />{saving ? '등록 중…' : rangeMode ? '기간 예외 등록' : '날짜 예외 등록'}</button>
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <h3 className="text-lg font-black">등록된 예외</h3><p className="mt-1 text-sm text-slate-500">예외를 삭제하면 해당 요일의 정규시간으로 돌아갑니다.</p>
+          <h3 className="text-lg font-black">등록된 예외</h3><p className="mt-1 text-sm text-slate-500">예외를 변경하려면 기존 예외를 삭제한 뒤 새로 등록하세요. 삭제하면 해당 요일의 정규시간으로 돌아갑니다.</p>
           <FailureNotice failure={listFailure} reload={() => void load()} />
           <div className="mt-5 space-y-3">
             {overrides.length === 0 && <div className="rounded-xl bg-slate-50 p-6 text-center text-sm text-slate-500">등록된 예외 운영시간이 없습니다.</div>}
-            {overrides.map((item) => <article key={item.date} className="rounded-xl border border-slate-200 p-4"><p className="text-sm font-black text-slate-900">{displayOperationsDate(item.date)}</p><p className="mt-1 text-sm font-bold text-blue-700">{scheduleText(item)}</p>{item.note && <p className="mt-1 text-sm text-slate-600">{item.note}</p>}<div className="mt-3 flex gap-2"><button type="button" disabled={saving} onClick={() => editOverride(item)} className={`${buttonClass} flex-1 border border-slate-200 text-slate-700`}>수정</button><button type="button" disabled={saving} onClick={() => void removeOverride(item.date)} className={`${buttonClass} border border-red-200 text-red-600`}><Trash2 className="h-4 w-4" />삭제</button></div></article>)}
+            {overrides.map((item) => <article key={item.date} className="rounded-xl border border-slate-200 p-4"><p className="text-sm font-black text-slate-900">{displayOperationsDate(item.date)}</p><p className="mt-1 text-sm font-bold text-blue-700">{scheduleText(item)}</p>{item.note && <p className="mt-1 text-sm text-slate-600">{item.note}</p>}<button type="button" disabled={saving} onClick={() => void removeOverride(item.date)} className={`${buttonClass} mt-3 w-full border border-red-200 text-red-600`}><Trash2 className="h-4 w-4" />삭제</button></article>)}
           </div>
         </section>
       </div>

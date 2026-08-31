@@ -8,7 +8,7 @@ import { auditEventValues } from '../observability/audit';
 import type {
   BatchOperatingHourOverridesInput,
   DeleteOperatingHourOverrideInput,
-  ReplaceOperatingHourOverrideInput,
+  CreateOperatingHourOverrideInput,
   ReplaceWeeklyOperatingHoursInput,
 } from './operations-gym-validation';
 
@@ -94,17 +94,21 @@ export async function replaceWeeklyOperatingHours(gymId: string, input: ReplaceW
   });
 }
 
-export async function replaceOperatingHourOverride(
+export async function createOperatingHourOverride(
   gymId: string,
   date: string,
-  input: ReplaceOperatingHourOverrideInput,
+  input: CreateOperatingHourOverrideInput,
 ) {
   return getDatabase().transaction(async (transaction) => {
     await lockGym(transaction, gymId, input.expectedUpdatedAt);
-    await transaction.delete(gymOperatingHourOverrides).where(and(
+    const [existing] = await transaction.select({ id: gymOperatingHourOverrides.id })
+      .from(gymOperatingHourOverrides).where(and(
       eq(gymOperatingHourOverrides.gymId, gymId),
       eq(gymOperatingHourOverrides.date, date),
-    ));
+    )).limit(1);
+    if (existing) {
+      throw new ApiError(409, 'OPERATING_HOUR_OVERRIDE_EXISTS', '이미 예외 운영시간이 등록된 날짜입니다. 기존 예외를 삭제한 뒤 다시 등록해주세요.');
+    }
     const rows = scheduleRows(input).map((row) => ({ gymId, date, note: input.note, ...row }));
     await transaction.insert(gymOperatingHourOverrides).values(rows);
     await touchGym(transaction, gymId);

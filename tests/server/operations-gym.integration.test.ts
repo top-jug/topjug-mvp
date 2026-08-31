@@ -16,7 +16,7 @@ import {
 import {
   batchOperatingHourOverrides,
   deleteOperatingHourOverride,
-  replaceOperatingHourOverride,
+  createOperatingHourOverride,
   replaceWeeklyOperatingHours,
 } from '../../src/server/operations/operations-gym-hours-service';
 
@@ -125,12 +125,21 @@ test('operations hours replace schedules transactionally and require explicit ba
       (error: unknown) => error instanceof ApiError && error.code === 'OPS_RESOURCE_CHANGED',
     );
 
-    const single = await replaceOperatingHourOverride(created.id, '2026-09-01', {
+    const single = await createOperatingHourOverride(created.id, '2026-09-01', {
       isClosed: false,
       intervals: [{ opensAt: '12:00:00', closesAt: '18:00:00' }],
       note: '단축 운영',
       expectedUpdatedAt: weekly.updatedAt.toISOString(),
     });
+    await assert.rejects(
+      () => createOperatingHourOverride(created.id, '2026-09-01', {
+        isClosed: true,
+        intervals: [],
+        note: '임시 휴무',
+        expectedUpdatedAt: single.updatedAt.toISOString(),
+      }),
+      (error: unknown) => error instanceof ApiError && error.code === 'OPERATING_HOUR_OVERRIDE_EXISTS',
+    );
     await assert.rejects(
       () => batchOperatingHourOverrides(created.id, {
         startDate: '2026-09-01',
@@ -155,6 +164,15 @@ test('operations hours replace schedules transactionally and require explicit ba
     });
     assert.equal(batch.operatingHourOverrides.length, 3);
     assert.ok(batch.operatingHourOverrides.every((row) => row.isClosed));
+    await assert.rejects(
+      () => createOperatingHourOverride(created.id, '2026-09-01', {
+        isClosed: false,
+        intervals: [{ opensAt: '12:00:00', closesAt: '18:00:00' }],
+        note: '단축 운영',
+        expectedUpdatedAt: batch.updatedAt.toISOString(),
+      }),
+      (error: unknown) => error instanceof ApiError && error.code === 'OPERATING_HOUR_OVERRIDE_EXISTS',
+    );
 
     const deleted = await deleteOperatingHourOverride(created.id, '2026-09-02', {
       expectedUpdatedAt: batch.updatedAt.toISOString(),
@@ -164,6 +182,7 @@ test('operations hours replace schedules transactionally and require explicit ba
     const publicGym = await getGym(created.id);
     assert.equal(publicGym.operatingHours.length, 13);
     assert.deepEqual(publicGym.operatingHourOverrides.map((row) => row.date), ['2026-09-01', '2026-09-03']);
+    assert.ok(publicGym.operatingHourOverrides.every((row) => row.isClosed));
 
     const audits = await database.select({ action: auditEvents.action }).from(auditEvents)
       .where(eq(auditEvents.resourceId, created.id));

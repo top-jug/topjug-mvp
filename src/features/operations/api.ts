@@ -127,7 +127,7 @@ export async function replaceOperationsWeeklyHours(
   })).data;
 }
 
-export async function replaceOperationsHourOverride(
+export async function createOperationsHourOverride(
   gymId: string,
   date: string,
   schedule: OperationsScheduleInput & { note: string | null },
