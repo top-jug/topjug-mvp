@@ -332,6 +332,96 @@ paths:
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalServerError' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /ops/gyms/{gymId}/operating-hours:
+    put:
+      operationId: replaceOperationsWeeklyHours
+      summary: Replace all weekly operating hours for a gym
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/GymIdPath' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ReplaceWeeklyOperatingHoursRequest' } } }
+      responses:
+        '200':
+          description: Replaced weekly hours and current exceptions
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { $ref: '#/components/schemas/OperationsGymHoursResponse' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /ops/gyms/{gymId}/operating-hour-overrides/{date}:
+    parameters:
+      - { $ref: '#/components/parameters/GymIdPath' }
+      - { name: date, in: path, required: true, schema: { type: string, format: date } }
+    put:
+      operationId: createOperationsHourOverride
+      summary: Create the complete operating-hours exception for one date
+      description: Returns OPERATING_HOUR_OVERRIDE_EXISTS when the date already has an exception; delete it before registering a different exception.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateOperatingHourOverrideRequest' } } }
+      responses:
+        '200':
+          description: Created date exception
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { $ref: '#/components/schemas/OperationsGymHoursResponse' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    delete:
+      operationId: deleteOperationsHourOverride
+      summary: Delete a date exception and fall back to weekly hours
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/DeleteOperatingHourOverrideRequest' } } }
+      responses:
+        '200':
+          description: Deleted date exception
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { $ref: '#/components/schemas/OperationsGymHoursResponse' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /ops/gyms/{gymId}/operating-hour-overrides/batch:
+    post:
+      operationId: batchOperationsHourOverrides
+      summary: Expand one exception schedule over a date range of at most 92 days
+      description: Returns OPERATING_HOUR_OVERRIDE_EXISTS unless overwriteExisting is true when any date already has an exception.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/GymIdPath' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/BatchOperatingHourOverridesRequest' } } }
+      responses:
+        '200':
+          description: Expanded date exceptions
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { $ref: '#/components/schemas/OperationsGymHoursResponse' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /regions:
     get:
       operationId: listRegions
@@ -1352,6 +1442,73 @@ components:
       required: [expectedUpdatedAt]
       properties:
         expectedUpdatedAt: { type: string, format: date-time }
+    OperatingHourIntervalInput:
+      type: object
+      additionalProperties: false
+      required: [opensAt, closesAt]
+      properties:
+        opensAt: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$' }
+        closesAt: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$' }
+    WeeklyOperatingDayInput:
+      type: object
+      additionalProperties: false
+      description: Closed days have no intervals; open days have one to eight ordered, non-overlapping intervals.
+      required: [dayOfWeek, isClosed, intervals]
+      properties:
+        dayOfWeek: { type: integer, minimum: 0, maximum: 6 }
+        isClosed: { type: boolean }
+        intervals: { type: array, maxItems: 8, items: { $ref: '#/components/schemas/OperatingHourIntervalInput' } }
+    ReplaceWeeklyOperatingHoursRequest:
+      type: object
+      additionalProperties: false
+      required: [days, expectedUpdatedAt]
+      properties:
+        days:
+          type: array
+          minItems: 7
+          maxItems: 7
+          items: { $ref: '#/components/schemas/WeeklyOperatingDayInput' }
+        expectedUpdatedAt: { type: string, format: date-time }
+    CreateOperatingHourOverrideRequest:
+      type: object
+      additionalProperties: false
+      description: A closed exception has no intervals; an open exception has one to eight ordered, non-overlapping intervals.
+      required: [isClosed, intervals, note, expectedUpdatedAt]
+      properties:
+        isClosed: { type: boolean }
+        intervals: { type: array, maxItems: 8, items: { $ref: '#/components/schemas/OperatingHourIntervalInput' } }
+        note: { type: [string, 'null'], maxLength: 300 }
+        expectedUpdatedAt: { type: string, format: date-time }
+    DeleteOperatingHourOverrideRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedUpdatedAt]
+      properties:
+        expectedUpdatedAt: { type: string, format: date-time }
+    BatchOperatingHourOverridesRequest:
+      type: object
+      additionalProperties: false
+      required: [startDate, endDate, isClosed, intervals, note, overwriteExisting, expectedUpdatedAt]
+      properties:
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        isClosed: { type: boolean }
+        intervals: { type: array, maxItems: 8, items: { $ref: '#/components/schemas/OperatingHourIntervalInput' } }
+        note: { type: [string, 'null'], maxLength: 300 }
+        overwriteExisting: { type: boolean, default: false }
+        expectedUpdatedAt: { type: string, format: date-time }
+    OperationsGymHours:
+      type: object
+      required: [updatedAt, operatingHours, operatingHourOverrides]
+      properties:
+        updatedAt: { type: string, format: date-time }
+        operatingHours: { type: array, items: { $ref: '#/components/schemas/OperatingHours' } }
+        operatingHourOverrides: { type: array, items: { $ref: '#/components/schemas/OperatingHoursOverride' } }
+    OperationsGymHoursResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/OperationsGymHours' }
     OperationsGymSummary:
       type: object
       required: [id, name, branchName, address, operationStatus, lastVerifiedAt, updatedAt]
@@ -1368,8 +1525,11 @@ components:
         - { $ref: '#/components/schemas/OperationsGymSummary' }
         - { $ref: '#/components/schemas/OperationsGymFields' }
         - type: object
-          required: [createdAt]
-          properties: { createdAt: { type: string, format: date-time } }
+          required: [createdAt, operatingHours, operatingHourOverrides]
+          properties:
+            createdAt: { type: string, format: date-time }
+            operatingHours: { type: array, items: { $ref: '#/components/schemas/OperatingHours' } }
+            operatingHourOverrides: { type: array, items: { $ref: '#/components/schemas/OperatingHoursOverride' } }
     OperationsGymListResponse:
       type: object
       required: [data, meta]
@@ -1385,7 +1545,7 @@ components:
             totalPages: { type: integer, minimum: 1 }
     GymSummary:
       type: object
-      required: [id, name, branchName, address, regionCode, operationStatus, facilities, cover]
+      required: [id, name, branchName, address, regionCode, operationStatus, todayOperatingStatus, facilities, cover]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -1395,6 +1555,7 @@ components:
         latitude: { type: [number, 'null'] }
         longitude: { type: [number, 'null'] }
         operationStatus: { type: string, enum: [active, temporarily_closed, closed, opening_soon] }
+        todayOperatingStatus: { $ref: '#/components/schemas/GymTodayOperatingStatus' }
         facilities: { type: array, items: { type: string } }
         calendarColor: { type: [string, 'null'] }
         calendarTextColor: { type: [string, 'null'] }
@@ -1409,6 +1570,18 @@ components:
           items: { $ref: '#/components/schemas/GymTag' }
         dayPassPrice:
           oneOf: [{ $ref: '#/components/schemas/GymPrice' }, { type: 'null' }]
+    GymTodayOperatingStatus:
+      type: object
+      description: Effective operating status for the current date and time in Asia/Seoul. A date exception takes priority over the weekly schedule.
+      required: [date, state, source, opensAt, closesAt]
+      properties:
+        date: { type: string, format: date }
+        state:
+          type: string
+          enum: [open, closed, before_open, between_intervals, after_close, hours_unavailable]
+        source: { type: [string, 'null'], enum: [override, weekly, null] }
+        opensAt: { type: [string, 'null'], format: time }
+        closesAt: { type: [string, 'null'], format: time }
     GymBrand:
       type: object
       required: [id, name, websiteUrl, instagramUrl]

@@ -20,6 +20,7 @@ import { OperationsDashboard } from '../features/operations/OperationsDashboard'
 import { OperationsComingSoon } from '../features/operations/OperationsComingSoon';
 import { OperationsGymList } from '../features/operations/OperationsGymList';
 import { OperationsGymEditor } from '../features/operations/OperationsGymEditor';
+import { OperationsHoursEditor } from '../features/operations/OperationsHoursEditor';
 
 function PreviewLayout() {
   return (
@@ -37,6 +38,7 @@ export function AppRouter() {
           <Route index element={<OperationsDashboard />} />
           <Route path="gyms" element={<OperationsGymList />} />
           <Route path="gyms/new" element={<OperationsGymEditor />} />
+          <Route path="gyms/:gymId/hours" element={<OperationsHoursEditor />} />
           <Route path="gyms/:gymId" element={<OperationsGymEditor />} />
           <Route path="gym-tags" element={<OperationsComingSoon title="태그 관리" />} />
         </Route>

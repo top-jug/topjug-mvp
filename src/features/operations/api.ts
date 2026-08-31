@@ -12,7 +12,7 @@ export async function verifyOperationsSession(signal?: AbortSignal) {
 }
 
 export const operationStatusLabels = {
-  active: '운영 중',
+  active: '정상 운영',
   temporarily_closed: '임시 휴업',
   closed: '폐업',
   opening_soon: '오픈 예정',
@@ -32,6 +32,29 @@ export type OperationsGymSummary = {
 
 export type OperationsGymPrice = { amount: number | null; rawText: string } | null;
 
+export type OperationsOperatingHour = {
+  dayOfWeek: number;
+  sequence: number;
+  opensAt: string | null;
+  closesAt: string | null;
+  isClosed: boolean;
+};
+
+export type OperationsOperatingHourOverride = {
+  date: string;
+  sequence: number;
+  opensAt: string | null;
+  closesAt: string | null;
+  isClosed: boolean;
+  note: string | null;
+};
+
+export type OperationsGymHours = {
+  updatedAt: string;
+  operatingHours: OperationsOperatingHour[];
+  operatingHourOverrides: OperationsOperatingHourOverride[];
+};
+
 export type OperationsGym = OperationsGymSummary & {
   phone: string | null;
   websiteUrl: string | null;
@@ -44,11 +67,13 @@ export type OperationsGym = OperationsGymSummary & {
   facilities: string[];
   dayPassPrice: OperationsGymPrice;
   shoeRentalPrice: OperationsGymPrice;
+  operatingHours: OperationsOperatingHour[];
+  operatingHourOverrides: OperationsOperatingHourOverride[];
   createdAt: string;
 };
 
 export type OperationsGymFields = Omit<OperationsGym,
-  'id' | 'createdAt' | 'updatedAt' | 'lastVerifiedAt' | 'operationStatus' | 'branchName' | 'address'> & {
+  'id' | 'createdAt' | 'updatedAt' | 'lastVerifiedAt' | 'operationStatus' | 'operatingHours' | 'operatingHourOverrides' | 'branchName' | 'address'> & {
     branchName: string | null;
     address: string;
   };
@@ -84,5 +109,52 @@ export async function updateOperationsGymStatus(gymId: string, operationStatus: 
 export async function verifyOperationsGym(gymId: string, expectedUpdatedAt: string) {
   return (await apiRequest<ApiDataResponse<OperationsGym>>(`/ops/gyms/${gymId}/verification`, {
     method: 'POST', body: JSON.stringify({ expectedUpdatedAt }),
+  })).data;
+}
+
+export type OperationsScheduleInput = {
+  isClosed: boolean;
+  intervals: Array<{ opensAt: string; closesAt: string }>;
+};
+
+export async function replaceOperationsWeeklyHours(
+  gymId: string,
+  days: Array<OperationsScheduleInput & { dayOfWeek: number }>,
+  expectedUpdatedAt: string,
+) {
+  return (await apiRequest<ApiDataResponse<OperationsGymHours>>(`/ops/gyms/${gymId}/operating-hours`, {
+    method: 'PUT', body: JSON.stringify({ days, expectedUpdatedAt }),
+  })).data;
+}
+
+export async function createOperationsHourOverride(
+  gymId: string,
+  date: string,
+  schedule: OperationsScheduleInput & { note: string | null },
+  expectedUpdatedAt: string,
+) {
+  return (await apiRequest<ApiDataResponse<OperationsGymHours>>(`/ops/gyms/${gymId}/operating-hour-overrides/${date}`, {
+    method: 'PUT', body: JSON.stringify({ ...schedule, expectedUpdatedAt }),
+  })).data;
+}
+
+export async function deleteOperationsHourOverride(gymId: string, date: string, expectedUpdatedAt: string) {
+  return (await apiRequest<ApiDataResponse<OperationsGymHours>>(`/ops/gyms/${gymId}/operating-hour-overrides/${date}`, {
+    method: 'DELETE', body: JSON.stringify({ expectedUpdatedAt }),
+  })).data;
+}
+
+export async function batchOperationsHourOverrides(
+  gymId: string,
+  input: OperationsScheduleInput & {
+    startDate: string;
+    endDate: string;
+    note: string | null;
+    overwriteExisting: boolean;
+    expectedUpdatedAt: string;
+  },
+) {
+  return (await apiRequest<ApiDataResponse<OperationsGymHours>>(`/ops/gyms/${gymId}/operating-hour-overrides/batch`, {
+    method: 'POST', body: JSON.stringify(input),
   })).data;
 }
