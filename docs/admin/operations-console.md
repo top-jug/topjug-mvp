@@ -58,4 +58,12 @@ The command reads the existing `runtime-database-url` SecureString and requires 
 - Authenticated `operations_admin`: the endpoint returns the administrator identity and the responsive console shell renders.
 - Removing the role in PostgreSQL causes the same still-valid access token to receive `403` on the next operations API request.
 
-This foundation does not include administrator assignment UI/API, gym mutations, media upload, notices, or notification delivery.
+## Gym keyword management
+
+Use `/ops/gym-tags` to create, edit, activate, deactivate, and delete unassigned search keywords. The same screen replaces the complete keyword assignment for a selected gym with optimistic concurrency. Deactivating a keyword preserves assignments but removes it from `GET /api/v1/gym-tags`, public gym responses, and search results.
+
+Migration `0006_operations_gym_tags.sql` backfills existing `gyms.facilities` values into the keyword dictionary and assignment table. Known facility codes receive Korean labels and stable codes; other non-empty values receive deterministic `facility_<hash>` codes without removing the legacy source array.
+
+For review, reuse the existing `ops-review@example.com` operations account. Do not run the bootstrap command to create another review account.
+
+The console does not include administrator assignment UI/API, media upload, notices, or notification delivery.

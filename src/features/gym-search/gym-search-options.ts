@@ -3,8 +3,6 @@ import type { ApiRegion } from '../../app/api/region-api';
 
 export const ALL_GYM_REGIONS = '전체 지역';
 export const GYM_SEARCH_PLACEHOLDER = '암장 이름, 지점 또는 주소 검색';
-export const GYM_SEARCH_TABS = ['전체', '샤워실', '킬터보드', '스트레칭', '주차가능'];
-
 export function firstLevelRegions(regions: ApiRegion[]) {
   return regions.filter((region) => region.level === 1 && region.parentCode === null);
 }

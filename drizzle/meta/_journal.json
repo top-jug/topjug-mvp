@@ -43,6 +43,13 @@
       "when": 1788081392314,
       "tag": "0005_drop_record_session_type",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788171946490,
+      "tag": "0006_operations_gym_tags",
+      "breakpoints": true
     }
   ]
 }

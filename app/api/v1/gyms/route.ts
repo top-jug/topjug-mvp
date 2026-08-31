@@ -11,5 +11,7 @@ export const GET = withApiHandler(async (request) => {
   const query: Record<string, string | string[]> = Object.fromEntries(request.nextUrl.searchParams.entries());
   const facilities = request.nextUrl.searchParams.getAll('facility');
   if (facilities.length > 0) query.facility = facilities;
+  const tags = request.nextUrl.searchParams.getAll('tag');
+  if (tags.length > 0) query.tag = tags;
   return NextResponse.json(await listGyms(parseInput(listGymsSchema, query)));
 });

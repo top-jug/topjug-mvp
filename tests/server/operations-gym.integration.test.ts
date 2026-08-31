@@ -77,7 +77,7 @@ test('operations gym workflow records versions, verification time, and audits', 
       operationStatus: 'closed',
     }).returning({ id: gyms.id });
     gymIds.push(closed.id);
-    const publicResults = await listGyms({ q: suffix, facility: [], limit: 50 });
+    const publicResults = await listGyms({ q: suffix, facility: [], tag: [], limit: 50 });
     assert.deepEqual(publicResults.data.map((gym) => gym.id), [created.id]);
 
     const audits = await database.select({ action: auditEvents.action }).from(auditEvents)

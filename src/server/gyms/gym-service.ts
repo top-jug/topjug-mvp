@@ -47,11 +47,15 @@ export async function listGyms(input: ListGymsInput) {
   }
   if (input.regionCode) conditions.push(inArray(gyms.regionCode, await regionSubtreeCodes(input.regionCode)));
   for (const facility of input.facility) conditions.push(sql`${facility} = ANY(${gyms.facilities})`);
-  if (input.tag) conditions.push(exists(
+  for (const tag of input.tag) conditions.push(exists(
     database.select({ value: sql`1` })
       .from(gymTagAssignments)
       .innerJoin(gymTags, eq(gymTagAssignments.tagId, gymTags.id))
-      .where(and(eq(gymTagAssignments.gymId, gyms.id), eq(gymTags.code, input.tag))),
+      .where(and(
+        eq(gymTagAssignments.gymId, gyms.id),
+        eq(gymTags.code, tag),
+        eq(gymTags.isActive, true),
+      )),
   ));
 
   const rows = await database
@@ -95,8 +99,8 @@ export async function listGyms(input: ListGymsInput) {
     database.select({ gymId: gymTagAssignments.gymId, code: gymTags.code, label: gymTags.label })
       .from(gymTagAssignments)
       .innerJoin(gymTags, eq(gymTagAssignments.tagId, gymTags.id))
-      .where(inArray(gymTagAssignments.gymId, gymIds))
-      .orderBy(gymTags.label),
+      .where(and(inArray(gymTagAssignments.gymId, gymIds), eq(gymTags.isActive, true)))
+      .orderBy(gymTags.sortOrder, gymTags.label),
     database.select({ gymId: gymPrices.gymId, amount: gymPrices.amount, currency: gymPrices.currency, rawText: gymPrices.rawText })
       .from(gymPrices).where(and(inArray(gymPrices.gymId, gymIds), eq(gymPrices.type, 'day_pass'))),
   ]) : [[], [], []];
@@ -167,7 +171,8 @@ export async function getGym(gymId: string) {
     database.select().from(gymPrices).where(eq(gymPrices.gymId, gymId)).orderBy(gymPrices.type),
     database.select({ code: gymTags.code, label: gymTags.label }).from(gymTagAssignments)
       .innerJoin(gymTags, eq(gymTagAssignments.tagId, gymTags.id))
-      .where(eq(gymTagAssignments.gymId, gymId)).orderBy(gymTags.label),
+      .where(and(eq(gymTagAssignments.gymId, gymId), eq(gymTags.isActive, true)))
+      .orderBy(gymTags.sortOrder, gymTags.label),
     database.select().from(gymGrades).where(eq(gymGrades.gymId, gymId)).orderBy(gymGrades.rank),
     database.select().from(gymWalls).where(eq(gymWalls.gymId, gymId)).orderBy(gymWalls.sortOrder),
     database.select({

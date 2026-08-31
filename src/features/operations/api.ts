@@ -86,3 +86,54 @@ export async function verifyOperationsGym(gymId: string, expectedUpdatedAt: stri
     method: 'POST', body: JSON.stringify({ expectedUpdatedAt }),
   })).data;
 }
+
+export type OperationsGymTag = {
+  id: string;
+  code: string;
+  label: string;
+  description: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  assignmentCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OperationsGymTagFields = Pick<OperationsGymTag, 'code' | 'label' | 'description' | 'sortOrder' | 'isActive'>;
+
+export type OperationsGymTagAssignments = {
+  gym: Pick<OperationsGymSummary, 'id' | 'name' | 'branchName' | 'updatedAt'>;
+  tagIds: string[];
+};
+
+export async function listOperationsGymTags(signal?: AbortSignal) {
+  return (await apiRequest<ApiDataResponse<OperationsGymTag[]>>('/ops/gym-tags', { signal })).data;
+}
+
+export async function createOperationsGymTag(input: OperationsGymTagFields) {
+  return (await apiRequest<ApiDataResponse<OperationsGymTag>>('/ops/gym-tags', {
+    method: 'POST', body: JSON.stringify(input),
+  })).data;
+}
+
+export async function updateOperationsGymTag(tagId: string, input: OperationsGymTagFields & { expectedUpdatedAt: string }) {
+  return (await apiRequest<ApiDataResponse<OperationsGymTag>>(`/ops/gym-tags/${tagId}`, {
+    method: 'PATCH', body: JSON.stringify(input),
+  })).data;
+}
+
+export function deleteOperationsGymTag(tagId: string, expectedUpdatedAt: string) {
+  return apiRequest<void>(`/ops/gym-tags/${tagId}`, {
+    method: 'DELETE', body: JSON.stringify({ expectedUpdatedAt }),
+  });
+}
+
+export async function getOperationsGymTagAssignments(gymId: string, signal?: AbortSignal) {
+  return (await apiRequest<ApiDataResponse<OperationsGymTagAssignments>>(`/ops/gyms/${gymId}/tags`, { signal })).data;
+}
+
+export async function replaceOperationsGymTags(gymId: string, tagIds: string[], expectedUpdatedAt: string) {
+  return (await apiRequest<ApiDataResponse<OperationsGymTagAssignments>>(`/ops/gyms/${gymId}/tags`, {
+    method: 'PUT', body: JSON.stringify({ tagIds, expectedUpdatedAt }),
+  })).data;
+}

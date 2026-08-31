@@ -283,11 +283,20 @@ export const gymOperatingHourOverrides = pgTable(
   ],
 );
 
-export const gymTags = pgTable('gym_tags', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  code: text('code').notNull().unique(),
-  label: text('label').notNull(),
-});
+export const gymTags = pgTable(
+  'gym_tags',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    code: text('code').notNull().unique(),
+    label: text('label').notNull(),
+    description: text('description'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('gym_tags_active_order_idx').on(table.isActive, table.sortOrder, table.label)],
+);
 
 export const gymTagAssignments = pgTable(
   'gym_tag_assignments',
@@ -295,7 +304,10 @@ export const gymTagAssignments = pgTable(
     gymId: uuid('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
     tagId: uuid('tag_id').notNull().references(() => gymTags.id, { onDelete: 'cascade' }),
   },
-  (table) => [primaryKey({ columns: [table.gymId, table.tagId] })],
+  (table) => [
+    primaryKey({ columns: [table.gymId, table.tagId] }),
+    index('gym_tag_assignments_tag_idx').on(table.tagId),
+  ],
 );
 
 export const gymGrades = pgTable(
