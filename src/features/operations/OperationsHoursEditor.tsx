@@ -19,7 +19,9 @@ import {
   EditableOverride,
   EditableSchedule,
   emptyOverride,
+  OperationsHoursFailure,
   overridesFromRows,
+  presentOperationsHoursFailure,
   weeklyDaysFromRows,
 } from './operations-hours';
 
@@ -87,6 +89,11 @@ function ScheduleFields({ value, onChange }: { value: EditableSchedule; onChange
   );
 }
 
+function FailureNotice({ failure, reload }: { failure: OperationsHoursFailure | null; reload: () => void }) {
+  if (!failure) return null;
+  return <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700"><span>{failure.message}</span>{failure.requiresReload && <button type="button" onClick={reload} className={`${buttonClass} bg-white text-red-700`}><RefreshCw className="h-4 w-4" />최신 정보 불러오기</button>}</div>;
+}
+
 export function OperationsHoursEditor() {
   const { gymId = '' } = useParams();
   const initialDate = useMemo(todayInSeoul, []);
@@ -100,7 +107,9 @@ export function OperationsHoursEditor() {
   const [weeklyDirty, setWeeklyDirty] = useState(false);
   const [overrideDirty, setOverrideDirty] = useState(false);
   const [error, setError] = useState('');
-  const [conflict, setConflict] = useState(false);
+  const [weeklyFailure, setWeeklyFailure] = useState<OperationsHoursFailure | null>(null);
+  const [overrideFailure, setOverrideFailure] = useState<OperationsHoursFailure | null>(null);
+  const [listFailure, setListFailure] = useState<OperationsHoursFailure | null>(null);
   const [batchConflict, setBatchConflict] = useState('');
   const [saved, setSaved] = useState(false);
 
@@ -115,9 +124,14 @@ export function OperationsHoursEditor() {
       setWeekly(weeklyDaysFromRows(nextGym.operatingHours));
       setWeeklyDirty(false);
       setOverrideDirty(false);
-      setConflict(false);
+      setWeeklyFailure(null);
+      setOverrideFailure(null);
+      setListFailure(null);
+      setBatchConflict('');
     } catch (nextError) {
-      setError(nextError instanceof ApiClientError ? nextError.message : '운영시간을 불러오지 못했습니다.');
+      const message = nextError instanceof ApiClientError ? nextError.message : '운영시간을 불러오지 못했습니다.';
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -143,31 +157,35 @@ export function OperationsHoursEditor() {
     setWeekly(weeklyDaysFromRows(next.operatingHours));
   }
 
-  function showError(nextError: unknown) {
-    const apiError = nextError instanceof ApiClientError ? nextError : null;
-    if (apiError?.code === 'OPS_RESOURCE_CHANGED') setConflict(true);
-    if (apiError?.code === 'OPERATING_HOUR_OVERRIDE_EXISTS') {
-      setBatchConflict(apiError.message);
+  function showError(nextError: unknown, scope: 'weekly' | 'override' | 'list') {
+    const failure = presentOperationsHoursFailure(nextError);
+    if (scope === 'override' && failure.kind === 'existing_override') {
+      setBatchConflict(failure.message);
+      toast.warning(failure.message);
       return;
     }
-    setError(apiError?.message ?? '운영시간을 저장하지 못했습니다.');
+    if (scope === 'weekly') setWeeklyFailure(failure);
+    if (scope === 'override') setOverrideFailure(failure);
+    if (scope === 'list') setListFailure(failure);
+    toast.error(failure.message);
   }
 
   async function saveWeekly() {
     if (!gym) return;
-    setSaving(true); setError(''); setConflict(false); setSaved(false);
+    setSaving(true); setError(''); setWeeklyFailure(null); setSaved(false);
     try {
       const next = await replaceOperationsWeeklyHours(gymId, weekly, gym.updatedAt);
       applyHours(next);
       setWeeklyDirty(false);
+      setWeeklyFailure(null);
       setSaved(true);
       toast.success('정규 운영시간을 저장했습니다.');
-    } catch (nextError) { showError(nextError); } finally { setSaving(false); }
+    } catch (nextError) { showError(nextError, 'weekly'); } finally { setSaving(false); }
   }
 
   async function saveOverride(overwriteExisting = false) {
     if (!gym || !override.date) return;
-    setSaving(true); setError(''); setConflict(false); setSaved(false);
+    setSaving(true); setError(''); setOverrideFailure(null); setSaved(false);
     if (!overwriteExisting) setBatchConflict('');
     try {
       const schedule = { isClosed: override.isClosed, intervals: override.intervals, note: override.note };
@@ -184,22 +202,24 @@ export function OperationsHoursEditor() {
       setOverride(emptyOverride(override.date));
       setEndDate(override.date);
       setOverrideDirty(false);
+      setOverrideFailure(null);
       setBatchConflict('');
       setSaved(true);
       toast.success(rangeMode ? '기간 예외 운영시간을 저장했습니다.' : '예외 운영시간을 저장했습니다.');
-    } catch (nextError) { showError(nextError); } finally { setSaving(false); }
+    } catch (nextError) { showError(nextError, 'override'); } finally { setSaving(false); }
   }
 
   async function removeOverride(date: string) {
     if (!gym || !window.confirm(`${displayOperationsDate(date)} 예외 운영시간을 삭제할까요?`)) return;
-    setSaving(true); setError(''); setConflict(false); setSaved(false);
+    setSaving(true); setError(''); setListFailure(null); setSaved(false);
     try {
       const next = await deleteOperationsHourOverride(gymId, date, gym.updatedAt);
       applyHours(next);
       if (override.date === date) setOverride(emptyOverride(date));
+      setListFailure(null);
       setSaved(true);
       toast.success('예외 운영시간을 삭제했습니다.');
-    } catch (nextError) { showError(nextError); } finally { setSaving(false); }
+    } catch (nextError) { showError(nextError, 'list'); } finally { setSaving(false); }
   }
 
   function editOverride(item: EditableOverride) {
@@ -207,6 +227,8 @@ export function OperationsHoursEditor() {
     setOverride({ ...item, intervals: item.intervals.map((interval) => ({ ...interval })) });
     setEndDate(item.date);
     setOverrideDirty(false);
+    setOverrideFailure(null);
+    setListFailure(null);
     setBatchConflict('');
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   }
@@ -221,13 +243,14 @@ export function OperationsHoursEditor() {
         <Link to={`/gyms/${gymId}`} className={`${buttonClass} border border-slate-200 bg-white text-slate-700`}>사용자 화면 보기</Link>
       </div>
 
-      {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700"><span>{error}</span>{conflict && <button type="button" onClick={() => void load()} className={`${buttonClass} bg-white text-red-700`}><RefreshCw className="h-4 w-4" />최신 정보 불러오기</button>}</div>}
+      {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
       {saved && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800"><span>운영시간 변경 사항을 저장했습니다.</span><button type="button" onClick={() => toast.info('알림 전송은 후속 이슈에서 연결됩니다.')} className={`${buttonClass} border border-emerald-300 bg-white text-emerald-800`}><Bell className="h-4 w-4" />알림 보내기</button></div>}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h3 className="text-lg font-black">정규 주간 운영시간</h3><p className="mt-1 text-sm text-slate-500">요일별 휴무 또는 최대 8개의 운영 구간을 시간순으로 입력하세요.</p></div><button type="button" disabled={saving || !weeklyDirty} onClick={() => void saveWeekly()} className={`${buttonClass} bg-blue-600 text-white`}><Save className="h-4 w-4" />정규시간 저장</button></div>
+        <FailureNotice failure={weeklyFailure} reload={() => void load()} />
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          {weekly.map((day, index) => <div key={day.dayOfWeek} className="rounded-2xl border border-slate-200 p-4"><h4 className="mb-3 font-black">{DAY_LABELS[day.dayOfWeek]}요일</h4><ScheduleFields value={day} onChange={(schedule) => { setWeekly((current) => current.map((item, position) => position === index ? { ...item, ...schedule } : item)); setWeeklyDirty(true); setSaved(false); }} /></div>)}
+          {weekly.map((day, index) => <div key={day.dayOfWeek} className="rounded-2xl border border-slate-200 p-4"><h4 className="mb-3 font-black">{DAY_LABELS[day.dayOfWeek]}요일</h4><ScheduleFields value={day} onChange={(schedule) => { setWeekly((current) => current.map((item, position) => position === index ? { ...item, ...schedule } : item)); setWeeklyDirty(true); setWeeklyFailure(null); setSaved(false); }} /></div>)}
         </div>
       </section>
 
@@ -235,21 +258,23 @@ export function OperationsHoursEditor() {
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <h3 className="text-lg font-black">예외 운영시간 등록</h3><p className="mt-1 text-sm text-slate-500">특정 날짜 또는 최대 92일 기간의 휴무·단축·연장 운영을 등록합니다.</p>
           <div className="mt-5 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
-            <button type="button" onClick={() => { setRangeMode(false); setBatchConflict(''); }} className={`${buttonClass} ${!rangeMode ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>날짜 1일</button>
-            <button type="button" onClick={() => { setRangeMode(true); setEndDate(override.date); setBatchConflict(''); }} className={`${buttonClass} ${rangeMode ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>기간</button>
+            <button type="button" onClick={() => { setRangeMode(false); setBatchConflict(''); setOverrideFailure(null); }} className={`${buttonClass} ${!rangeMode ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>날짜 1일</button>
+            <button type="button" onClick={() => { setRangeMode(true); setEndDate(override.date); setBatchConflict(''); setOverrideFailure(null); }} className={`${buttonClass} ${rangeMode ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>기간</button>
           </div>
           <div className={`mt-4 grid gap-4 ${rangeMode ? 'sm:grid-cols-2' : ''}`}>
-            <label className="text-sm font-bold text-slate-700">{rangeMode ? '시작일' : '날짜'}<input type="date" required value={override.date} onChange={(event) => { setOverride((current) => ({ ...current, date: event.target.value })); if (!rangeMode) setEndDate(event.target.value); setBatchConflict(''); }} className={`${inputClass} mt-1`} /></label>
-            {rangeMode && <label className="text-sm font-bold text-slate-700">종료일<input type="date" required min={override.date} value={endDate} onChange={(event) => { setEndDate(event.target.value); setBatchConflict(''); }} className={`${inputClass} mt-1`} /></label>}
+            <label className="text-sm font-bold text-slate-700">{rangeMode ? '시작일' : '날짜'}<input type="date" required value={override.date} onChange={(event) => { setOverride((current) => ({ ...current, date: event.target.value })); if (!rangeMode) setEndDate(event.target.value); setBatchConflict(''); setOverrideFailure(null); }} className={`${inputClass} mt-1`} /></label>
+            {rangeMode && <label className="text-sm font-bold text-slate-700">종료일<input type="date" required min={override.date} value={endDate} onChange={(event) => { setEndDate(event.target.value); setBatchConflict(''); setOverrideFailure(null); }} className={`${inputClass} mt-1`} /></label>}
           </div>
-          <div className="mt-4"><ScheduleFields value={override} onChange={(schedule) => { setOverride((current) => ({ ...current, ...schedule })); setOverrideDirty(true); setSaved(false); setBatchConflict(''); }} /></div>
-          <label className="mt-4 block text-sm font-bold text-slate-700">예외 사유 메모<textarea value={override.note ?? ''} maxLength={300} onChange={(event) => { setOverride((current) => ({ ...current, note: event.target.value || null })); setOverrideDirty(true); setSaved(false); }} className={`${inputClass} mt-1 min-h-24 py-3`} placeholder="예: 공휴일 단축 운영" /></label>
+          <div className="mt-4"><ScheduleFields value={override} onChange={(schedule) => { setOverride((current) => ({ ...current, ...schedule })); setOverrideDirty(true); setOverrideFailure(null); setSaved(false); setBatchConflict(''); }} /></div>
+          <label className="mt-4 block text-sm font-bold text-slate-700">예외 사유 메모<textarea value={override.note ?? ''} maxLength={300} onChange={(event) => { setOverride((current) => ({ ...current, note: event.target.value || null })); setOverrideDirty(true); setOverrideFailure(null); setSaved(false); }} className={`${inputClass} mt-1 min-h-24 py-3`} placeholder="예: 공휴일 단축 운영" /></label>
+          <FailureNotice failure={overrideFailure} reload={() => void load()} />
           {batchConflict && <div role="alert" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-bold text-amber-900"><p>{batchConflict}</p><button type="button" disabled={saving} onClick={() => void saveOverride(true)} className={`${buttonClass} mt-3 bg-amber-700 text-white`}>표시된 날짜 포함 덮어쓰기</button></div>}
           <button type="button" disabled={saving || !override.date || (rangeMode && !endDate)} onClick={() => void saveOverride(false)} className={`${buttonClass} mt-5 w-full bg-blue-600 text-white`}><Save className="h-4 w-4" />{saving ? '저장 중…' : rangeMode ? '기간 예외 저장' : '날짜 예외 저장'}</button>
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <h3 className="text-lg font-black">등록된 예외</h3><p className="mt-1 text-sm text-slate-500">예외를 삭제하면 해당 요일의 정규시간으로 돌아갑니다.</p>
+          <FailureNotice failure={listFailure} reload={() => void load()} />
           <div className="mt-5 space-y-3">
             {overrides.length === 0 && <div className="rounded-xl bg-slate-50 p-6 text-center text-sm text-slate-500">등록된 예외 운영시간이 없습니다.</div>}
             {overrides.map((item) => <article key={item.date} className="rounded-xl border border-slate-200 p-4"><p className="text-sm font-black text-slate-900">{displayOperationsDate(item.date)}</p><p className="mt-1 text-sm font-bold text-blue-700">{scheduleText(item)}</p>{item.note && <p className="mt-1 text-sm text-slate-600">{item.note}</p>}<div className="mt-3 flex gap-2"><button type="button" disabled={saving} onClick={() => editOverride(item)} className={`${buttonClass} flex-1 border border-slate-200 text-slate-700`}>수정</button><button type="button" disabled={saving} onClick={() => void removeOverride(item.date)} className={`${buttonClass} border border-red-200 text-red-600`}><Trash2 className="h-4 w-4" />삭제</button></div></article>)}

@@ -120,6 +120,10 @@ test('operations hours replace schedules transactionally and require explicit ba
       expectedUpdatedAt: created.updatedAt.toISOString(),
     });
     assert.equal(weekly.operatingHours.length, 13);
+    await assert.rejects(
+      () => replaceWeeklyOperatingHours(created.id, { days, expectedUpdatedAt: created.updatedAt.toISOString() }),
+      (error: unknown) => error instanceof ApiError && error.code === 'OPS_RESOURCE_CHANGED',
+    );
 
     const single = await replaceOperatingHourOverride(created.id, '2026-09-01', {
       isClosed: false,

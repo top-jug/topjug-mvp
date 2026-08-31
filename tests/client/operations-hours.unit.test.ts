@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { displayOperationsDate, overridesFromRows, weeklyDaysFromRows } from '../../src/features/operations/operations-hours';
+import { ApiClientError } from '../../src/lib/api/error';
+import { displayOperationsDate, overridesFromRows, presentOperationsHoursFailure, weeklyDaysFromRows } from '../../src/features/operations/operations-hours';
 
 test('operations hours map ordered database rows into editor schedules', () => {
   assert.match(displayOperationsDate('2026-09-01'), /2026/);
@@ -24,4 +25,19 @@ test('operations hours map ordered database rows into editor schedules', () => {
     ['2026-09-01', false, '단축 운영'],
     ['2026-09-02', true, '임시 휴무'],
   ]);
+});
+
+test('operations hours preserve backend messages and distinguish actionable conflicts', () => {
+  assert.deepEqual(
+    presentOperationsHoursFailure(new ApiClientError('종료 시간은 시작 시간보다 늦어야 합니다.', 400, 'INVALID_OPERATING_HOURS')),
+    { kind: 'error', message: '종료 시간은 시작 시간보다 늦어야 합니다.', requiresReload: false },
+  );
+  assert.deepEqual(
+    presentOperationsHoursFailure(new ApiClientError('최신 정보를 확인해주세요.', 409, 'OPS_RESOURCE_CHANGED')),
+    { kind: 'error', message: '최신 정보를 확인해주세요.', requiresReload: true },
+  );
+  assert.deepEqual(
+    presentOperationsHoursFailure(new ApiClientError('이미 예외가 있습니다.', 409, 'OPERATING_HOUR_OVERRIDE_EXISTS')),
+    { kind: 'existing_override', message: '이미 예외가 있습니다.', requiresReload: false },
+  );
 });

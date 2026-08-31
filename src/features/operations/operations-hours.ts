@@ -1,3 +1,4 @@
+import { ApiClientError } from '../../lib/api/error';
 import type { OperationsOperatingHour, OperationsOperatingHourOverride } from './api';
 
 export const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'] as const;
@@ -16,6 +17,23 @@ export type EditableInterval = { opensAt: string; closesAt: string };
 export type EditableSchedule = { isClosed: boolean; intervals: EditableInterval[] };
 export type EditableWeeklyDay = EditableSchedule & { dayOfWeek: number };
 export type EditableOverride = EditableSchedule & { date: string; note: string | null };
+
+export type OperationsHoursFailure = {
+  kind: 'error' | 'existing_override';
+  message: string;
+  requiresReload: boolean;
+};
+
+export function presentOperationsHoursFailure(error: unknown): OperationsHoursFailure {
+  if (error instanceof ApiClientError) {
+    return {
+      kind: error.code === 'OPERATING_HOUR_OVERRIDE_EXISTS' ? 'existing_override' : 'error',
+      message: error.message,
+      requiresReload: error.code === 'OPS_RESOURCE_CHANGED',
+    };
+  }
+  return { kind: 'error', message: '운영시간을 저장하지 못했습니다.', requiresReload: false };
+}
 
 function timeInput(value: string | null) {
   return value?.slice(0, 5) ?? '';
