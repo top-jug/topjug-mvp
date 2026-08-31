@@ -2,6 +2,16 @@ import type { OperationsOperatingHour, OperationsOperatingHourOverride } from '.
 
 export const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'] as const;
 
+export function displayOperationsDate(value: string) {
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+  }).format(new Date(`${value}T00:00:00+09:00`));
+}
+
 export type EditableInterval = { opensAt: string; closesAt: string };
 export type EditableSchedule = { isClosed: boolean; intervals: EditableInterval[] };
 export type EditableWeeklyDay = EditableSchedule & { dayOfWeek: number };

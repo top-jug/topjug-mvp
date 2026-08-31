@@ -14,6 +14,7 @@ import {
 } from './api';
 import {
   DAY_LABELS,
+  displayOperationsDate,
   EditableInterval,
   EditableOverride,
   EditableSchedule,
@@ -27,11 +28,6 @@ const buttonClass = 'inline-flex min-h-11 items-center justify-center gap-2 roun
 
 function todayInSeoul() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-}
-
-function displayDate(value: string) {
-  return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'long', weekday: 'short' })
-    .format(new Date(`${value}T00:00:00+09:00`));
 }
 
 function scheduleText(schedule: EditableSchedule) {
@@ -195,7 +191,7 @@ export function OperationsHoursEditor() {
   }
 
   async function removeOverride(date: string) {
-    if (!gym || !window.confirm(`${displayDate(date)} 예외 운영시간을 삭제할까요?`)) return;
+    if (!gym || !window.confirm(`${displayOperationsDate(date)} 예외 운영시간을 삭제할까요?`)) return;
     setSaving(true); setError(''); setConflict(false); setSaved(false);
     try {
       const next = await deleteOperationsHourOverride(gymId, date, gym.updatedAt);
@@ -256,7 +252,7 @@ export function OperationsHoursEditor() {
           <h3 className="text-lg font-black">등록된 예외</h3><p className="mt-1 text-sm text-slate-500">예외를 삭제하면 해당 요일의 정규시간으로 돌아갑니다.</p>
           <div className="mt-5 space-y-3">
             {overrides.length === 0 && <div className="rounded-xl bg-slate-50 p-6 text-center text-sm text-slate-500">등록된 예외 운영시간이 없습니다.</div>}
-            {overrides.map((item) => <article key={item.date} className="rounded-xl border border-slate-200 p-4"><p className="text-sm font-black text-slate-900">{displayDate(item.date)}</p><p className="mt-1 text-sm font-bold text-blue-700">{scheduleText(item)}</p>{item.note && <p className="mt-1 text-sm text-slate-600">{item.note}</p>}<div className="mt-3 flex gap-2"><button type="button" disabled={saving} onClick={() => editOverride(item)} className={`${buttonClass} flex-1 border border-slate-200 text-slate-700`}>수정</button><button type="button" disabled={saving} onClick={() => void removeOverride(item.date)} className={`${buttonClass} border border-red-200 text-red-600`}><Trash2 className="h-4 w-4" />삭제</button></div></article>)}
+            {overrides.map((item) => <article key={item.date} className="rounded-xl border border-slate-200 p-4"><p className="text-sm font-black text-slate-900">{displayOperationsDate(item.date)}</p><p className="mt-1 text-sm font-bold text-blue-700">{scheduleText(item)}</p>{item.note && <p className="mt-1 text-sm text-slate-600">{item.note}</p>}<div className="mt-3 flex gap-2"><button type="button" disabled={saving} onClick={() => editOverride(item)} className={`${buttonClass} flex-1 border border-slate-200 text-slate-700`}>수정</button><button type="button" disabled={saving} onClick={() => void removeOverride(item.date)} className={`${buttonClass} border border-red-200 text-red-600`}><Trash2 className="h-4 w-4" />삭제</button></div></article>)}
           </div>
         </section>
       </div>

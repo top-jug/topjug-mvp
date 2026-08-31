@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { overridesFromRows, weeklyDaysFromRows } from '../../src/features/operations/operations-hours';
+import { displayOperationsDate, overridesFromRows, weeklyDaysFromRows } from '../../src/features/operations/operations-hours';
 
 test('operations hours map ordered database rows into editor schedules', () => {
+  assert.match(displayOperationsDate('2026-09-01'), /2026/);
   const weekly = weeklyDaysFromRows([
     { dayOfWeek: 1, sequence: 1, opensAt: '16:00:00', closesAt: '22:00:00', isClosed: false },
     { dayOfWeek: 1, sequence: 0, opensAt: '10:00:00', closesAt: '14:00:00', isClosed: false },
