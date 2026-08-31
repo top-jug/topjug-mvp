@@ -239,6 +239,11 @@ export function OperationsHoursEditor() {
       {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
       {saved && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800"><span>운영시간 변경 사항을 저장했습니다.</span><button type="button" onClick={() => toast.info('알림 전송은 후속 이슈에서 연결됩니다.')} className={`${buttonClass} border border-emerald-300 bg-white text-emerald-800`}><Bell className="h-4 w-4" />알림 보내기</button></div>}
 
+      <div role="note" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <p className="font-black">날짜 예외가 정규 운영시간보다 우선합니다.</p>
+        <p className="mt-1 font-medium">예를 들어 월요일이 정규 휴무여도 해당 월요일에 영업 예외가 등록되어 있으면 사용자 화면에는 영업으로 표시됩니다. 정규 운영시간으로 되돌리려면 등록된 날짜 예외를 삭제하세요.</p>
+      </div>
+
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h3 className="text-lg font-black">정규 주간 운영시간</h3><p className="mt-1 text-sm text-slate-500">요일별 휴무 또는 최대 8개의 운영 구간을 시간순으로 입력하세요.</p></div><button type="button" disabled={saving || !weeklyDirty} onClick={() => void saveWeekly()} className={`${buttonClass} bg-blue-600 text-white`}><Save className="h-4 w-4" />정규시간 저장</button></div>
         <FailureNotice failure={weeklyFailure} reload={() => void load()} />
