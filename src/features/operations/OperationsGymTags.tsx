@@ -1,7 +1,8 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { Bell, CheckCircle2, Pencil, Plus, RefreshCw, Save, Search, Trash2 } from 'lucide-react';
+import { Bell, CheckCircle2, Info, Pencil, Plus, RefreshCw, Save, Search, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'react-router';
 import { toast } from 'sonner';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../app/components/ui/tooltip';
 import {
   createOperationsGymTag,
   deleteOperationsGymTag,
@@ -35,6 +36,24 @@ function fieldsOf(tag: OperationsGymTag): OperationsGymTagFields {
 
 function gymName(gym: Pick<OperationsGymSummary, 'name' | 'branchName'>) {
   return gym.branchName && !gym.name.includes(gym.branchName) ? `${gym.name} ${gym.branchName}` : gym.name;
+}
+
+function FieldLabel({ htmlFor, label, help }: { htmlFor: string; label: string; help: string }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <label htmlFor={htmlFor}>{label}</label>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button type="button" aria-label={`${label} 도움말`} className="inline-flex rounded-full text-slate-400 outline-none transition hover:text-blue-600 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
+            <Info className="h-4 w-4" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={6} className="max-w-72 leading-5">
+          {help}
+        </TooltipContent>
+      </Tooltip>
+    </span>
+  );
 }
 
 export function OperationsGymTags() {
@@ -206,10 +225,10 @@ export function OperationsGymTags() {
           <div className="flex items-center justify-between gap-3"><div><h3 className="text-lg font-black">키워드 사전</h3><p className="mt-1 text-sm text-slate-500">비활성화하면 기존 배정은 유지하되 사용자에게 숨깁니다.</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">{tags.length}개</span></div>
 
           <form onSubmit={submitTag} className="mt-5 grid gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-2">
-            <label className="text-sm font-black text-slate-700">표시 이름<input required value={form.label} onChange={(event) => setForm((current) => ({ ...current, label: event.target.value }))} className={inputClass} placeholder="예: 샤워실" /></label>
-            <label className="text-sm font-black text-slate-700">코드<input required value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toLowerCase() }))} className={inputClass} placeholder="예: shower" pattern="[a-z0-9]+(?:[-_][a-z0-9]+)*" /></label>
+            <div className="text-sm font-black text-slate-700"><FieldLabel htmlFor="gym-tag-label" label="표시 이름" help="사용자 화면에 노출되는 키워드 이름입니다. 한글로 이해하기 쉽게 작성하세요. 예: 샤워실" /><input id="gym-tag-label" required value={form.label} onChange={(event) => setForm((current) => ({ ...current, label: event.target.value }))} className={inputClass} placeholder="예: 샤워실" /></div>
+            <div className="text-sm font-black text-slate-700"><FieldLabel htmlFor="gym-tag-code" label="코드" help="시스템과 검색 URL에서 사용하는 고유 식별자입니다. 영문 소문자, 숫자, 밑줄(_), 하이픈(-)만 사용할 수 있으며 등록 후에는 가급적 변경하지 마세요. 예: shower" /><input id="gym-tag-code" required value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toLowerCase() }))} className={inputClass} placeholder="예: shower" pattern="[a-z0-9]+(?:[-_][a-z0-9]+)*" /></div>
             <label className="text-sm font-black text-slate-700 sm:col-span-2">설명<input value={form.description ?? ''} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value || null }))} className={inputClass} maxLength={200} placeholder="사용자에게 보여줄 간단한 설명" /></label>
-            <label className="text-sm font-black text-slate-700">정렬 순서<input type="number" min="0" max="10000" value={form.sortOrder} onChange={(event) => setForm((current) => ({ ...current, sortOrder: Number(event.target.value) }))} className={inputClass} /></label>
+            <div className="text-sm font-black text-slate-700"><FieldLabel htmlFor="gym-tag-sort-order" label="정렬 순서" help="사용자 화면과 운영 목록에 키워드가 표시되는 순서입니다. 숫자가 작을수록 먼저 표시됩니다. 예: 10, 20, 30" /><input id="gym-tag-sort-order" type="number" min="0" max="10000" value={form.sortOrder} onChange={(event) => setForm((current) => ({ ...current, sortOrder: Number(event.target.value) }))} className={inputClass} placeholder="예: 10" /></div>
             <label className="flex min-h-11 items-center gap-2 self-end rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-700"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.checked }))} className="h-4 w-4" />사용자 검색에 노출</label>
             <div className="flex gap-2 sm:col-span-2"><button disabled={savingTag} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-black text-white disabled:opacity-50">{editingTagId ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{editingTagId ? '수정 저장' : '키워드 추가'}</button>{editingTagId && <button type="button" onClick={resetForm} className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black">취소</button>}</div>
           </form>
