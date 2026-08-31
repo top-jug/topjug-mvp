@@ -4,6 +4,8 @@ The operations console is served at `/ops` outside the mobile preview layout. Bo
 
 ## Local verification
 
+When `ops-review@example.com` already exists, reuse it and skip the administrator creation steps below. Do not create a replacement review account for operating-hours verification.
+
 1. Create `.env.local` from `.env.local.example` if it does not exist.
 2. Start PostgreSQL and apply migrations.
 
@@ -36,6 +38,15 @@ The operations console is served at `/ops` outside the mobile preview layout. Bo
    ```
 
 A repeated email is rejected and no second account or audit row is created. Successful creation records an `ops.admin.bootstrap` event without the email, display name, or password in audit metadata.
+
+## Operating-hours verification
+
+Sign in with the existing `ops-review@example.com` operations administrator, open `/ops/gyms`, choose a gym, and select **운영시간 관리**.
+
+- Weekly hours support a closed day or up to eight ordered, non-overlapping intervals per weekday.
+- Date exceptions replace the weekly schedule for that date and can be removed to restore the weekly schedule.
+- Range exceptions expand to one row set per date for at most 92 days. Existing exceptions return `OPERATING_HOUR_OVERRIDE_EXISTS`; the console only replaces them after the operator chooses the explicit overwrite action.
+- Every mutation uses the gym `updatedAt` version, updates the public gym detail immediately, and records `ops.gym.hours.update` in the audit log.
 
 ## Production bootstrap
 
