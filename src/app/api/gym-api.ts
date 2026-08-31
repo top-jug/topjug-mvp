@@ -1,4 +1,7 @@
 import { apiRequest, queryString } from './api-client';
+import type { GymTodayOperatingStatus } from '../../entities/gym/operating-status';
+
+export type { GymTodayOperatingStatus } from '../../entities/gym/operating-status';
 
 export interface GymMediaReference {
   id: string;
@@ -33,6 +36,7 @@ export interface ApiGymSummary {
   latitude: number | null;
   longitude: number | null;
   operationStatus: 'active' | 'temporarily_closed' | 'closed' | 'opening_soon';
+  todayOperatingStatus: GymTodayOperatingStatus;
   facilities: string[];
   calendarColor: string | null;
   calendarTextColor: string | null;
@@ -141,6 +145,7 @@ function normalizeGymSummary(gym: ApiGymSummary): ApiGymSummary {
     latitude: gym.latitude ?? null,
     longitude: gym.longitude ?? null,
     operationStatus: gym.operationStatus,
+    todayOperatingStatus: gym.todayOperatingStatus,
     facilities: gym.facilities,
     calendarColor: gym.calendarColor ?? null,
     calendarTextColor: gym.calendarTextColor ?? null,

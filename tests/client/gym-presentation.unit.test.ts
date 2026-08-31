@@ -19,6 +19,7 @@ import {
   buildGymSettingCalendar,
   GYM_TIME_ZONE,
   OPERATION_STATUS_PRESENTATION,
+  presentGymAvailability,
   presentGymContacts,
   presentOperatingHourOverrides,
   presentWeeklyOperatingHours,
@@ -47,6 +48,29 @@ test('all gym lifecycle statuses use non-real-time presentation labels', () => {
       opening_soon: '오픈 예정',
     },
   );
+});
+
+test('today availability is shown for active gyms while lifecycle exceptions take priority', () => {
+  const todayClosed = {
+    date: '2026-08-31',
+    state: 'closed' as const,
+    source: 'override' as const,
+    opensAt: null,
+    closesAt: null,
+  };
+  const openNow = {
+    date: '2026-08-31',
+    state: 'open' as const,
+    source: 'weekly' as const,
+    opensAt: '10:00:00',
+    closesAt: '22:00:00',
+  };
+
+  assert.equal(presentGymAvailability('active', todayClosed).label, '오늘 휴무');
+  assert.equal(presentGymAvailability('active', openNow).label, '영업 중');
+  assert.equal(presentGymAvailability('temporarily_closed', openNow).label, '임시 휴업');
+  assert.equal(presentGymAvailability('closed', openNow).label, '폐업');
+  assert.equal(presentGymAvailability('opening_soon', openNow).label, '오픈 예정');
 });
 
 test('gym detail carousel clamps every navigation path to hard boundaries', () => {

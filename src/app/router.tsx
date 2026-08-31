@@ -19,6 +19,7 @@ import { OperationsLayout } from '../features/operations/OperationsLayout';
 import { OperationsDashboard } from '../features/operations/OperationsDashboard';
 import { OperationsGymList } from '../features/operations/OperationsGymList';
 import { OperationsGymEditor } from '../features/operations/OperationsGymEditor';
+import { OperationsHoursEditor } from '../features/operations/OperationsHoursEditor';
 import { OperationsGymTags } from '../features/operations/OperationsGymTags';
 
 function PreviewLayout() {
@@ -37,6 +38,7 @@ export function AppRouter() {
           <Route index element={<OperationsDashboard />} />
           <Route path="gyms" element={<OperationsGymList />} />
           <Route path="gyms/new" element={<OperationsGymEditor />} />
+          <Route path="gyms/:gymId/hours" element={<OperationsHoursEditor />} />
           <Route path="gyms/:gymId" element={<OperationsGymEditor />} />
           <Route path="gym-tags" element={<OperationsGymTags />} />
         </Route>

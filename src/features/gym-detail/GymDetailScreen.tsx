@@ -145,6 +145,7 @@ export default function GymDetailScreen({ gymId, onClose }: { gymId: string; onC
           address={gym.address}
           nearby={gym.nearbyDirections ?? ''}
           operationStatus={gym.operationStatus}
+          todayOperatingStatus={gym.todayOperatingStatus}
           operatingHours={presentation.weeklyHours.hours}
           operatingHoursNote={presentation.weeklyHours.note}
           operatingHourOverrides={presentation.operatingHourOverrides}

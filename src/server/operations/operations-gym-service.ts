@@ -5,6 +5,7 @@ import { getDatabase } from '../db/client';
 import { auditEvents, gymPrices, gyms } from '../db/schema';
 import { ApiError } from '../http/api-error';
 import { auditEventValues } from '../observability/audit';
+import { loadOperationsGymHours } from './operations-gym-hours-service';
 import type {
   CreateOperationsGymInput,
   ListOperationsGymsInput,
@@ -81,13 +82,22 @@ async function loadOperationsGym(database: Database | Transaction, gymId: string
     updatedAt: gyms.updatedAt,
   }).from(gyms).where(eq(gyms.id, gymId)).limit(1);
   if (!gym) throw new ApiError(404, 'GYM_NOT_FOUND', '암장을 찾을 수 없습니다.');
-  const prices = await database.select({ type: gymPrices.type, amount: gymPrices.amount, rawText: gymPrices.rawText })
-    .from(gymPrices).where(eq(gymPrices.gymId, gymId));
+  const [prices, hours] = await Promise.all([
+    database.select({ type: gymPrices.type, amount: gymPrices.amount, rawText: gymPrices.rawText })
+      .from(gymPrices).where(eq(gymPrices.gymId, gymId)),
+    loadOperationsGymHours(database, gymId),
+  ]);
   const price = (type: 'day_pass' | 'shoe_rental') => {
     const found = prices.find((item) => item.type === type);
     return found ? { amount: found.amount, rawText: found.rawText } : null;
   };
-  return { ...gym, dayPassPrice: price('day_pass'), shoeRentalPrice: price('shoe_rental') };
+  return {
+    ...gym,
+    dayPassPrice: price('day_pass'),
+    shoeRentalPrice: price('shoe_rental'),
+    operatingHours: hours.operatingHours,
+    operatingHourOverrides: hours.operatingHourOverrides,
+  };
 }
 
 export async function listOperationsGyms(input: ListOperationsGymsInput) {

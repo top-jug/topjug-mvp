@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  batchOperatingHourOverridesSchema,
   createOperationsGymSchema,
+  parseOperatingHoursInput,
+  createOperatingHourOverrideSchema,
+  replaceWeeklyOperatingHoursSchema,
   updateOperationsGymSchema,
   updateOperationsGymStatusSchema,
 } from '../../src/server/operations/operations-gym-validation';
+import { ApiError } from '../../src/server/http/api-error';
 
 const validGym = {
   name: '테스트 클라이밍',
@@ -41,4 +46,88 @@ test('operations gym updates require an RFC3339 version and status updates are s
   assert.equal(updateOperationsGymSchema.safeParse({ ...validGym, expectedUpdatedAt: '2026-08-30T08:00:00Z' }).success, true);
   assert.equal(updateOperationsGymStatusSchema.safeParse({ operationStatus: 'closed', expectedUpdatedAt: '2026-08-30T08:00:00Z' }).success, true);
   assert.equal(updateOperationsGymStatusSchema.safeParse({ operationStatus: 'paused', expectedUpdatedAt: '2026-08-30T08:00:00Z' }).success, false);
+});
+
+test('operating-hours validation accepts ordered multi-interval schedules and normalizes seconds', () => {
+  const expectedUpdatedAt = new Date().toISOString();
+  const days = Array.from({ length: 7 }, (_, dayOfWeek) => ({
+    dayOfWeek,
+    isClosed: dayOfWeek === 0,
+    intervals: dayOfWeek === 0 ? [] : [
+      { opensAt: '10:00', closesAt: '14:00' },
+      { opensAt: '16:00', closesAt: '22:00' },
+    ],
+  }));
+  const parsed = replaceWeeklyOperatingHoursSchema.parse({ days, expectedUpdatedAt });
+  assert.equal(parsed.days[1].intervals[0].opensAt, '10:00:00');
+  assert.equal(parsed.days[1].intervals[1].closesAt, '22:00:00');
+});
+
+test('operating-hours validation rejects contradictory, overlapping, and overlong exceptions', () => {
+  const expectedUpdatedAt = new Date().toISOString();
+  const contradictory = {
+    isClosed: true,
+    intervals: [{ opensAt: '10:00', closesAt: '22:00' }],
+    note: null,
+    expectedUpdatedAt,
+  };
+  assert.equal(createOperatingHourOverrideSchema.safeParse(contradictory).success, false);
+  assert.throws(
+    () => parseOperatingHoursInput(createOperatingHourOverrideSchema, contradictory),
+    (error: unknown) => error instanceof ApiError && error.code === 'INVALID_OPERATING_HOURS',
+  );
+  assert.equal(createOperatingHourOverrideSchema.safeParse({
+    isClosed: false,
+    intervals: [],
+    note: null,
+    expectedUpdatedAt,
+  }).success, false);
+  assert.equal(createOperatingHourOverrideSchema.safeParse({
+    isClosed: false,
+    intervals: [{ opensAt: '22:00', closesAt: '10:00' }],
+    note: null,
+    expectedUpdatedAt,
+  }).success, false);
+  assert.equal(createOperatingHourOverrideSchema.safeParse({
+    isClosed: false,
+    intervals: [
+      { opensAt: '10:00', closesAt: '18:00' },
+      { opensAt: '17:00', closesAt: '22:00' },
+    ],
+    note: null,
+    expectedUpdatedAt,
+  }).success, false);
+  const duplicateDays = Array.from({ length: 7 }, () => ({
+    dayOfWeek: 1,
+    isClosed: true,
+    intervals: [],
+  }));
+  assert.equal(replaceWeeklyOperatingHoursSchema.safeParse({ days: duplicateDays, expectedUpdatedAt }).success, false);
+  assert.equal(batchOperatingHourOverridesSchema.safeParse({
+    startDate: '2026-09-01',
+    endDate: '2026-12-02',
+    isClosed: true,
+    intervals: [],
+    note: '장기 휴무',
+    overwriteExisting: false,
+    expectedUpdatedAt,
+  }).success, false);
+  assert.equal(batchOperatingHourOverridesSchema.safeParse({
+    startDate: '2026-09-03',
+    endDate: '2026-09-01',
+    isClosed: true,
+    intervals: [],
+    note: null,
+    overwriteExisting: false,
+    expectedUpdatedAt,
+  }).success, false);
+  assert.equal(batchOperatingHourOverridesSchema.safeParse({
+    startDate: '2026-02-30',
+    endDate: '2026-03-01',
+    isClosed: true,
+    intervals: [],
+    note: null,
+    overwriteExisting: false,
+    expectedUpdatedAt,
+  }).success, false);
 });
