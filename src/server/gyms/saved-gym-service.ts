@@ -6,6 +6,7 @@ import { auditEvents, gymMedia, gyms, mediaAssets, savedGyms } from '../db/schem
 import { ApiError } from '../http/api-error';
 import { publicMediaUrl } from '../media/media-url';
 import { auditEventValues } from '../observability/audit';
+import { loadGymTodayOperatingStatuses } from './gym-operating-status-service';
 
 export async function listSavedGyms(userId: string) {
   const database = getDatabase();
@@ -23,8 +24,9 @@ export async function listSavedGyms(userId: string) {
     .where(eq(savedGyms.userId, userId))
     .orderBy(desc(savedGyms.createdAt));
   const gymIds = rows.map((row) => row.id);
-  const covers = gymIds.length > 0
-    ? await database.select({
+  const [covers, todayOperatingStatuses] = await Promise.all([
+    gymIds.length > 0
+      ? database.select({
       gymId: gymMedia.gymId,
       id: mediaAssets.id,
       storageKey: mediaAssets.storageKey,
@@ -33,12 +35,18 @@ export async function listSavedGyms(userId: string) {
       .from(gymMedia).innerJoin(mediaAssets, eq(gymMedia.mediaAssetId, mediaAssets.id))
       .where(and(inArray(gymMedia.gymId, gymIds), eq(gymMedia.type, 'cover'), eq(mediaAssets.status, 'ready')))
       .orderBy(gymMedia.sortOrder)
-    : [];
+      : Promise.resolve([]),
+    loadGymTodayOperatingStatuses(gymIds),
+  ]);
   const coverByGym = new Map<string, (typeof covers)[number] & { url: string | null }>();
   for (const cover of covers) {
     if (!coverByGym.has(cover.gymId)) coverByGym.set(cover.gymId, { ...cover, url: publicMediaUrl(cover.storageKey) });
   }
-  return { data: rows.map((row) => ({ ...row, cover: coverByGym.get(row.id) ?? null })) };
+  return { data: rows.map((row) => ({
+    ...row,
+    cover: coverByGym.get(row.id) ?? null,
+    todayOperatingStatus: todayOperatingStatuses.get(row.id)!,
+  })) };
 }
 
 export async function saveGym(userId: string, gymId: string) {

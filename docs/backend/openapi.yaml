@@ -1545,7 +1545,7 @@ components:
             totalPages: { type: integer, minimum: 1 }
     GymSummary:
       type: object
-      required: [id, name, branchName, address, regionCode, operationStatus, facilities, cover]
+      required: [id, name, branchName, address, regionCode, operationStatus, todayOperatingStatus, facilities, cover]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -1555,6 +1555,7 @@ components:
         latitude: { type: [number, 'null'] }
         longitude: { type: [number, 'null'] }
         operationStatus: { type: string, enum: [active, temporarily_closed, closed, opening_soon] }
+        todayOperatingStatus: { $ref: '#/components/schemas/GymTodayOperatingStatus' }
         facilities: { type: array, items: { type: string } }
         calendarColor: { type: [string, 'null'] }
         calendarTextColor: { type: [string, 'null'] }
@@ -1569,6 +1570,18 @@ components:
           items: { $ref: '#/components/schemas/GymTag' }
         dayPassPrice:
           oneOf: [{ $ref: '#/components/schemas/GymPrice' }, { type: 'null' }]
+    GymTodayOperatingStatus:
+      type: object
+      description: Effective operating status for the current date and time in Asia/Seoul. A date exception takes priority over the weekly schedule.
+      required: [date, state, source, opensAt, closesAt]
+      properties:
+        date: { type: string, format: date }
+        state:
+          type: string
+          enum: [open, closed, before_open, between_intervals, after_close, hours_unavailable]
+        source: { type: [string, 'null'], enum: [override, weekly, null] }
+        opensAt: { type: [string, 'null'], format: time }
+        closesAt: { type: [string, 'null'], format: time }
     GymBrand:
       type: object
       required: [id, name, websiteUrl, instagramUrl]

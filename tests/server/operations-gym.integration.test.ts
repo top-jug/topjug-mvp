@@ -179,10 +179,17 @@ test('operations hours replace schedules transactionally and require explicit ba
     });
     assert.deepEqual(deleted.operatingHourOverrides.map((row) => row.date), ['2026-09-01', '2026-09-03']);
 
-    const publicGym = await getGym(created.id);
+    const statusAtNoon = new Date('2026-09-01T03:00:00Z');
+    const publicGym = await getGym(created.id, statusAtNoon);
     assert.equal(publicGym.operatingHours.length, 13);
     assert.deepEqual(publicGym.operatingHourOverrides.map((row) => row.date), ['2026-09-01', '2026-09-03']);
     assert.ok(publicGym.operatingHourOverrides.every((row) => row.isClosed));
+    assert.equal(publicGym.todayOperatingStatus.state, 'closed');
+    assert.equal(publicGym.todayOperatingStatus.source, 'override');
+
+    const publicList = await listGyms({ q: created.name, facility: [], limit: 50 }, statusAtNoon);
+    assert.equal(publicList.data[0]?.todayOperatingStatus.state, 'closed');
+    assert.equal(publicList.data[0]?.todayOperatingStatus.source, 'override');
 
     const audits = await database.select({ action: auditEvents.action }).from(auditEvents)
       .where(eq(auditEvents.resourceId, created.id));

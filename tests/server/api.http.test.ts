@@ -132,7 +132,7 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
     assert.deepEqual(gymListBody.data.map((item) => item.id), [gym.id]);
     assert.deepEqual(Object.keys(gymListBody.data[0]!).sort(), [
       'address', 'branchName', 'brand', 'calendarColor', 'calendarTextColor', 'cover', 'dayPassPrice', 'facilities',
-      'id', 'latitude', 'longitude', 'name', 'operationStatus', 'regionCode', 'tags',
+      'id', 'latitude', 'longitude', 'name', 'operationStatus', 'regionCode', 'tags', 'todayOperatingStatus',
     ]);
 
     const seoulRegionList = await jsonRequest(`/gyms?q=${encodeURIComponent(suffix)}&regionCode=11&limit=1`);

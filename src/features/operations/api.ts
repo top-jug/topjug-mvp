@@ -12,7 +12,7 @@ export async function verifyOperationsSession(signal?: AbortSignal) {
 }
 
 export const operationStatusLabels = {
-  active: '운영 중',
+  active: '정상 운영',
   temporarily_closed: '임시 휴업',
   closed: '폐업',
   opening_soon: '오픈 예정',

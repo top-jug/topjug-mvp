@@ -26,6 +26,9 @@ test('gym list query preserves required contract fields and normalizes optional 
         address: '서울 강남구',
         regionCode: null,
         operationStatus: 'temporarily_closed',
+        todayOperatingStatus: {
+          date: '2026-08-31', state: 'closed', source: 'override', opensAt: null, closesAt: null,
+        },
         facilities: ['parking'],
         brand: {
           id: 'brand-1',
@@ -45,6 +48,7 @@ test('gym list query preserves required contract fields and normalizes optional 
   assert.match(requestedUrl, /limit=10/);
   assert.deepEqual(response.data[0].tags, []);
   assert.equal(response.data[0].operationStatus, 'temporarily_closed');
+  assert.equal(response.data[0].todayOperatingStatus.state, 'closed');
   assert.deepEqual(response.data[0].facilities, ['parking']);
   assert.deepEqual(response.data[0].brand, {
     id: 'brand-1',
@@ -115,6 +119,9 @@ test('gym detail adapter preserves operation, special hours, parking, and contac
     data: {
       id: 'gym-1', name: '테스트 암장', branchName: null, address: '서울', regionCode: null,
       operationStatus: 'opening_soon', facilities: [], brand: null, cover: null, tags: [], dayPassPrice: null,
+      todayOperatingStatus: {
+        date: '2026-08-31', state: 'hours_unavailable', source: null, opensAt: null, closesAt: null,
+      },
       phone: '02-1234-5678', websiteUrl: 'https://example.com', instagramUrl: 'https://instagram.com/example',
       nearbyDirections: null, operatingHoursNote: null, parkingInfo: '건물 지하 2시간 무료', media: [], operatingHours: [],
       operatingHourOverrides: [{ date: '2026-08-15', sequence: 0, opensAt: null, closesAt: null, isClosed: true, note: '광복절' }],

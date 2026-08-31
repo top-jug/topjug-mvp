@@ -4,8 +4,9 @@ import type {
   GymOperatingHours,
   GymSettingEvent,
 } from '../../app/api/gym-api';
+import { GYM_TIME_ZONE, type GymTodayOperatingStatus } from '../../entities/gym/operating-status';
 
-export const GYM_TIME_ZONE = 'Asia/Seoul';
+export { GYM_TIME_ZONE } from '../../entities/gym/operating-status';
 
 export type GymOperationStatus = ApiGymDetail['operationStatus'];
 
@@ -16,7 +17,7 @@ export const OPERATION_STATUS_PRESENTATION: Record<GymOperationStatus, {
 }> = {
   active: {
     label: '정상 운영',
-    description: '정상 운영 상태인 암장입니다.',
+    description: '암장 자체는 정상 운영 상태입니다.',
     className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   },
   temporarily_closed: {
@@ -35,6 +36,48 @@ export const OPERATION_STATUS_PRESENTATION: Record<GymOperationStatus, {
     className: 'border-blue-200 bg-blue-50 text-blue-700',
   },
 };
+
+export function presentGymAvailability(
+  operationStatus: GymOperationStatus,
+  todayStatus: GymTodayOperatingStatus,
+) {
+  if (operationStatus !== 'active') return OPERATION_STATUS_PRESENTATION[operationStatus];
+
+  switch (todayStatus.state) {
+    case 'open':
+      return {
+        label: '영업 중',
+        description: todayStatus.closesAt ? `${timeLabel(todayStatus.closesAt)}에 영업을 종료합니다.` : '현재 영업 중입니다.',
+        className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+      };
+    case 'closed':
+      return {
+        label: '오늘 휴무',
+        description: '오늘은 운영하지 않습니다. 암장 자체는 정상 운영 상태입니다.',
+        className: 'border-amber-200 bg-amber-50 text-amber-800',
+      };
+    case 'before_open':
+      return {
+        label: '영업 전',
+        description: todayStatus.opensAt ? `${timeLabel(todayStatus.opensAt)}에 영업을 시작합니다.` : '오늘 영업 시작 전입니다.',
+        className: 'border-blue-200 bg-blue-50 text-blue-700',
+      };
+    case 'between_intervals':
+      return {
+        label: '브레이크 타임',
+        description: todayStatus.opensAt ? `${timeLabel(todayStatus.opensAt)}에 영업을 재개합니다.` : '현재 영업시간 사이의 휴식 시간입니다.',
+        className: 'border-amber-200 bg-amber-50 text-amber-800',
+      };
+    case 'after_close':
+      return {
+        label: '영업 종료',
+        description: '오늘 영업이 종료되었습니다.',
+        className: 'border-slate-200 bg-slate-50 text-slate-700',
+      };
+    case 'hours_unavailable':
+      return OPERATION_STATUS_PRESENTATION.active;
+  }
+}
 
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 const SEOUL_DATE_FORMAT = new Intl.DateTimeFormat('en-CA', {
