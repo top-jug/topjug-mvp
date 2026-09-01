@@ -15,6 +15,11 @@ export interface GymTag {
   label: string;
 }
 
+export interface GymTagCatalogItem extends GymTag {
+  description: string | null;
+  sortOrder: number;
+}
+
 export interface GymPrice {
   type?: 'day_pass' | 'shoe_rental';
   amount: number | null;
@@ -125,7 +130,7 @@ export interface ListGymsInput {
   q?: string;
   regionCode?: string;
   facility?: string[];
-  tag?: string;
+  tag?: string[];
   limit?: number;
   signal?: AbortSignal;
 }
@@ -162,6 +167,10 @@ export async function listGyms(input: ListGymsInput = {}) {
     { auth: false, signal },
   );
   return { data: response.data.map(normalizeGymSummary) };
+}
+
+export function listGymTags(signal?: AbortSignal) {
+  return apiRequest<{ data: GymTagCatalogItem[] }>('/api/v1/gym-tags', { auth: false, signal });
 }
 
 export async function getGym(gymId: string, signal?: AbortSignal) {

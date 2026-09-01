@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ApiClientError } from '../../app/api/api-client';
-import { ApiGymSummary, listGyms } from '../../app/api/gym-api';
+import { ApiGymSummary, GymTagCatalogItem, listGyms, listGymTags } from '../../app/api/gym-api';
 import { ApiRegion, listRegions } from '../../app/api/region-api';
 import BottomTabBar from '../../app/components/layout/BottomTabBar';
 import TopTabHeader from '../../app/components/layout/TopTabHeader';
 import { useSavedGyms } from '../../app/providers/SavedGymsProvider';
-import { GYM_SEARCH_TABS, regionSelectionLabel } from './gym-search-options';
+import { regionSelectionLabel } from './gym-search-options';
 import GymSearchInput from './components/GymSearchInput';
 import GymSearchList from './components/GymSearchList';
 import GymSearchTabs from './components/GymSearchTabs';
@@ -13,13 +13,6 @@ import RegionFilterModal from './components/modals/RegionFilterModal';
 import { shouldClearSavedGymErrorsOnViewChange } from './saved-gym-action-state';
 
 const PAGE_SIZE = 10;
-const FACILITY_CODES: Record<string, string> = {
-  샤워실: 'shower',
-  킬터보드: 'kilter_board',
-  스트레칭: 'stretching_zone',
-  주차가능: 'parking',
-};
-
 interface GymSearchScreenProps {
   initialView?: 'search' | 'saved';
   onNavigate: (screen: string, gymId?: string) => void;
@@ -33,7 +26,10 @@ function listErrorMessage(error: unknown) {
 
 export default function GymSearchScreen({ initialView = 'search', onNavigate }: GymSearchScreenProps) {
   const [activeView, setActiveView] = useState<'search' | 'saved'>(initialView);
-  const [selectedTabs, setSelectedTabs] = useState<string[]>([]);
+  const [selectedTagCodes, setSelectedTagCodes] = useState<string[]>([]);
+  const [tags, setTags] = useState<GymTagCatalogItem[]>([]);
+  const [tagError, setTagError] = useState<string | null>(null);
+  const [tagRequestVersion, setTagRequestVersion] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [showRegionFilter, setShowRegionFilter] = useState(false);
   const [selectedRegionCode, setSelectedRegionCode] = useState<string | null>(null);
@@ -75,6 +71,25 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
 
   useEffect(() => {
     const controller = new AbortController();
+    void listGymTags(controller.signal)
+      .then((response) => {
+        setTags(response.data);
+        setTagError(null);
+        const activeCodes = new Set(response.data.map((tag) => tag.code));
+        setSelectedTagCodes((current) => {
+          const filtered = current.filter((code) => activeCodes.has(code));
+          return filtered.length === current.length ? current : filtered;
+        });
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setTagError(listErrorMessage(error));
+      });
+    return () => controller.abort();
+  }, [tagRequestVersion]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setIsLoadingGyms(true);
       setGymError(null);
@@ -83,7 +98,7 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
         const response = await listGyms({
           q: searchQuery.trim() || undefined,
           regionCode: selectedRegionCode ?? undefined,
-          facility: selectedTabs.map((tab) => FACILITY_CODES[tab]),
+          tag: selectedTagCodes,
           limit: 100,
           signal: controller.signal,
         });
@@ -102,17 +117,17 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [requestVersion, searchQuery, selectedRegionCode, selectedTabs]);
+  }, [requestVersion, searchQuery, selectedRegionCode, selectedTagCodes]);
 
   const visibleGyms = gyms.slice(0, visibleCount);
 
-  const handleSelectTab = (tab: string) => {
+  const handleSelectTag = (code: string | null) => {
     setVisibleCount(PAGE_SIZE);
-    if (tab === '전체') {
-      setSelectedTabs([]);
+    if (code === null) {
+      setSelectedTagCodes([]);
       return;
     }
-    setSelectedTabs((current) => current.includes(tab) ? current.filter((item) => item !== tab) : [...current, tab]);
+    setSelectedTagCodes((current) => current.includes(code) ? current.filter((item) => item !== code) : [...current, code]);
   };
 
   const handleChangeView = (view: 'search' | 'saved') => {
@@ -139,10 +154,15 @@ export default function GymSearchScreen({ initialView = 'search', onNavigate }: 
           <>
             <GymSearchInput value={searchQuery} onChange={setSearchQuery} />
             <GymSearchTabs
-              selectedTabs={selectedTabs}
-              tabs={GYM_SEARCH_TABS}
+              selectedTagCodes={selectedTagCodes}
+              tags={tags}
+              tagError={tagError}
               regionLabel={regionSelectionLabel(regions, selectedRegionCode)}
-              onSelectTab={handleSelectTab}
+              onSelectTag={handleSelectTag}
+              onRetryTags={() => {
+                setTagError(null);
+                setTagRequestVersion((version) => version + 1);
+              }}
               onOpenRegion={() => setShowRegionFilter(true)}
             />
           </>

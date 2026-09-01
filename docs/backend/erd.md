@@ -146,6 +146,11 @@ erDiagram
     uuid id PK
     text code UK
     text label
+    text description
+    integer sort_order
+    boolean is_active
+    timestamptz created_at
+    timestamptz updated_at
   }
   gym_tag_assignments {
     uuid gym_id PK,FK

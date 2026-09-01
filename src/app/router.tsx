@@ -17,10 +17,10 @@ import PublicRecordSharePage from './pages/PublicRecordSharePage';
 import { RequireOperationsAdmin } from '../features/operations/RequireOperationsAdmin';
 import { OperationsLayout } from '../features/operations/OperationsLayout';
 import { OperationsDashboard } from '../features/operations/OperationsDashboard';
-import { OperationsComingSoon } from '../features/operations/OperationsComingSoon';
 import { OperationsGymList } from '../features/operations/OperationsGymList';
 import { OperationsGymEditor } from '../features/operations/OperationsGymEditor';
 import { OperationsHoursEditor } from '../features/operations/OperationsHoursEditor';
+import { OperationsGymTags } from '../features/operations/OperationsGymTags';
 
 function PreviewLayout() {
   return (
@@ -40,7 +40,7 @@ export function AppRouter() {
           <Route path="gyms/new" element={<OperationsGymEditor />} />
           <Route path="gyms/:gymId/hours" element={<OperationsHoursEditor />} />
           <Route path="gyms/:gymId" element={<OperationsGymEditor />} />
-          <Route path="gym-tags" element={<OperationsComingSoon title="태그 관리" />} />
+          <Route path="gym-tags" element={<OperationsGymTags />} />
         </Route>
       </Route>
       <Route element={<PreviewLayout />}>
