@@ -1,6 +1,16 @@
 topjug.kr {
 	encode zstd gzip
-	request_body {
+
+	@mediaUpload {
+		method POST
+		path /api/v1/ops/media/images
+	}
+	request_body @mediaUpload {
+		max_size 11MB
+	}
+
+	@standardBody not path /api/v1/ops/media/images
+	request_body @standardBody {
 		max_size 64KB
 	}
 

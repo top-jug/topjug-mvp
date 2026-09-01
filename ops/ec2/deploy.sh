@@ -46,11 +46,14 @@ chown -R topjug:topjug "$RELEASE_DIR"
 install -m 0644 "$RELEASE_DIR/topjug.service" /etc/systemd/system/topjug.service
 install -m 0644 "$RELEASE_DIR/topjug-security-cleanup.service" /etc/systemd/system/topjug-security-cleanup.service
 install -m 0644 "$RELEASE_DIR/topjug-security-cleanup.timer" /etc/systemd/system/topjug-security-cleanup.timer
+install -m 0644 "$RELEASE_DIR/topjug-media-cleanup.service" /etc/systemd/system/topjug-media-cleanup.service
+install -m 0644 "$RELEASE_DIR/topjug-media-cleanup.timer" /etc/systemd/system/topjug-media-cleanup.timer
 install -m 0644 "$RELEASE_DIR/Caddyfile" /etc/caddy/Caddyfile.next
 caddy validate --config /etc/caddy/Caddyfile.next
 mv /etc/caddy/Caddyfile.next /etc/caddy/Caddyfile
 systemctl daemon-reload
 systemctl enable --now topjug-security-cleanup.timer
+systemctl enable --now topjug-media-cleanup.timer
 ln -sfn "$RELEASE_DIR" "$APP_ROOT/current"
 systemctl restart topjug.service
 

@@ -13,6 +13,7 @@ Environment=APP_PROFILE=production
 Environment=AWS_REGION=ap-northeast-2
 Environment=SSM_PARAMETER_PREFIX=/topjug/prod
 Environment=DATABASE_POOL_SIZE=5
+Environment=MEDIA_S3_BUCKET=topjug-mvp-media-345736953998-ap-northeast-2
 Environment=MEDIA_PUBLIC_BASE_URL=https://media.topjug.kr
 Environment=SHARE_PUBLIC_BASE_URL=https://topjug.kr/shared
 Environment=HOSTNAME=127.0.0.1

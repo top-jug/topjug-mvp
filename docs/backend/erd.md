@@ -299,7 +299,7 @@ Do not persist formatted dates, durations, completion rates, remaining-day label
 
 ## Deferred infrastructure
 
-- S3 upload signing, malware/content validation, image resizing, and CloudFront distribution
+- Direct browser-to-S3 upload signing and asynchronous malware scanning beyond strict server-side image decoding
 - PostGIS activation for larger-scale distance queries
 - Operator self-service claims and source verification workflow
 - Notification subscriptions and delivery

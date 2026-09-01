@@ -1,6 +1,6 @@
 # Production Database And Media
 
-TopJug production uses a private PostgreSQL RDS instance and a private S3 media bucket delivered through CloudFront OAC. The web runtime never receives S3 read or write permission; it returns URLs derived from `MEDIA_PUBLIC_BASE_URL`.
+TopJug production uses a private PostgreSQL RDS instance and a private S3 media bucket delivered through CloudFront OAC. The web runtime can write and delete only `gyms/uploads/*`; it cannot list or read the bucket and returns URLs derived from `MEDIA_PUBLIC_BASE_URL`.
 
 ## Managed Resources
 
@@ -79,7 +79,7 @@ postgresql://USER:PASSWORD@RDS_ENDPOINT:5432/topjug?sslmode=require
 
 RDS manages its master password in Secrets Manager. Store the schema-owner URL as `migration-database-url`. Generate a separate password of at least 32 random bytes for `topjug_app` and store that URL as `runtime-database-url`. The deployment workflow runs the bundled `provision-runtime-db-role.cjs --apply` through its private SSM tunnel before migration. The role receives connect, schema usage, table DML, and sequence usage but cannot modify the schema. Future tables and sequences inherit the same grants.
 
-The application instance role can read the runtime URL and application secrets only. The GitHub OIDC deployment role can read both database URLs; CI opens a short-lived SSM port-forwarding session through EC2, converges and verifies the runtime role, and runs migrations before sending the release command. After this workflow has deployed successfully, delete the legacy `/topjug/prod/database-url` parameter. Never grant the instance role access to `migration-database-url`.
+The application instance role can read the runtime URL and application secrets and can put/delete objects only under `gyms/uploads/*`. It has no media read or bucket-list permission. The GitHub OIDC deployment role can read both database URLs; CI opens a short-lived SSM port-forwarding session through EC2, converges and verifies the runtime role, and runs migrations before sending the release command. After this workflow has deployed successfully, delete the legacy `/topjug/prod/database-url` parameter. Never grant the instance role access to `migration-database-url`.
 
 Do not attach AWS managed `AmazonSSMManagedInstanceCore` to the application role. That policy grants `ssm:GetParameter` and `ssm:GetParameters` on `*`, bypassing the scoped runtime policy. `ApplicationSsmAgentCorePolicy` provides the required agent and message-channel actions without Parameter Store access.
 
@@ -92,6 +92,14 @@ Production deployment opens a short-lived SSM tunnel through EC2, applies `drizz
 For the credential-isolation rollout, first attach the `GithubMigrationPolicy` statements to the GitHub OIDC role under a distinct temporary name such as `topjug-mvp-bootstrap-production-migrations`. This one-time bootstrap lets the tunnel-based workflow deploy while the existing stack still has its broad instance policy. After that release is healthy, apply `topjug-mvp-production-data`, verify CloudFormation created `topjug-mvp-run-production-migrations`, then delete the temporary policy. Detach `AmazonSSMManagedInstanceCore`, confirm the instance remains online in SSM, restart the service, verify runtime access and migration access denial, then delete `/topjug/prod/database-url`.
 
 The production credential-isolation rollout completed on 2026-08-24: the service restarted with `topjug_app`, migration and legacy parameter reads were denied from EC2, and the legacy parameter was deleted.
+
+## Operations Media Uploads
+
+The runtime uses `AWS_REGION=ap-northeast-2`, `MEDIA_S3_BUCKET=topjug-mvp-media-345736953998-ap-northeast-2`, and `MEDIA_PUBLIC_BASE_URL=https://media.topjug.kr`. Do not set `MEDIA_S3_ENDPOINT`, path-style access, or AWS access-key environment variables in production; the AWS SDK uses `topjug-mvp-ec2-role` credentials.
+
+Apply the existing `topjug-mvp-production-data` CloudFormation stack before deploying the first upload-capable release. The additive `ApplicationMediaUploadPolicy` grants only `s3:PutObject` and `s3:DeleteObject` on `gyms/uploads/*`; do not add `s3:ListBucket`, `s3:GetObject`, or a broad managed S3 policy.
+
+Uploads use immutable keys of the form `gyms/uploads/<UTC year>/<UTC month>/<UUID>.webp`. The API creates a pending database row, uploads the normalized WebP, and marks the row ready. Failed uploads are marked for deletion and removed when S3 cleanup succeeds. `topjug-media-cleanup.timer` retries deleted objects, removes pending uploads older than one hour, and removes ready assets that remain unattached for 24 hours. Direct S3 URLs remain private; CloudFront serves attached assets after the next media UI feature links them to a gym.
 
 Before a destructive migration:
 
@@ -145,7 +153,7 @@ After import and deployment:
 5. Every gym detail has one logo, cover, and first photo relationship.
 6. Every `https://media.topjug.kr/gyms/initial/.../logo.jpg` returns 200 with `image/jpeg`.
 7. The equivalent direct S3 URL returns 403.
-8. The EC2 role has no media-bucket write policy after import.
+8. The EC2 role can write only `gyms/uploads/*`; it cannot write `gyms/initial/*`, list the bucket, or read objects.
 9. The deployment-bucket import prefix has no retained versions or delete markers.
 
 Production verification completed on 2026-08-23:

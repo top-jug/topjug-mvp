@@ -29,6 +29,15 @@ export async function assertReady() {
     if (invalidPublicUrl) {
       throw new ApiError(503, 'SERVICE_NOT_READY', '공개 URL 설정이 준비되지 않았습니다.');
     }
+    if (
+      !process.env.MEDIA_S3_BUCKET?.trim() ||
+      process.env.MEDIA_S3_ENDPOINT ||
+      process.env.MEDIA_S3_FORCE_PATH_STYLE === 'true' ||
+      process.env.AWS_ACCESS_KEY_ID ||
+      process.env.AWS_SECRET_ACCESS_KEY
+    ) {
+      throw new ApiError(503, 'SERVICE_NOT_READY', '미디어 저장소 보안 설정이 준비되지 않았습니다.');
+    }
 
     try {
       const databaseUrl = new URL(process.env.DATABASE_URL ?? '');

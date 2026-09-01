@@ -1,0 +1,10 @@
+[Unit]
+Description=Clean stale and orphan TopJug media hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target
