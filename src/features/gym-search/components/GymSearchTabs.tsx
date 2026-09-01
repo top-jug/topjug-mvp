@@ -1,18 +1,22 @@
+import type { GymTagCatalogItem } from '../../../app/api/gym-api';
+
 interface GymSearchTabsProps {
-  selectedTabs: string[];
-  tabs: string[];
+  selectedTagCodes: string[];
+  tags: GymTagCatalogItem[];
+  tagError: string | null;
   regionLabel: string;
-  onSelectTab: (tab: string) => void;
+  onSelectTag: (code: string | null) => void;
+  onRetryTags: () => void;
   onOpenRegion: () => void;
 }
 
-export default function GymSearchTabs({ selectedTabs, tabs, regionLabel, onSelectTab, onOpenRegion }: GymSearchTabsProps) {
-  const isAllSelected = selectedTabs.length === 0;
+export default function GymSearchTabs({ selectedTagCodes, tags, tagError, regionLabel, onSelectTag, onRetryTags, onOpenRegion }: GymSearchTabsProps) {
+  const isAllSelected = selectedTagCodes.length === 0;
 
   return (
     <div className="px-5 pb-3 pt-2 flex gap-2 bg-white overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <button
-        onClick={() => onSelectTab('전체')}
+        onClick={() => onSelectTag(null)}
         aria-pressed={isAllSelected}
         className={`px-4 py-1.5 rounded-full text-[14px] font-medium transition-colors flex-shrink-0 ${
           isAllSelected ? 'bg-blue-700 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
@@ -27,18 +31,24 @@ export default function GymSearchTabs({ selectedTabs, tabs, regionLabel, onSelec
         </svg>
         {regionLabel}
       </button>
-      {tabs.slice(1).map((tab) => (
+      {tags.map((tag) => (
         <button
-          key={tab}
-          onClick={() => onSelectTab(tab)}
-          aria-pressed={selectedTabs.includes(tab)}
+          key={tag.code}
+          onClick={() => onSelectTag(tag.code)}
+          aria-pressed={selectedTagCodes.includes(tag.code)}
+          title={tag.description ?? undefined}
           className={`px-4 py-1.5 rounded-full text-[14px] font-medium transition-colors flex-shrink-0 ${
-            selectedTabs.includes(tab) ? 'bg-blue-700 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
+            selectedTagCodes.includes(tag.code) ? 'bg-blue-700 text-white' : 'bg-white border border-neutral-200 text-neutral-700'
           }`}
         >
-          {tab}
+          {tag.label}
         </button>
       ))}
+      {tagError && (
+        <button type="button" onClick={onRetryTags} className="flex-shrink-0 rounded-full border border-red-200 bg-red-50 px-4 py-1.5 text-[14px] font-bold text-red-700">
+          키워드 다시 불러오기
+        </button>
+      )}
     </div>
   );
 }

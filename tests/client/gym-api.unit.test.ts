@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, mock, test } from 'node:test';
-import { displayGymName, getGym, listGyms, listRecentVisitedGyms } from '../../src/app/api/gym-api';
+import { displayGymName, getGym, listGyms, listGymTags, listRecentVisitedGyms } from '../../src/app/api/gym-api';
 import { listRegions } from '../../src/app/api/region-api';
 import { apiClient } from '../../src/lib/api/client';
 
@@ -96,6 +96,25 @@ test('gym list repeats every selected facility in the server query', async () =>
   const query = new URL(requestedUrl, 'https://topjug.test').searchParams;
   assert.deepEqual(query.getAll('facility'), ['shower', 'parking']);
   assert.equal(query.get('limit'), '1');
+});
+
+test('gym list repeats every selected tag and public tag catalog skips authentication', async () => {
+  const requestedUrls: string[] = [];
+  mock.method(globalThis, 'fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+    requestedUrls.push(String(input));
+    if (String(input) === '/api/v1/gym-tags') {
+      assert.equal(new Headers(init?.headers).has('authorization'), false);
+      return new Response(JSON.stringify({ data: [{ code: 'shower', label: '샤워실', description: null, sortOrder: 10 }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+
+  await listGyms({ tag: ['shower', 'parking'], limit: 1 });
+  const tags = await listGymTags();
+
+  const query = new URL(requestedUrls[0]!, 'https://topjug.test').searchParams;
+  assert.deepEqual(query.getAll('tag'), ['shower', 'parking']);
+  assert.deepEqual(tags.data, [{ code: 'shower', label: '샤워실', description: null, sortOrder: 10 }]);
 });
 
 test('region catalog uses the public read-only endpoint', async () => {
