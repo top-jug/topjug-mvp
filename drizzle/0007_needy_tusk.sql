@@ -1,0 +1,1 @@
+ALTER TABLE "setting_events" ADD COLUMN "deleted_at" timestamp with time zone;

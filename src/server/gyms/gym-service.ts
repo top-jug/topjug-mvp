@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, asc, eq, exists, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { resolveGymTodayOperatingStatus } from '../../entities/gym/operating-status';
 import { getDatabase } from '../db/client';
 import {
@@ -199,7 +199,19 @@ export async function getGym(gymId: string, now = new Date()) {
       mapMediaAssetId: gymSectors.mapMediaAssetId,
     }).from(gymSectors).innerJoin(gymWalls, eq(gymSectors.wallId, gymWalls.id))
       .where(eq(gymWalls.gymId, gymId)).orderBy(gymWalls.sortOrder, gymSectors.sortOrder),
-    database.select().from(settingEvents).where(eq(settingEvents.gymId, gymId)).orderBy(settingEvents.startsAt),
+    database.select({
+      id: settingEvents.id,
+      gymId: settingEvents.gymId,
+      title: settingEvents.title,
+      status: settingEvents.status,
+      startsAt: settingEvents.startsAt,
+      endsAt: settingEvents.endsAt,
+      note: settingEvents.note,
+      createdAt: settingEvents.createdAt,
+      updatedAt: settingEvents.updatedAt,
+    }).from(settingEvents)
+      .where(and(eq(settingEvents.gymId, gymId), isNull(settingEvents.deletedAt)))
+      .orderBy(settingEvents.startsAt),
     database.select({ type: gymSources.type, sourceName: gymSources.sourceName, sourceUrl: gymSources.sourceUrl, verifiedAt: gymSources.verifiedAt, lastCheckedAt: gymSources.lastCheckedAt })
       .from(gymSources).where(eq(gymSources.gymId, gymId)).orderBy(gymSources.createdAt),
   ]);

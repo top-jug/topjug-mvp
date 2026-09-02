@@ -245,3 +245,111 @@ export async function batchOperationsHourOverrides(
     method: 'POST', body: JSON.stringify(input),
   })).data;
 }
+
+export type OperationsGymSettingSector = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  representsWholeWall: boolean;
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
+  wall: { id: string; name: string; sortOrder: number; isActive: boolean };
+};
+
+export type OperationsGymSettingSectors = {
+  gym: Pick<OperationsGymSummary, 'id' | 'name' | 'branchName' | 'updatedAt'>;
+  sectors: OperationsGymSettingSector[];
+};
+
+export async function getOperationsGymSettingSectors(gymId: string, signal?: AbortSignal) {
+  return (await apiRequest<ApiDataResponse<OperationsGymSettingSectors>>(`/ops/gyms/${gymId}/setting-sectors`, { signal })).data;
+}
+
+export async function createOperationsGymSettingSector(gymId: string, name: string, expectedUpdatedAt: string) {
+  return (await apiRequest<ApiDataResponse<OperationsGymSettingSectors>>(`/ops/gyms/${gymId}/setting-sectors`, {
+    method: 'POST', body: JSON.stringify({ name, expectedUpdatedAt }),
+  })).data;
+}
+
+export async function updateOperationsGymSettingSector(
+  gymId: string,
+  sectorId: string,
+  input: { name: string; isActive: boolean; expectedUpdatedAt: string },
+) {
+  return (await apiRequest<ApiDataResponse<OperationsGymSettingSectors>>(`/ops/gyms/${gymId}/setting-sectors/${sectorId}`, {
+    method: 'PATCH', body: JSON.stringify(input),
+  })).data;
+}
+
+export async function deleteOperationsGymSettingSector(gymId: string, sectorId: string, expectedUpdatedAt: string) {
+  return (await apiRequest<ApiDataResponse<OperationsGymSettingSectors & { mode: 'deleted' | 'deactivated' }>>(
+    `/ops/gyms/${gymId}/setting-sectors/${sectorId}`,
+    { method: 'DELETE', body: JSON.stringify({ expectedUpdatedAt }) },
+  )).data;
+}
+
+export type OperationsSettingEventStatus = 'scheduled' | 'completed' | 'cancelled';
+
+export type OperationsSettingEventSector = {
+  id: string;
+  code: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  wall: { id: string; code: string; name: string };
+};
+
+export type OperationsSettingEvent = {
+  id: string;
+  gymId: string;
+  gym: Pick<OperationsGymSummary, 'id' | 'name' | 'branchName'>;
+  title: string | null;
+  status: OperationsSettingEventStatus;
+  startsAt: string;
+  endsAt: string | null;
+  note: string | null;
+  sectors: OperationsSettingEventSector[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OperationsSettingEventFields = {
+  title: string;
+  startsAt: string;
+  endsAt: string | null;
+  note: string | null;
+  sectorIds: string[];
+};
+
+export async function listOperationsSettingEvents(
+  query: { from: string; to: string; gymId?: string; status?: OperationsSettingEventStatus },
+  signal?: AbortSignal,
+) {
+  const search = new URLSearchParams({ from: query.from, to: query.to });
+  if (query.gymId) search.set('gymId', query.gymId);
+  if (query.status) search.set('status', query.status);
+  return (await apiRequest<ApiDataResponse<OperationsSettingEvent[]>>(`/ops/setting-events?${search}`, { signal })).data;
+}
+
+export async function createOperationsSettingEvent(gymId: string, fields: OperationsSettingEventFields) {
+  return (await apiRequest<ApiDataResponse<OperationsSettingEvent>>('/ops/setting-events', {
+    method: 'POST', body: JSON.stringify({ gymId, ...fields }),
+  })).data;
+}
+
+export async function updateOperationsSettingEvent(
+  eventId: string,
+  input: Partial<OperationsSettingEventFields> & { status?: OperationsSettingEventStatus; expectedUpdatedAt: string },
+) {
+  return (await apiRequest<ApiDataResponse<OperationsSettingEvent>>(`/ops/setting-events/${eventId}`, {
+    method: 'PATCH', body: JSON.stringify(input),
+  })).data;
+}
+
+export function deleteOperationsSettingEvent(eventId: string, expectedUpdatedAt: string) {
+  return apiRequest<void>(`/ops/setting-events/${eventId}`, {
+    method: 'DELETE', body: JSON.stringify({ expectedUpdatedAt }),
+  });
+}

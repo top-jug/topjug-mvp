@@ -21,6 +21,8 @@ import { OperationsGymList } from '../features/operations/OperationsGymList';
 import { OperationsGymEditor } from '../features/operations/OperationsGymEditor';
 import { OperationsHoursEditor } from '../features/operations/OperationsHoursEditor';
 import { OperationsGymTags } from '../features/operations/OperationsGymTags';
+import { OperationsSettingEvents } from '../features/operations/OperationsSettingEvents';
+import { OperationsSettingSectors } from '../features/operations/OperationsSettingSectors';
 
 function PreviewLayout() {
   return (
@@ -39,6 +41,8 @@ export function AppRouter() {
           <Route path="gyms" element={<OperationsGymList />} />
           <Route path="gyms/new" element={<OperationsGymEditor />} />
           <Route path="gyms/:gymId/hours" element={<OperationsHoursEditor />} />
+          <Route path="gyms/:gymId/setting-sectors" element={<OperationsSettingSectors />} />
+          <Route path="gyms/:gymId/setting-events" element={<OperationsSettingEvents />} />
           <Route path="gyms/:gymId" element={<OperationsGymEditor />} />
           <Route path="gym-tags" element={<OperationsGymTags />} />
         </Route>

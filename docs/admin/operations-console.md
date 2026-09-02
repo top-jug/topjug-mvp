@@ -64,6 +64,24 @@ Reuse `ops-review@example.com`, open `/ops/gyms`, select an existing gym, and us
 
 The low-level `POST /api/v1/ops/media/images` endpoint remains available for pipeline diagnostics and returns an unattached ready asset. Normal console use calls `POST /api/v1/ops/gyms/{gymId}/media`, which uploads and attaches in one user action.
 
+## Setting-event management verification
+
+OPS-07 and OPS-08 provide the service/API contract and responsive operations UI together. Reuse `ops-review@example.com`, open `/ops/gyms`, select an existing gym, and choose **세팅 일정 관리**. Do not create another administrator account.
+
+- `GET /api/v1/ops/setting-events?from=<date-time>&to=<date-time>` lists editable, non-deleted events and their `updatedAt` versions.
+- `POST /api/v1/ops/setting-events` always creates a `scheduled` event with at least one sector belonging to the selected gym.
+- `PATCH /api/v1/ops/setting-events/{eventId}` updates fields or transitions `scheduled` to `completed` or `cancelled`; terminal states cannot be changed back.
+- PATCH and DELETE require the last observed `updatedAt` as `expectedUpdatedAt`; stale requests return `OPS_RESOURCE_CHANGED`.
+- DELETE is a soft delete for incorrectly created events. The event and its sector relationships remain for auditability but disappear from operations, calendar, and gym-detail reads.
+- Create, update, transition, and delete operations write `ops.setting_event.*` audit events in the same database transaction.
+- The management screen offers month navigation, a calendar, a date-filtered list, and a create/edit form. Date-time inputs and month boundaries use `Asia/Seoul`.
+- Open a gym's information editor and choose **세팅 구역 관리** to manage the wall or area names operators actually use (for example `NEW WAVE`, `ARCH`, `A 섹터`, or `ALL`) on a separate page. Each new name creates a whole-wall sector, and one schedule can select multiple active sectors.
+- Renaming a whole-wall sector keeps its wall label in sync. Deleting an unused sector removes it; deleting a sector referenced by a setting event or climbing record deactivates it so historical labels remain intact.
+- The editor is hidden by default. Select a calendar date and choose **새 일정 등록** to open a date-filled creation form, or choose **편집** on an existing event to open its edit form.
+- Desktop shows event labels in calendar cells; narrow screens use status dots and stack the list and editor.
+- After a successful mutation, **알림 보내기** is intentionally a non-sending follow-up affordance. Notification delivery is outside the MVP.
+- Confirm the created schedule appears on the user gym detail and `/schedule/settings`, then confirm a soft-deleted schedule disappears from both.
+
 ## Production bootstrap
 
 Use an interactive SSM shell on the application host after the release containing this command and migration has been deployed. Run the packaged command from the current release directory:
