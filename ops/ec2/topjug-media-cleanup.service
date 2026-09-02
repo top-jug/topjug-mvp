@@ -1,0 +1,17 @@
+[Unit]
+Description=TopJug stale and orphan media cleanup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=topjug
+Group=topjug
+WorkingDirectory=/opt/topjug/current
+Environment=APP_PROFILE=production
+Environment=AWS_REGION=ap-northeast-2
+Environment=SSM_PARAMETER_PREFIX=/topjug/prod
+Environment=MEDIA_S3_BUCKET=topjug-mvp-media-345736953998-ap-northeast-2
+ExecStart=/usr/bin/node /opt/topjug/current/.migration/cleanup-media-assets.cjs --apply
+NoNewPrivileges=true
+PrivateTmp=true

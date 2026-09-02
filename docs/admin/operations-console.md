@@ -49,6 +49,16 @@ Sign in with the existing `ops-review@example.com` operations administrator, ope
 - `정상 운영` describes the gym lifecycle, not whether its doors are open right now. Public screens derive `오늘 휴무`, `영업 중`, `영업 전`, `브레이크 타임`, or `영업 종료` from the Seoul-time effective schedule; temporary closure, closure, and opening-soon lifecycle states take priority.
 - Every mutation uses the gym `updatedAt` version, updates the public gym detail immediately, and records `ops.gym.hours.update` in the audit log.
 
+## Media pipeline verification
+
+The media pipeline is API-only in this issue; the operations photo UI and gym attachment arrive in the next issue. Reuse `ops-review@example.com`, obtain its access token through the normal login flow, and upload one file as the `file` multipart field to `POST /api/v1/ops/media/images`.
+
+- JPEG, PNG, and WebP inputs up to 10 MiB are decoded and converted to metadata-free WebP.
+- Images are limited to 40 million input pixels and 12000px per side, then reduced to at most 2560px per side.
+- The response is a ready media asset under `gyms/uploads/<year>/<month>/<uuid>.webp`; it is not attached to a gym yet.
+- A damaged file, mismatched MIME type, extra multipart field, or oversized body is rejected before S3 upload.
+- `npm run media:cleanup:local` previews stale pending and unattached assets. Append `-- --apply` only when intentionally cleaning the local MinIO data.
+
 ## Production bootstrap
 
 Use an interactive SSM shell on the application host after the release containing this command and migration has been deployed. Run the packaged command from the current release directory:
@@ -78,4 +88,4 @@ Migration `0006_operations_gym_tags.sql` backfills existing `gyms.facilities` va
 
 For review, reuse the existing `ops-review@example.com` operations account. Do not run the bootstrap command to create another review account.
 
-The console does not include administrator assignment UI/API, media upload, notices, or notification delivery.
+The console does not include administrator assignment UI/API, photo upload UI or gym attachment, notices, or notification delivery.

@@ -77,7 +77,7 @@ After completion or cancellation, active-session transitions return `ACTIVE_RECO
 - Record-list `sends` and `attempts` are per-record aggregates computed in the page query; the API does not expose cross-page totals.
 - Membership validity is represented as timezone-aware instants, not local calendar dates. Updates are full replacements and require the last observed `updatedAt` as `expectedUpdatedAt`; stale updates return `409 MEMBERSHIP_CHANGED`.
 - Memberships can reference multiple gyms, while the current frontend editor exposes one gym selection. API clients that manage multi-gym memberships must preserve the full `gymIds` array.
-- The API exposes media metadata and references but no media upload endpoint.
+- `POST /api/v1/ops/media/images` accepts one operations-admin image and returns a ready, unattached media asset. The operations UI and gym-media attachment are intentionally deferred to the next media feature.
 - Easy-mode clients assume one logical sector selection even though the API still requires a real `gymSectorId`; the server does not infer a sector.
 - Frontend transport types are currently maintained by hand and responses are not runtime-validated against OpenAPI. Required fields must not be defaulted when adapting responses.
 

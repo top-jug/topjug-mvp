@@ -295,6 +295,22 @@ Resources:
               - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/topjug/prod/jwt-refresh-secret'
               - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/topjug/prod/auth-rate-limit-pepper'
 
+  ApplicationMediaUploadPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: topjug-mvp-write-operations-media
+      Roles:
+        - !Ref AppInstanceRoleName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: WriteOperationsGymMedia
+            Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource: !Sub '${MediaBucket.Arn}/gyms/uploads/*'
+
   GithubMigrationPolicy:
     Type: AWS::IAM::Policy
     Properties:

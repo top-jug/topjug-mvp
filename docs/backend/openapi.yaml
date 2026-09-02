@@ -213,6 +213,43 @@ paths:
           $ref: '#/components/responses/ServiceUnavailable'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /ops/media/images:
+    post:
+      operationId: uploadOperationsImage
+      summary: Validate, normalize, and store one operations image
+      description: Returns a ready but unattached media asset. Gym attachment and photo UI are handled separately.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: One JPEG, PNG, or WebP image up to 10 MiB.
+      responses:
+        '201':
+          description: Metadata-free WebP stored under the immutable operations upload prefix
+          headers: *standardResponseHeaders
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/OperationsMediaAsset' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /ops/gyms:
     get:
       operationId: listOperationsGyms
@@ -1348,7 +1385,16 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     PayloadTooLarge:
-      description: JSON request body exceeds 64KB
+      description: Request body exceeds the endpoint-specific limit
+      headers:
+        x-request-id: { $ref: '#/components/headers/RequestId' }
+        Cache-Control: { $ref: '#/components/headers/CacheControl' }
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnsupportedMediaType:
+      description: Request Content-Type is not supported by the endpoint
       headers:
         x-request-id: { $ref: '#/components/headers/RequestId' }
         Cache-Control: { $ref: '#/components/headers/CacheControl' }
@@ -1504,6 +1550,20 @@ components:
         role:
           type: string
           const: operations_admin
+    OperationsMediaAsset:
+      type: object
+      additionalProperties: false
+      required: [id, storageKey, contentType, byteSize, checksumSha256, status, createdAt, readyAt, url]
+      properties:
+        id: { type: string, format: uuid }
+        storageKey: { type: string, pattern: '^gyms/uploads/[0-9]{4}/[0-9]{2}/[0-9a-f-]{36}\.webp$' }
+        contentType: { type: string, const: image/webp }
+        byteSize: { type: integer, minimum: 1, maximum: 10485760 }
+        checksumSha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        status: { type: string, const: ready }
+        createdAt: { type: string, format: date-time }
+        readyAt: { type: string, format: date-time }
+        url: { type: [string, 'null'], format: uri }
     MediaReference:
       type: object
       required: [id, storageKey, contentType, url]

@@ -57,6 +57,15 @@ jobs:
           tar -xzf /tmp/topjug-native/node-rs-argon2-linux-arm64-gnu-2.1.0.tgz \
             -C deploy/node_modules/@node-rs/argon2-linux-arm64-gnu --strip-components=1
           test -f deploy/node_modules/@node-rs/argon2-linux-arm64-gnu/argon2.linux-arm64-gnu.node
+          mkdir -p deploy/node_modules/@img/sharp-linux-arm64 deploy/node_modules/@img/sharp-libvips-linux-arm64
+          npm pack @img/sharp-linux-arm64@0.35.4 --pack-destination /tmp/topjug-native
+          npm pack @img/sharp-libvips-linux-arm64@1.3.3 --pack-destination /tmp/topjug-native
+          tar -xzf /tmp/topjug-native/img-sharp-linux-arm64-0.35.4.tgz \
+            -C deploy/node_modules/@img/sharp-linux-arm64 --strip-components=1
+          tar -xzf /tmp/topjug-native/img-sharp-libvips-linux-arm64-1.3.3.tgz \
+            -C deploy/node_modules/@img/sharp-libvips-linux-arm64 --strip-components=1
+          test -f deploy/node_modules/@img/sharp-linux-arm64/lib/sharp-linux-arm64-0.35.4.node
+          test -f deploy/node_modules/@img/sharp-libvips-linux-arm64/lib/libvips-cpp.so.8.18.6
           cp -a .next/static deploy/.next/static
           cp -a public deploy/public
           cp -a drizzle deploy/drizzle
@@ -64,6 +73,8 @@ jobs:
           cp ops/ec2/topjug.service deploy/topjug.service
           cp ops/ec2/topjug-security-cleanup.service deploy/topjug-security-cleanup.service
           cp ops/ec2/topjug-security-cleanup.timer deploy/topjug-security-cleanup.timer
+          cp ops/ec2/topjug-media-cleanup.service deploy/topjug-media-cleanup.service
+          cp ops/ec2/topjug-media-cleanup.timer deploy/topjug-media-cleanup.timer
           cp ops/ec2/Caddyfile deploy/Caddyfile
           tar -czf "topjug-mvp-${GITHUB_SHA}.tar.gz" -C deploy .
 
