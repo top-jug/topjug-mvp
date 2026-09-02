@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:"
+    />
+    <title>탑저그 연결 오류</title>
+    <link rel="stylesheet" href="shell.css" />
+  </head>
+  <body>
+    <main class="shell" aria-labelledby="error-title">
+      <div class="mark" aria-hidden="true">!</div>
+      <h1 id="error-title">탑저그에 연결할 수 없어요</h1>
+      <p>인터넷 연결을 확인한 뒤 다시 시도해주세요.</p>
+      <button id="retry" type="button">다시 시도</button>
+    </main>
+    <script src="shell.js"></script>
+  </body>
+</html>
