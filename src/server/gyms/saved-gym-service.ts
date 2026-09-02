@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { getDatabase } from '../db/client';
 import { auditEvents, gymMedia, gyms, mediaAssets, savedGyms } from '../db/schema';
 import { ApiError } from '../http/api-error';
@@ -24,23 +24,36 @@ export async function listSavedGyms(userId: string) {
     .where(eq(savedGyms.userId, userId))
     .orderBy(desc(savedGyms.createdAt));
   const gymIds = rows.map((row) => row.id);
-  const [covers, todayOperatingStatuses] = await Promise.all([
+  const [cardImages, todayOperatingStatuses] = await Promise.all([
     gymIds.length > 0
       ? database.select({
       gymId: gymMedia.gymId,
       id: mediaAssets.id,
       storageKey: mediaAssets.storageKey,
       contentType: mediaAssets.contentType,
+      type: gymMedia.type,
+      sortOrder: gymMedia.sortOrder,
     })
       .from(gymMedia).innerJoin(mediaAssets, eq(gymMedia.mediaAssetId, mediaAssets.id))
-      .where(and(inArray(gymMedia.gymId, gymIds), eq(gymMedia.type, 'cover'), eq(mediaAssets.status, 'ready')))
-      .orderBy(gymMedia.sortOrder)
+      .where(and(
+        inArray(gymMedia.gymId, gymIds),
+        inArray(gymMedia.type, ['cover', 'photo']),
+        eq(mediaAssets.status, 'ready'),
+      ))
+      .orderBy(asc(gymMedia.sortOrder), asc(gymMedia.id))
       : Promise.resolve([]),
     loadGymTodayOperatingStatuses(gymIds),
   ]);
-  const coverByGym = new Map<string, (typeof covers)[number] & { url: string | null }>();
-  for (const cover of covers) {
-    if (!coverByGym.has(cover.gymId)) coverByGym.set(cover.gymId, { ...cover, url: publicMediaUrl(cover.storageKey) });
+  const coverByGym = new Map<string, { id: string; storageKey: string; contentType: string; url: string | null }>();
+  for (const image of cardImages) {
+    if (image.type === 'photo' || !coverByGym.has(image.gymId)) {
+      coverByGym.set(image.gymId, {
+        id: image.id,
+        storageKey: image.storageKey,
+        contentType: image.contentType,
+        url: publicMediaUrl(image.storageKey),
+      });
+    }
   }
   return { data: rows.map((row) => ({
     ...row,

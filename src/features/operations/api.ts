@@ -112,6 +112,42 @@ export async function verifyOperationsGym(gymId: string, expectedUpdatedAt: stri
   })).data;
 }
 
+export type OperationsGymPhoto = {
+  gymMediaId: string;
+  mediaAssetId: string;
+  storageKey: string;
+  contentType: string;
+  byteSize: number;
+  sortOrder: number;
+  createdAt: string;
+  url: string | null;
+};
+
+export type OperationsGymPhotos = {
+  gym: Pick<OperationsGymSummary, 'id' | 'name' | 'branchName' | 'updatedAt'>;
+  photos: OperationsGymPhoto[];
+  maxPhotos: number;
+};
+
+export async function getOperationsGymPhotos(gymId: string, signal?: AbortSignal) {
+  return (await apiRequest<ApiDataResponse<OperationsGymPhotos>>(`/ops/gyms/${gymId}/media`, { signal })).data;
+}
+
+export async function addOperationsGymPhoto(gymId: string, file: File, expectedUpdatedAt: string) {
+  const body = new FormData();
+  body.set('file', file);
+  body.set('expectedUpdatedAt', expectedUpdatedAt);
+  return (await apiRequest<ApiDataResponse<OperationsGymPhotos>>(`/ops/gyms/${gymId}/media`, {
+    method: 'POST', body,
+  })).data;
+}
+
+export async function deleteOperationsGymPhoto(gymId: string, gymMediaId: string, expectedUpdatedAt: string) {
+  return (await apiRequest<ApiDataResponse<OperationsGymPhotos>>(`/ops/gyms/${gymId}/media/${gymMediaId}`, {
+    method: 'DELETE', body: JSON.stringify({ expectedUpdatedAt }),
+  })).data;
+}
+
 export type OperationsGymTag = {
   id: string;
   code: string;

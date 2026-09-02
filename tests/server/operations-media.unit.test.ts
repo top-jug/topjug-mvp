@@ -5,7 +5,7 @@ import test from 'node:test';
 import sharp from 'sharp';
 import { ApiError } from '../../src/server/http/api-error';
 import { IMAGE_OUTPUT_CONTENT_TYPE, MAX_IMAGE_INPUT_BYTES, processImage } from '../../src/server/media/image-processing';
-import { MAX_MEDIA_MULTIPART_BODY_BYTES, readImageUpload } from '../../src/server/media/media-upload-request';
+import { MAX_MEDIA_MULTIPART_BODY_BYTES, readImageUpload, readOperationsGymPhotoUpload } from '../../src/server/media/media-upload-request';
 import type { MediaObjectStorage } from '../../src/server/media/media-storage';
 import { uploadOperationsImage, type OperationsMediaRepository } from '../../src/server/operations/operations-media-service';
 
@@ -84,6 +84,24 @@ test('multipart parsing accepts exactly one file and rejects extra fields and ov
       duplex: 'half',
     } as RequestInit & { duplex: 'half' })),
     (error: unknown) => error instanceof ApiError && error.status === 413,
+  );
+});
+
+test('gym photo multipart parsing accepts one file and one optimistic-concurrency version', async () => {
+  const png = await samplePng();
+  const form = new FormData();
+  form.set('file', new File([png], 'gym.png', { type: 'image/png' }));
+  form.set('expectedUpdatedAt', '2026-09-02T10:00:00.000Z');
+  const parsed = await readOperationsGymPhotoUpload(new Request('http://localhost/api/v1/ops/gyms/gym/media', {
+    method: 'POST', body: form,
+  }));
+  assert.deepEqual(parsed.body, png);
+  assert.equal(parsed.expectedUpdatedAt, '2026-09-02T10:00:00.000Z');
+
+  form.set('altText', 'MVP에서 지원하지 않음');
+  await assert.rejects(
+    () => readOperationsGymPhotoUpload(new Request('http://localhost/api/v1/ops/gyms/gym/media', { method: 'POST', body: form })),
+    (error: unknown) => error instanceof ApiError && error.code === 'INVALID_MULTIPART_BODY',
   );
 });
 
@@ -174,6 +192,8 @@ test('media infrastructure keeps production IAM and body limits narrowly scoped'
   assert.match(template, /ApplicationMediaUploadPolicy:[\s\S]*s3:PutObject[\s\S]*s3:DeleteObject[\s\S]*\$\{MediaBucket\.Arn\}\/gyms\/uploads\/\*/);
   assert.doesNotMatch(template.match(/ApplicationMediaUploadPolicy:[\s\S]*?(?=\n  GithubMigrationPolicy:)/)?.[0] ?? '', /s3:(GetObject|ListBucket)|Action:\s+s3:\*/);
   assert.match(caddy, /@mediaUpload[\s\S]*max_size 11MB[\s\S]*@standardBody[\s\S]*max_size 64KB/);
+  assert.match(caddy, /path \/api\/v1\/ops\/media\/images \/api\/v1\/ops\/gyms\/\*\/media/);
+  assert.match(caddy, /@standardBody not path \/api\/v1\/ops\/media\/images \/api\/v1\/ops\/gyms\/\*\/media/);
   assert.match(service, /MEDIA_S3_BUCKET=topjug-mvp-media-345736953998-ap-northeast-2/);
   assert.match(route, /requireOperationsAdmin\(request\)[\s\S]*readImageUpload\(request\)/);
 });

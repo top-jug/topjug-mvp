@@ -87,17 +87,23 @@ export async function listGyms(input: ListGymsInput, now = new Date()) {
     .limit(input.limit);
 
   const gymIds = rows.map((gym) => gym.id);
-  const [covers, tags, dayPassPrices, todayOperatingStatuses] = await Promise.all([
+  const [cardImages, tags, dayPassPrices, todayOperatingStatuses] = await Promise.all([
     gymIds.length > 0 ? database.select({
       gymId: gymMedia.gymId,
       id: mediaAssets.id,
       storageKey: mediaAssets.storageKey,
       contentType: mediaAssets.contentType,
+      type: gymMedia.type,
+      sortOrder: gymMedia.sortOrder,
     })
       .from(gymMedia)
       .innerJoin(mediaAssets, eq(gymMedia.mediaAssetId, mediaAssets.id))
-      .where(and(inArray(gymMedia.gymId, gymIds), eq(gymMedia.type, 'cover'), eq(mediaAssets.status, 'ready')))
-      .orderBy(gymMedia.sortOrder) : Promise.resolve([]),
+      .where(and(
+        inArray(gymMedia.gymId, gymIds),
+        inArray(gymMedia.type, ['cover', 'photo']),
+        eq(mediaAssets.status, 'ready'),
+      ))
+      .orderBy(asc(gymMedia.sortOrder), asc(gymMedia.id)) : Promise.resolve([]),
     gymIds.length > 0 ? database.select({ gymId: gymTagAssignments.gymId, code: gymTags.code, label: gymTags.label })
       .from(gymTagAssignments)
       .innerJoin(gymTags, eq(gymTagAssignments.tagId, gymTags.id))
@@ -109,7 +115,11 @@ export async function listGyms(input: ListGymsInput, now = new Date()) {
   ]);
 
   const coverByGym = new Map<string, ReturnType<typeof mediaReference>>();
-  for (const cover of covers) if (!coverByGym.has(cover.gymId)) coverByGym.set(cover.gymId, mediaReference(cover));
+  for (const image of cardImages) {
+    if (image.type === 'photo' || !coverByGym.has(image.gymId)) {
+      coverByGym.set(image.gymId, mediaReference(image));
+    }
+  }
   const tagsByGym = new Map<string, Array<{ code: string; label: string }>>();
   for (const tag of tags) tagsByGym.set(tag.gymId, [...(tagsByGym.get(tag.gymId) ?? []), { code: tag.code, label: tag.label }]);
   const dayPassPriceByGym = new Map(dayPassPrices.map((price) => [price.gymId, { amount: price.amount, currency: price.currency, rawText: price.rawText }]));

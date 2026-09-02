@@ -282,6 +282,7 @@ erDiagram
 
 - S3 object bodies are never stored in PostgreSQL. `media_assets.storage_key` identifies the object and API responses derive its public URL from `MEDIA_PUBLIC_BASE_URL`.
 - Each gym has at most one `logo` and one `cover`, and can have multiple ordered `photo` rows. One S3 asset may be referenced by multiple roles for the same gym, so the initial logo can also serve as its cover and first detail image.
+- Operations photo uploads append a `photo` row up to a maximum of 20. The newest ready photo is selected automatically for user cards; deleting a photo removes only that relationship so other media roles remain valid.
 - `gym_media` defines image role and order. Wall and sector maps directly reference media assets.
 - Gym facts retain provenance in `gym_sources`; source metadata must not contain copied reviews, photos, or personal data.
 - Weekly hours support multiple intervals per day. Date-specific closures and changed hours override the weekly schedule.

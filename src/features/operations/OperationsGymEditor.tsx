@@ -14,6 +14,7 @@ import {
   updateOperationsGymStatus,
   verifyOperationsGym,
 } from './api';
+import { OperationsGymMedia } from './OperationsGymMedia';
 
 const inputClass = 'mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
 const textareaClass = `${inputClass} min-h-24 py-3`;
@@ -154,6 +155,16 @@ export function OperationsGymEditor() {
       {saved && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800"><span className="inline-flex items-center gap-2"><CheckCircle2 className="h-5 w-5" />변경 사항을 저장했습니다.</span><button type="button" onClick={() => toast.info('알림 전송은 후속 이슈에서 연결됩니다.')} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 text-emerald-800"><Bell className="h-4 w-4" />알림 보내기</button></div>}
 
       {editing && gym && <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-[1fr_auto_auto_auto] md:items-end"><Field label="운영 상태"><select value={status} onChange={(event) => setStatus(event.target.value as GymOperationStatus)} className={inputClass}>{Object.entries(operationStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Link to={`/ops/gym-tags?gymId=${gym.id}`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 text-sm font-black"><Tags className="h-4 w-4" />키워드 배정</Link><button disabled={saving || status === gym.operationStatus} onClick={() => void saveStatus()} className="min-h-11 rounded-xl bg-slate-950 px-5 text-sm font-black text-white disabled:opacity-40">상태 저장</button><button disabled={saving} onClick={() => void verify()} className="min-h-11 rounded-xl border border-blue-200 bg-blue-50 px-5 text-sm font-black text-blue-700 disabled:opacity-40">정보 확인 완료</button></section>}
+
+      {editing && gym && <OperationsGymMedia
+        gymId={gym.id}
+        gymName={gym.branchName ? `${gym.name} ${gym.branchName}` : gym.name}
+        updatedAt={gym.updatedAt}
+        onUpdatedAt={(updatedAt) => {
+          setGym((current) => current ? { ...current, updatedAt } : current);
+          setSaved(true);
+        }}
+      />}
 
       <form onSubmit={save} className="space-y-5">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><h3 className="text-lg font-black">기본 정보</h3><div className="mt-5 grid gap-4 md:grid-cols-2">
