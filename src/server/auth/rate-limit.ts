@@ -5,8 +5,13 @@ import { and, count, eq, gte, inArray, sql } from 'drizzle-orm';
 import { getDatabase } from '../db/client';
 import { loginAttempts } from '../db/schema';
 import { ApiError } from '../http/api-error';
+import type { EmailVerificationPurpose } from '../db/schema';
 
 const WINDOW_MS = 15 * 60 * 1000;
+export const REGISTRATION_ADDRESS_ATTEMPTS = 10;
+export const REGISTRATION_GLOBAL_ATTEMPTS = 100;
+export const PASSWORD_RESET_ADDRESS_ATTEMPTS = 10;
+export const PASSWORD_RESET_GLOBAL_ATTEMPTS = 100;
 
 function getRateLimitKey(value: string) {
   const pepper = process.env.AUTH_RATE_LIMIT_PEPPER;
@@ -61,7 +66,8 @@ export async function consumeLoginAttempts(email: string, clientAddress: string)
 
 export async function consumeRegistrationAttempts(clientAddress: string) {
   await consumeAttempts([
-    { value: `register:address:${clientAddress}`, maxAttempts: 10, errorCode: 'REGISTRATION_RATE_LIMITED' },
+    { value: `register:address:${clientAddress}`, maxAttempts: REGISTRATION_ADDRESS_ATTEMPTS, errorCode: 'REGISTRATION_RATE_LIMITED' },
+    { value: 'register:global', maxAttempts: REGISTRATION_GLOBAL_ATTEMPTS, errorCode: 'REGISTRATION_RATE_LIMITED' },
   ]);
 }
 
@@ -76,6 +82,35 @@ export async function consumeLogoutAttempts(clientAddress: string, refreshToken:
   await consumeAttempts([
     { value: `logout:address:${clientAddress}`, maxAttempts: 60, errorCode: 'LOGOUT_RATE_LIMITED' },
     { value: `logout:token:${refreshToken}`, maxAttempts: 10, errorCode: 'LOGOUT_RATE_LIMITED' },
+  ]);
+}
+
+export async function consumeEmailVerificationRequestAttempts(
+  email: string,
+  purpose: EmailVerificationPurpose,
+  clientAddress: string,
+) {
+  await consumeAttempts([
+    { value: `email-verification-request:${purpose}:address:${clientAddress}`, maxAttempts: 20, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+    { value: `email-verification-request:${purpose}:email:${email}`, maxAttempts: 3, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+  ]);
+}
+
+export async function consumeEmailVerificationConfirmAttempts(
+  email: string,
+  purpose: EmailVerificationPurpose,
+  clientAddress: string,
+) {
+  await consumeAttempts([
+    { value: `email-verification-confirm:${purpose}:address:${clientAddress}`, maxAttempts: 30, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+    { value: `email-verification-confirm:${purpose}:email:${email}`, maxAttempts: 10, errorCode: 'EMAIL_VERIFICATION_RATE_LIMITED' },
+  ]);
+}
+
+export async function consumePasswordResetAttempts(clientAddress: string) {
+  await consumeAttempts([
+    { value: `password-reset:address:${clientAddress}`, maxAttempts: PASSWORD_RESET_ADDRESS_ATTEMPTS, errorCode: 'PASSWORD_RESET_RATE_LIMITED' },
+    { value: 'password-reset:global', maxAttempts: PASSWORD_RESET_GLOBAL_ATTEMPTS, errorCode: 'PASSWORD_RESET_RATE_LIMITED' },
   ]);
 }
 

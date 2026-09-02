@@ -23,7 +23,7 @@ paths:
       responses:
         '200':
           description: Process is healthy
-          headers:
+          headers: &standardResponseHeaders
             x-request-id: { $ref: '#/components/headers/RequestId' }
             Cache-Control: { $ref: '#/components/headers/CacheControl' }
           content:
@@ -82,6 +82,74 @@ paths:
           $ref: '#/components/responses/ServiceUnavailable'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /auth/email-verifications:
+    post:
+      operationId: requestEmailVerification
+      summary: Deliver a purpose-bound email verification code
+      description: The response does not reveal whether the email identifies an existing account. A delivery failure returns a generic service error and the challenge cannot be confirmed.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmailVerificationRequest' }
+      responses:
+        '202':
+          description: The code was delivered and remains valid for the returned duration
+          headers: *standardResponseHeaders
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmailVerificationRequestedResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /auth/email-verifications/confirm:
+    post:
+      operationId: confirmEmailVerification
+      summary: Exchange a delivered code for a purpose-bound one-time token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmailVerificationConfirmRequest' }
+      responses:
+        '200':
+          description: Verified token valid for the returned duration and consumable exactly once
+          headers: *standardResponseHeaders
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmailVerificationConfirmedResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /auth/password-reset:
+    post:
+      operationId: resetPassword
+      summary: Consume a reset token, replace the password, and revoke refresh sessions
+      description: Returns the same result after valid email ownership proof even when no account exists. Already-issued access tokens cannot be revoked and may remain valid for at most 15 minutes.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordResetRequest' }
+      responses:
+        '204':
+          description: The one-time token was consumed; every refresh session for a matching account was revoked
+          headers:
+            x-request-id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/CacheControl' }
+            Set-Cookie: { $ref: '#/components/headers/RefreshCookie' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /auth/login:
     post:
       operationId: login
@@ -168,9 +236,7 @@ paths:
       responses:
         '200':
           description: Current user
-          headers: &standardResponseHeaders
-            x-request-id: { $ref: '#/components/headers/RequestId' }
-            Cache-Control: { $ref: '#/components/headers/CacheControl' }
+          headers: *standardResponseHeaders
           content:
             application/json:
               schema:
@@ -1397,7 +1463,7 @@ components:
     RegisterRequest:
       type: object
       additionalProperties: false
-      required: [email, password, displayName]
+      required: [email, password, displayName, emailVerificationToken]
       properties:
         email:
           type: string
@@ -1405,13 +1471,74 @@ components:
           maxLength: 254
         password:
           type: string
-          minLength: 12
+          minLength: 8
           maxLength: 128
           writeOnly: true
+          description: Must contain at least two of an uppercase ASCII letter, digit, or ASCII special character.
         displayName:
           type: string
           minLength: 1
           maxLength: 40
+        emailVerificationToken:
+          type: string
+          minLength: 43
+          maxLength: 128
+          writeOnly: true
+          description: One-time token issued for the register purpose and the same normalized email.
+    EmailVerificationPurpose:
+      type: string
+      enum: [register, reset_password]
+    EmailVerificationRequest:
+      type: object
+      additionalProperties: false
+      required: [email, purpose]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        purpose: { $ref: '#/components/schemas/EmailVerificationPurpose' }
+    EmailVerificationConfirmRequest:
+      type: object
+      additionalProperties: false
+      required: [email, purpose, code]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        purpose: { $ref: '#/components/schemas/EmailVerificationPurpose' }
+        code: { type: string, pattern: '^\d{6}$', writeOnly: true }
+    EmailVerificationRequestedResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [expiresIn]
+          properties:
+            expiresIn: { type: integer, const: 600 }
+    EmailVerificationConfirmedResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [verificationToken, expiresIn]
+          properties:
+            verificationToken: { type: string, writeOnly: true }
+            expiresIn: { type: integer, const: 900 }
+    PasswordResetRequest:
+      type: object
+      additionalProperties: false
+      required: [password, emailVerificationToken]
+      properties:
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          writeOnly: true
+          description: Must contain at least two of an uppercase ASCII letter, digit, or ASCII special character.
+        emailVerificationToken:
+          type: string
+          minLength: 43
+          maxLength: 128
+          writeOnly: true
+          description: One-time token issued for the reset_password purpose.
     LoginRequest:
       type: object
       additionalProperties: false

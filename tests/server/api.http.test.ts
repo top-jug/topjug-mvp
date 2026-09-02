@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { and, count, eq } from 'drizzle-orm';
 import { closeDatabase, getDatabase } from '../../src/server/db/client';
-import { auditEvents, gymGrades, gyms, gymSectors, gymWalls, loginAttempts, recordShares, settingEvents, settingEventSectors, users } from '../../src/server/db/schema';
+import { hashVerificationToken } from '../../src/server/auth/email-verification-service';
+import { auditEvents, emailVerificationChallenges, gymGrades, gyms, gymSectors, gymWalls, loginAttempts, recordShares, settingEvents, settingEventSectors, users } from '../../src/server/db/schema';
 
 const apiBaseUrl = process.env.API_BASE_URL ?? 'http://127.0.0.1:3000/api/v1';
 
@@ -18,6 +19,16 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
   const database = getDatabase();
   const suffix = randomUUID();
   const email = `http-${suffix}@example.com`;
+  const emailVerificationToken = randomBytes(32).toString('base64url');
+  await database.insert(emailVerificationChallenges).values({
+    email,
+    purpose: 'register',
+    codeHash: 'http-fixture',
+    tokenHash: hashVerificationToken(emailVerificationToken),
+    deliveredAt: new Date(),
+    verifiedAt: new Date(),
+    expiresAt: new Date(Date.now() + 60_000),
+  });
   const [gym] = await database.insert(gyms).values({
     name: `HTTP Gym ${suffix}`,
     address: 'Local Docker PostgreSQL',
@@ -68,7 +79,7 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
 
     const register = await jsonRequest('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password: 'correct horse battery staple', displayName: 'HTTP Test' }),
+      body: JSON.stringify({ email, password: 'Correct horse battery staple1', displayName: 'HTTP Test', emailVerificationToken }),
     });
     assert.equal(register.status, 201);
     assert.equal(register.headers.get('cache-control'), 'no-store');
@@ -85,7 +96,7 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
 
     const login = await jsonRequest('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password: 'correct horse battery staple' }),
+      body: JSON.stringify({ email, password: 'Correct horse battery staple1' }),
     });
     assert.equal(login.status, 200);
     assert.equal((await login.json() as { data: { user: { role: string } } }).data.user.role, 'user');
@@ -511,6 +522,7 @@ test('HTTP auth cookie, bearer ownership, and record routes', async () => {
       .where(and(eq(auditEvents.actorUserId, registerBody.data.user.id), eq(auditEvents.action, 'auth.logout')));
     assert.equal(logoutAudits.count, 0);
   } finally {
+    await database.delete(emailVerificationChallenges).where(eq(emailVerificationChallenges.email, email));
     const [user] = await database.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
     if (user) {
       await database.delete(auditEvents).where(eq(auditEvents.actorUserId, user.id));

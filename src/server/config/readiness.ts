@@ -3,6 +3,7 @@ import 'server-only';
 import { sql } from 'drizzle-orm';
 import { getDatabase } from '../db/client';
 import { ApiError } from '../http/api-error';
+import { assertEmailDeliveryConfigured } from '../auth/email-delivery';
 
 const REQUIRED_SECRETS = ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'AUTH_RATE_LIMIT_PEPPER'] as const;
 const REQUIRED_PUBLIC_URLS = ['MEDIA_PUBLIC_BASE_URL', 'SHARE_PUBLIC_BASE_URL'] as const;
@@ -15,6 +16,8 @@ export async function assertReady() {
   if (invalidSecret) {
     throw new ApiError(503, 'SERVICE_NOT_READY', '서비스 설정이 준비되지 않았습니다.');
   }
+
+  assertEmailDeliveryConfigured();
 
   if (process.env.APP_PROFILE === 'production') {
     const invalidPublicUrl = REQUIRED_PUBLIC_URLS.find((name) => {
@@ -46,6 +49,7 @@ export async function assertReady() {
   try {
     await getDatabase().execute(sql`select 1 from gyms limit 1`);
     await getDatabase().execute(sql`select 1 from media_assets limit 1`);
+    await getDatabase().execute(sql`select 1 from email_verification_challenges limit 1`);
   } catch {
     throw new ApiError(503, 'SERVICE_NOT_READY', '데이터베이스 연결이 준비되지 않았습니다.');
   }

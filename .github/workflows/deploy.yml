@@ -23,7 +23,21 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: topjug
+          POSTGRES_USER: topjug
+          POSTGRES_PASSWORD: topjug
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U topjug -d topjug"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,8 +51,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint OpenAPI contract
+        run: npm run lint:openapi
+
+      - name: Apply test database migrations
+        env:
+          APP_PROFILE: local
+          DATABASE_URL: postgresql://topjug:topjug@127.0.0.1:5432/topjug
+        run: npm run db:migrate
+
       - name: Test
-        run: npm test
+        env: &test-env
+          APP_PROFILE: local
+          DATABASE_URL: postgresql://topjug:topjug@127.0.0.1:5432/topjug
+          JWT_ACCESS_SECRET: deploy-test-access-secret-that-is-at-least-32-bytes
+          JWT_REFRESH_SECRET: deploy-test-refresh-secret-that-is-at-least-32-bytes
+          AUTH_RATE_LIMIT_PEPPER: deploy-test-rate-limit-pepper-that-is-at-least-32-bytes
+          EMAIL_DELIVERY_MODE: file
+        run: npm test && npm run test:integration
 
       - name: Typecheck
         run: npm run typecheck
@@ -47,6 +77,10 @@ jobs:
         env:
           NEXT_PUBLIC_KAKAO_MAP_APP_KEY: ${{ secrets.NEXT_PUBLIC_KAKAO_MAP_APP_KEY }}
         run: npm run build && npm run build:migrate
+
+      - name: Test HTTP API
+        env: *test-env
+        run: npm run test:http
 
       - name: Package standalone application
         run: |
@@ -73,7 +107,39 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Gate deployment on production email readiness
+        id: email_readiness
+        env:
+          EMAIL_IDENTITY_DOMAIN: topjug.kr
+        run: |
+          READY=true
+          PRODUCTION_ACCESS=Unknown
+          VERIFICATION_STATUS=Unknown
+          DKIM_STATUS=Unknown
+          DKIM_SIGNING=Unknown
+          if ! PRODUCTION_ACCESS=$(aws sesv2 get-account --query ProductionAccessEnabled --output text); then READY=false; fi
+          if ! IDENTITY=$(aws sesv2 get-email-identity --email-identity "$EMAIL_IDENTITY_DOMAIN" --output json); then
+            READY=false
+          else
+            VERIFICATION_STATUS=$(node -e "const v=JSON.parse(process.argv[1]); process.stdout.write(v.VerificationStatus ?? 'Unknown')" "$IDENTITY")
+            DKIM_STATUS=$(node -e "const v=JSON.parse(process.argv[1]); process.stdout.write(v.DkimAttributes?.Status ?? 'Unknown')" "$IDENTITY")
+            DKIM_SIGNING=$(node -e "const v=JSON.parse(process.argv[1]); process.stdout.write(String(v.DkimAttributes?.SigningEnabled ?? false))" "$IDENTITY")
+          fi
+          if [[ "$PRODUCTION_ACCESS" != "True" || "$VERIFICATION_STATUS" != "SUCCESS" || "$DKIM_STATUS" != "SUCCESS" || "$DKIM_SIGNING" != "true" ]]; then
+            READY=false
+          fi
+          echo "ready=${READY}" >> "$GITHUB_OUTPUT"
+          if [[ "$READY" != "true" ]]; then
+            {
+              echo "### Production deployment gated"
+              echo
+              echo "SES production access, the topjug.kr identity, or DKIM is not ready."
+              echo "No release upload, migration, or EC2 deployment was attempted. Complete issue #82 and rerun this workflow."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload release
+        if: steps.email_readiness.outputs.ready == 'true'
         run: |
           aws s3 cp "topjug-mvp-${GITHUB_SHA}.tar.gz" \
             "s3://${DEPLOY_BUCKET}/releases/${GITHUB_SHA}.tar.gz"
@@ -81,6 +147,7 @@ jobs:
             "s3://${DEPLOY_BUCKET}/scripts/${GITHUB_SHA}/deploy.sh"
 
       - name: Run migrations through private tunnel
+        if: steps.email_readiness.outputs.ready == 'true'
         run: |
           if ! command -v session-manager-plugin >/dev/null 2>&1; then
             curl --fail --silent --show-error --location \
@@ -178,6 +245,7 @@ jobs:
             node .migration/provision-runtime-db-role.cjs --apply --verify-schema
 
       - name: Deploy through Systems Manager
+        if: steps.email_readiness.outputs.ready == 'true'
         run: |
           SCRIPT_SHA256=$(sha256sum ops/ec2/deploy.sh | cut -d ' ' -f1)
           ARCHIVE_SHA256=$(sha256sum "topjug-mvp-${GITHUB_SHA}.tar.gz" | cut -d ' ' -f1)

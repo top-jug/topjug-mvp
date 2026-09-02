@@ -21,6 +21,9 @@ Parameters:
   MediaDomainName:
     Type: String
     Default: media.topjug.kr
+  EmailIdentityDomain:
+    Type: String
+    Default: topjug.kr
   MediaCertificateArn:
     Type: String
     AllowedPattern: '^arn:aws:acm:us-east-1:[0-9]{12}:certificate/.+$'
@@ -231,6 +234,43 @@ Resources:
         HostedZoneId: Z2FDTNDATAQYW2
         EvaluateTargetHealth: false
 
+  AuthEmailIdentity:
+    Type: AWS::SES::EmailIdentity
+    Properties:
+      EmailIdentity: !Ref EmailIdentityDomain
+      DkimAttributes:
+        SigningEnabled: true
+
+  AuthEmailDkimRecord1:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !GetAtt AuthEmailIdentity.DkimDNSTokenName1
+      Type: CNAME
+      TTL: '300'
+      ResourceRecords:
+        - !GetAtt AuthEmailIdentity.DkimDNSTokenValue1
+
+  AuthEmailDkimRecord2:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !GetAtt AuthEmailIdentity.DkimDNSTokenName2
+      Type: CNAME
+      TTL: '300'
+      ResourceRecords:
+        - !GetAtt AuthEmailIdentity.DkimDNSTokenValue2
+
+  AuthEmailDkimRecord3:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !GetAtt AuthEmailIdentity.DkimDNSTokenName3
+      Type: CNAME
+      TTL: '300'
+      ResourceRecords:
+        - !GetAtt AuthEmailIdentity.DkimDNSTokenValue3
+
   ApplicationSsmAgentCorePolicy:
     Type: AWS::IAM::Policy
     Properties:
@@ -295,6 +335,26 @@ Resources:
               - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/topjug/prod/jwt-refresh-secret'
               - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/topjug/prod/auth-rate-limit-pepper'
 
+  ApplicationEmailSendPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: topjug-mvp-send-auth-email
+      Roles:
+        - !Ref AppInstanceRoleName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: InspectEmailReadiness
+            Effect: Allow
+            Action:
+              - ses:GetAccount
+              - ses:GetEmailIdentity
+            Resource: '*'
+          - Sid: SendAuthenticationEmail
+            Effect: Allow
+            Action: ses:SendEmail
+            Resource: !Sub 'arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${EmailIdentityDomain}'
+
   GithubMigrationPolicy:
     Type: AWS::IAM::Policy
     Properties:
@@ -324,6 +384,12 @@ Resources:
               - ssm:TerminateSession
               - ssm:CancelCommand
             Resource: '*'
+          - Sid: InspectEmailReadiness
+            Effect: Allow
+            Action:
+              - ses:GetAccount
+              - ses:GetEmailIdentity
+            Resource: '*'
 
 Outputs:
   DatabaseEndpoint:
@@ -340,3 +406,5 @@ Outputs:
     Value: !GetAtt MediaDistribution.DomainName
   MediaPublicBaseUrl:
     Value: !Sub 'https://${MediaDomainName}'
+  AuthEmailIdentityDomain:
+    Value: !Ref EmailIdentityDomain

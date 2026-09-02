@@ -50,6 +50,13 @@
       "when": 1788171946490,
       "tag": "0006_operations_gym_tags",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788318644000,
+      "tag": "0007_organic_payback",
+      "breakpoints": true
     }
   ]
 }

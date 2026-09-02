@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "build": "next build",
-    "build:migrate": "esbuild scripts/migrate.mjs scripts/cleanup-security-data.mjs scripts/import-initial-gyms.ts scripts/provision-runtime-db-role.mjs scripts/create-operations-admin.mjs --bundle --platform=node --format=cjs --target=node20 --conditions=react-server --external:@node-rs/argon2 --external:@node-rs/argon2-* --outdir=.migration --out-extension:.js=.cjs",
+"build:migrate": "esbuild scripts/migrate.mjs scripts/cleanup-security-data.mjs scripts/import-initial-gyms.ts scripts/provision-runtime-db-role.mjs scripts/create-operations-admin.mjs scripts/verify-production-email.mjs --bundle --platform=node --format=cjs --target=node20 --conditions=react-server --external:@node-rs/argon2 --external:@node-rs/argon2-* --outdir=.migration --out-extension:.js=.cjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:local": "node --env-file=.env.local scripts/migrate.mjs",
@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1116.0",
+    "@aws-sdk/client-sesv2": "^3.1116.0",
     "@aws-sdk/client-ssm": "3.1116.0",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.1",

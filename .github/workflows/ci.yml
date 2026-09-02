@@ -31,6 +31,7 @@ jobs:
       JWT_ACCESS_SECRET: ci-access-secret-that-is-at-least-32-bytes
       JWT_REFRESH_SECRET: ci-refresh-secret-that-is-at-least-32-bytes
       AUTH_RATE_LIMIT_PEPPER: ci-rate-limit-pepper-that-is-at-least-32-bytes
+      EMAIL_DELIVERY_MODE: file
     steps:
       - name: Checkout
         uses: actions/checkout@v4

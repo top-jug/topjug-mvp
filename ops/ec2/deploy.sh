@@ -51,6 +51,13 @@ caddy validate --config /etc/caddy/Caddyfile.next
 mv /etc/caddy/Caddyfile.next /etc/caddy/Caddyfile
 systemctl daemon-reload
 systemctl enable --now topjug-security-cleanup.timer
+runuser -u topjug -- env \
+  APP_PROFILE=production \
+  AWS_REGION=ap-northeast-2 \
+  EMAIL_DELIVERY_MODE=ses \
+  EMAIL_FROM_ADDRESS=no-reply@topjug.kr \
+  EMAIL_IDENTITY_DOMAIN=topjug.kr \
+  /usr/bin/node "$RELEASE_DIR/.migration/verify-production-email.cjs"
 ln -sfn "$RELEASE_DIR" "$APP_ROOT/current"
 systemctl restart topjug.service
 

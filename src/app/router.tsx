@@ -14,6 +14,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import { RequireAuth } from '../features/auth/RequireAuth';
 import PublicRecordSharePage from './pages/PublicRecordSharePage';
+import PasswordResetPage from './pages/PasswordResetPage';
 import { RequireOperationsAdmin } from '../features/operations/RequireOperationsAdmin';
 import { OperationsLayout } from '../features/operations/OperationsLayout';
 import { OperationsDashboard } from '../features/operations/OperationsDashboard';
@@ -47,6 +48,7 @@ export function AppRouter() {
         <Route path="/" element={<RootScreen />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/password-reset" element={<PasswordResetPage />} />
         <Route path="/gyms" element={<GymSearchPage />} />
         <Route path="/gyms/:gymId" element={<GymDetailPage />} />
         <Route path="/schedule" element={<Navigate to="/schedule/settings" replace />} />

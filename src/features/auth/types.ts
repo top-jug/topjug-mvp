@@ -28,4 +28,12 @@ export type LoginInput = {
 
 export type RegisterInput = LoginInput & {
   displayName: string;
+  emailVerificationToken: string;
+};
+
+export type EmailVerificationPurpose = 'register' | 'reset_password';
+
+export type PasswordResetInput = {
+  password: string;
+  emailVerificationToken: string;
 };

@@ -6,9 +6,14 @@ import { auditEvents, users } from '../db/schema';
 import { ApiError } from '../http/api-error';
 import { auditEventValues } from '../observability/audit';
 import { hashPassword } from './password';
-import type { RegisterInput } from './auth-validation';
 
-export async function createOperationsAdmin(input: RegisterInput) {
+export type OperationsAdminBootstrapInput = {
+  email: string;
+  displayName: string;
+  password: string;
+};
+
+export async function createOperationsAdmin(input: OperationsAdminBootstrapInput) {
   const passwordHash = await hashPassword(input.password);
 
   try {

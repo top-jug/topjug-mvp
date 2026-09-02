@@ -34,6 +34,7 @@ function authValue(status: AuthStatus): AuthContextValue {
     login: noop,
     register: noop,
     logout: noop,
+    resetPassword: noop,
     refreshUser: noop,
     retry: noop,
   };

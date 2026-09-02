@@ -1,10 +1,10 @@
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ApiClientError } from '../../lib/api/error';
 import { apiClient } from '../../lib/api/client';
-import { getCurrentUser, hasPendingLogout, LOGOUT_PENDING_KEY, login as loginRequest, logout as logoutRequest, register as registerRequest, restoreSession } from './api';
+import { getCurrentUser, hasPendingLogout, LOGOUT_PENDING_KEY, login as loginRequest, logout as logoutRequest, register as registerRequest, resetPassword as resetPasswordRequest, restoreSession } from './api';
 import { canUseSessionStorage, createSessionReconciler, isSessionStateEvent, publishAuthenticatedSession, publishLoggedOutSession, readSessionStateEvent, shouldForceActivationReconciliation } from './session-events';
 import { profileRefreshFailure } from './profile-refresh';
-import type { AuthStatus, AuthUser, LoginInput, RegisterInput } from './types';
+import type { AuthStatus, AuthUser, LoginInput, PasswordResetInput, RegisterInput } from './types';
 
 export type AuthContextValue = {
   status: AuthStatus;
@@ -15,6 +15,7 @@ export type AuthContextValue = {
   refreshUserError: ApiClientError | null;
   login: (input: LoginInput) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
+  resetPassword: (input: PasswordResetInput) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   retry: () => Promise<void>;
@@ -205,6 +206,27 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }
 
+  async function resetPassword(input: PasswordResetInput) {
+    const currentOperation = ++operation.current;
+    localSessionOperation.current = true;
+    setError(null);
+    try {
+      await resetPasswordRequest(input);
+      if (currentOperation !== operation.current) {
+        throw new ApiClientError('인증 요청이 취소되었습니다.', 401, 'AUTH_SESSION_CHANGED');
+      }
+      setUser(null);
+      setStatus('unauthenticated');
+      setIsRestoringSession(false);
+      setIsRefreshingUser(false);
+      setRefreshUserError(null);
+      sessionReconciler.current?.markClean();
+      sessionEventSnapshot.current = publishLoggedOutSession();
+    } finally {
+      localSessionOperation.current = false;
+    }
+  }
+
   const refreshUser = useCallback(async () => {
     const currentOperation = ++operation.current;
     setIsRefreshingUser(true);
@@ -234,7 +256,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }
 
   return (
-    <AuthContext.Provider value={{ status, user, error, isRestoringSession, isRefreshingUser, refreshUserError, login, register, logout, refreshUser, retry }}>
+    <AuthContext.Provider value={{ status, user, error, isRestoringSession, isRefreshingUser, refreshUserError, login, register, resetPassword, logout, refreshUser, retry }}>
       {children}
     </AuthContext.Provider>
   );

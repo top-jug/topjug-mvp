@@ -2,11 +2,14 @@
 
 TopJug MVP backend runs in the existing Next.js application. Route Handlers only translate HTTP requests; domain and persistence logic stays under `src/server`.
 
+> Deployment boundary: `/auth/register` requires an email verification token. This backend commit must reach production atomically with the stacked issue #87 registration UI; deploying it alone breaks new-account creation. Production email activation also remains gated on issue #82.
+
 ## Current scope
 
 - PostgreSQL 16 and Drizzle ORM
 - Email/password authentication with Argon2id and signed JWTs
 - Rotating refresh sessions with reuse detection and server-side revocation
+- Purpose-bound email verification and password reset with one-time tokens
 - Structured request logs, request IDs, and append-only audit events
 - Gym search/detail, saved-gym, setting-calendar, membership, record, and public-share APIs under `/api/v1`
 - Shared API error boundary and Zod request validation
@@ -21,6 +24,8 @@ TopJug MVP backend runs in the existing Next.js application. Route Handlers only
 4. Validate the researched gym archive with `npm run db:import:gyms:check`.
 5. Import the 31 selected gyms and their S3 logos with `npm run db:import:gyms:local`. The researched `더클라임 신사` row is intentionally excluded. Users are created through `/api/v1/auth/register`.
 6. Start the application with `npm run dev:local`. Integration and HTTP tests create their own grade, wall, and sector fixtures; local manual record testing requires equivalent rows for the selected gym.
+
+The local environment example configures delivery to the permission-restricted `.topjug/mail-sink.jsonl` file. Request a code through `/api/v1/auth/email-verifications`, read the latest local sink entry, and confirm it without AWS credentials. Never use the file adapter in production; production readiness accepts only `EMAIL_DELIVERY_MODE=ses` with `EMAIL_FROM_ADDRESS`. The sink refuses symlinked paths and enforces `0700` directory and `0600` file modes.
 
 The `local` profile uses PostgreSQL and MinIO from `compose.yaml`; the Next.js process remains on the host for fast reloads. MinIO creates a public `topjug-media` bucket for the initial S3-compatible logo import. Stop local infrastructure with `npm run local:down`. `DATABASE_URL` is read lazily on the first API request, so a missing local database does not prevent the existing frontend from rendering.
 
@@ -51,7 +56,7 @@ The `local` profile uses PostgreSQL and MinIO from `compose.yaml`; the Next.js p
 
 | Domain | Stable codes clients commonly handle |
 | --- | --- |
-| Authentication | `ACCOUNT_UNAVAILABLE`, `INVALID_CREDENTIALS`, `MISSING_ACCESS_TOKEN`, `INVALID_ACCESS_TOKEN`, `MISSING_REFRESH_TOKEN`, `INVALID_REFRESH_TOKEN`, `REFRESH_TOKEN_REUSED`, `LOGIN_EMAIL_RATE_LIMITED`, `LOGIN_ADDRESS_RATE_LIMITED`, `REGISTER_ADDRESS_RATE_LIMITED`, `REGISTER_GLOBAL_RATE_LIMITED`, `REFRESH_RATE_LIMITED` |
+| Authentication | `ACCOUNT_UNAVAILABLE`, `INVALID_CREDENTIALS`, `INVALID_EMAIL_VERIFICATION`, `EMAIL_DELIVERY_FAILED`, `EMAIL_VERIFICATION_RATE_LIMITED`, `PASSWORD_RESET_RATE_LIMITED`, `MISSING_ACCESS_TOKEN`, `INVALID_ACCESS_TOKEN`, `MISSING_REFRESH_TOKEN`, `INVALID_REFRESH_TOKEN`, `REFRESH_TOKEN_REUSED`, `LOGIN_RATE_LIMITED`, `REGISTRATION_RATE_LIMITED`, `REFRESH_RATE_LIMITED`, `LOGOUT_RATE_LIMITED` |
 | Gym | `GYM_NOT_FOUND` |
 | Membership | `INVALID_MEMBERSHIP_GYMS`, `MEMBERSHIP_NOT_FOUND`, `MEMBERSHIP_CHANGED`, `HOME_MEMBERSHIP_LIMIT`, `HOME_MEMBERSHIP_ORDER_OCCUPIED`, `MEMBERSHIP_TYPE_LOCKED`, `MEMBERSHIP_GYM_LOCKED`, `MEMBERSHIP_IN_USE` |
 | Record | `ACTIVE_RECORD_EXISTS`, `ACTIVE_RECORD_NOT_FOUND`, `RECORD_NOT_FOUND`, `RECORD_ALREADY_PAUSED`, `RECORD_NOT_PAUSED`, `INVALID_PAUSE_TIME`, `INVALID_RESUME_TIME`, `INVALID_END_TIME`, `INVALID_PAUSE_RANGE`, `INVALID_ACTIVE_DURATION`, `INVALID_CANCEL_TIME`, `MEMBERSHIP_ARCHIVED`, `MEMBERSHIP_GYM_MISMATCH`, `MEMBERSHIP_NOT_ACTIVE`, `MEMBERSHIP_EXHAUSTED`, `GRADE_GYM_MISMATCH`, `SECTOR_GYM_MISMATCH`, `INVALID_CURSOR` |
@@ -88,9 +93,15 @@ After completion or cancellation, active-session transitions return `ACTIVE_RECO
 - Every refresh rotates the token. Reusing a revoked token revokes the whole token family.
 - PostgreSQL stores refresh token SHA-256 hashes, never raw tokens.
 - Passwords use Argon2id with OWASP-aligned memory and iteration settings.
+- New registration and reset passwords are 8-128 characters and must contain at least two of uppercase ASCII letters, digits, or ASCII special characters. Login continues to accept existing passwords.
+- Email codes expire after 10 minutes, allow five incorrect attempts, and are bound to the normalized email and `register` or `reset_password` purpose. Verified tokens expire after 15 minutes and are consumed atomically with registration or reset.
+- Requesting another code does not invalidate delivered codes. Only successful ownership proof retires sibling codes; failed delivery retires only its pending challenge. Request and confirmation rate limits are isolated by purpose.
+- Password reset revokes every refresh session. Stateless access tokens already issued before reset cannot be revoked and retain a residual lifetime of at most 15 minutes.
+- Password reset, login session issuance, and refresh rotation take the same transaction-scoped user lock. Login re-reads and verifies the current password while holding that lock, so neither login nor rotation can create a session after a concurrent reset revocation.
+- Verification requests do not disclose account existence. A challenge is marked delivered only after the configured adapter succeeds; delivery failures return `EMAIL_DELIVERY_FAILED`, invalidate the challenge, and are never reported as accepted.
 - New registrations always receive the `user` role. Operations routes resolve the current `users.role` from PostgreSQL on every request instead of trusting a role claim in the access token.
 - The first `operations_admin` account is created only with the audited, interactive bootstrap command documented in the [operations console runbook](../admin/operations-console.md). There is no administrator-management API or screen in the MVP.
-- Login errors do not reveal whether an email exists. Attempts use atomic email and client-address limits; registration uses client-address and global limits before Argon2 work.
+- Login errors do not reveal whether an email exists. Attempts use atomic email and client-address limits. Registration and password reset each atomically consume independent 15-minute limits before Argon2 work: 10 attempts per client address and 100 attempts globally. The reset limits do not use account or email keys, and registration exhaustion does not consume the reset budget.
 - Concurrent or later reuse of a rotated refresh token revokes the token family and requires a new login.
 - JWTs, passwords, refresh tokens, and raw login identifiers must never enter logs or audit metadata.
 
@@ -108,6 +119,8 @@ The `production` profile requires `SSM_PARAMETER_PREFIX=/topjug/prod`. Next.js l
 
 The runtime URL uses the restricted `topjug_app` role; the migration URL uses the schema owner and is readable only by the GitHub OIDC deployment role. The EC2 role has explicit read access to the four runtime parameters, not the whole production path. CI applies packaged Drizzle migrations through a short-lived SSM database tunnel before sending the release command, then deployment checks `/api/ready`, which verifies secrets and the runtime database connection.
 
+Production systemd config sets `EMAIL_DELIVERY_MODE=ses` and `EMAIL_FROM_ADDRESS=no-reply@topjug.kr`; these non-secret settings are not stored in SSM. The infrastructure stack provisions the SES identity, DKIM DNS records, runtime send permission, and deployment-role inspection permission. CI gates upload and migration on production access, identity, and DKIM readiness. The EC2 release script then performs a live send to the SES success simulator before switching the current release symlink. This activation path depends on #82 and must be released together with #87.
+
 Initial gym data is a controlled one-time operation, not part of every deployment. Production RDS is private, so run the bundled importer on EC2 through SSM with `SSM_PARAMETER_PREFIX`, `MEDIA_S3_BUCKET`, `MEDIA_PUBLIC_BASE_URL`, and an explicit `--apply`. Grant media write access only for the import and remove it afterward. The importer verifies the expected 31 gyms, reviewed second-level physical regions, 7 brands, 31 assets, and 93 media roles; a second run must upload no objects. See the [production database and media runbook](../operations/production-data.md).
 
 ## Observability
@@ -117,6 +130,7 @@ Initial gym data is a controlled one-time operation, not part of every deploymen
 - Auth, user, and record service actions write append-only `audit_events` rows.
 - Audit metadata is allow-listed scalar data and must not contain PII or tokens.
 - A daily systemd timer removes login attempts after 1 day, expired or revoked refresh sessions after 30 days, and audit events after 365 days in bounded batches.
+- The same cleanup removes expired email challenges after a 1-day grace period.
 
 ## Commands
 

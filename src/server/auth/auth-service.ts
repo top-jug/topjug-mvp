@@ -7,11 +7,13 @@ import { databaseErrorCode } from '../db/errors';
 import { auditEvents, climbingRecords, memberships, refreshSessions, regions, savedGyms, users } from '../db/schema';
 import { ApiError } from '../http/api-error';
 import { hashPassword, verifyPassword } from './password';
-import { clearLoginAttempts, consumeLoginAttempts, consumeRegistrationAttempts } from './rate-limit';
+import { clearLoginAttempts, consumeLoginAttempts, consumePasswordResetAttempts, consumeRegistrationAttempts } from './rate-limit';
 import { createTokenPair, hashToken, verifyRefreshToken } from './token';
-import { LoginInput, RegisterInput } from './auth-validation';
+import { LoginInput, RegisterInput, ResetPasswordInput } from './auth-validation';
 import { auditEventValues, writeAuditEvent, writeRequiredAuditEvent } from '../observability/audit';
 import { setRequestActor } from '../observability/request-context';
+import { withConsumedEmailVerification } from './email-verification-service';
+import { lockAuthUser } from './auth-lock';
 
 function publicUser(user: typeof users.$inferSelect) {
   return {
@@ -26,15 +28,16 @@ function publicUser(user: typeof users.$inferSelect) {
 }
 
 export async function registerUser(input: RegisterInput, clientAddress: string) {
-  const database = getDatabase();
   await consumeRegistrationAttempts(clientAddress);
   const passwordHash = await hashPassword(input.password);
 
   try {
-    const { user, tokens } = await database.transaction(async (transaction) => {
+    const result = await withConsumedEmailVerification('register', input.emailVerificationToken, async (transaction, verifiedEmail) => {
+      if (verifiedEmail !== input.email) return null;
+      const emailVerifiedAt = new Date();
       const [createdUser] = await transaction
         .insert(users)
-        .values({ email: input.email, displayName: input.displayName, passwordHash, role: 'user' })
+        .values({ email: input.email, displayName: input.displayName, passwordHash, role: 'user', emailVerifiedAt })
         .returning();
       const createdTokens = await createTokenPair(createdUser.id);
       await transaction.insert(refreshSessions).values({
@@ -52,6 +55,8 @@ export async function registerUser(input: RegisterInput, clientAddress: string) 
       }));
       return { user: createdUser, tokens: createdTokens };
     });
+    if (!result) throw new ApiError(400, 'INVALID_EMAIL_VERIFICATION', '인증한 이메일과 회원가입 이메일이 일치하지 않습니다.');
+    const { user, tokens } = result;
     setRequestActor(user.id);
     return { user: publicUser(user), tokens };
   } catch (error) {
@@ -62,37 +67,71 @@ export async function registerUser(input: RegisterInput, clientAddress: string) 
   }
 }
 
+export async function resetPassword(input: ResetPasswordInput, clientAddress: string) {
+  await consumePasswordResetAttempts(clientAddress);
+  const passwordHash = await hashPassword(input.password);
+  return withConsumedEmailVerification('reset_password', input.emailVerificationToken, async (transaction, email) => {
+    const [user] = await transaction.select().from(users).where(eq(users.email, email)).limit(1);
+    if (!user) {
+      await transaction.insert(auditEvents).values(auditEventValues({
+        action: 'auth.password_reset', outcome: 'failure', metadata: { reason: 'account_unavailable' },
+      }));
+      return;
+    }
+
+    await lockAuthUser(transaction, user.id);
+    const now = new Date();
+    await transaction.update(users).set({ passwordHash, emailVerifiedAt: user.emailVerifiedAt ?? now, updatedAt: now })
+      .where(eq(users.id, user.id));
+    await transaction.update(refreshSessions).set({ revokedAt: now })
+      .where(and(eq(refreshSessions.userId, user.id), isNull(refreshSessions.revokedAt)));
+    await transaction.insert(auditEvents).values(auditEventValues({
+      action: 'auth.password_reset', actorUserId: user.id, resourceType: 'user', resourceId: user.id,
+    }));
+    setRequestActor(user.id);
+  });
+}
+
 export async function loginUser(input: LoginInput, clientAddress: string) {
   const database = getDatabase();
   const rateLimitKeys = await consumeLoginAttempts(input.email, clientAddress);
   const rows = await database.select().from(users).where(eq(users.email, input.email)).limit(1);
   const user = rows[0];
-  const passwordMatches = await verifyPassword(user?.passwordHash ?? null, input.password);
-
-  if (!user || !passwordMatches) {
+  if (!user) {
+    await verifyPassword(null, input.password);
     await writeRequiredAuditEvent({ action: 'auth.login', outcome: 'failure', metadata: { reason: 'invalid_credentials' } });
     throw new ApiError(401, 'INVALID_CREDENTIALS', '이메일 또는 비밀번호를 확인해주세요.');
   }
 
-  await clearLoginAttempts(rateLimitKeys);
-  const tokens = await createTokenPair(user.id);
-  await database.transaction(async (transaction) => {
+  const result = await database.transaction(async (transaction) => {
+    await lockAuthUser(transaction, user.id);
+    const [currentUser] = await transaction.select().from(users).where(eq(users.id, user.id)).limit(1);
+    if (!currentUser || !(await verifyPassword(currentUser.passwordHash, input.password))) return null;
+
+    const tokens = await createTokenPair(currentUser.id);
     await transaction.insert(refreshSessions).values({
       id: tokens.sessionId,
       familyId: tokens.familyId,
-      userId: user.id,
+      userId: currentUser.id,
       tokenHash: hashToken(tokens.refreshToken),
       expiresAt: tokens.refreshTokenExpiresAt,
     });
     await transaction.insert(auditEvents).values(auditEventValues({
       action: 'auth.login',
-      actorUserId: user.id,
+      actorUserId: currentUser.id,
       resourceType: 'user',
-      resourceId: user.id,
+      resourceId: currentUser.id,
     }));
+    return { user: currentUser, tokens };
   });
-  setRequestActor(user.id);
-  return { user: publicUser(user), tokens };
+  if (!result) {
+    await writeRequiredAuditEvent({ action: 'auth.login', outcome: 'failure', metadata: { reason: 'invalid_credentials' } });
+    throw new ApiError(401, 'INVALID_CREDENTIALS', '이메일 또는 비밀번호를 확인해주세요.');
+  }
+
+  await clearLoginAttempts(rateLimitKeys);
+  setRequestActor(result.user.id);
+  return { user: publicUser(result.user), tokens: result.tokens };
 }
 
 function tokenHashesMatch(left: string, right: string) {
@@ -109,6 +148,7 @@ export async function rotateRefreshToken(refreshToken: string) {
   const database = getDatabase();
 
   const result = await database.transaction(async (transaction) => {
+    await lockAuthUser(transaction, claims.userId);
     const rows = await transaction
       .select()
       .from(refreshSessions)

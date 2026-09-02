@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { registerUser, rotateRefreshToken } from '../../src/server/auth/auth-service';
+import { hashVerificationToken } from '../../src/server/auth/email-verification-service';
 import { closeDatabase, getDatabase } from '../../src/server/db/client';
-import { auditEvents, climbingRecords, gymGrades, gyms, gymSectors, gymWalls, loginAttempts, memberships, membershipUsages, users } from '../../src/server/db/schema';
+import { auditEvents, climbingRecords, emailVerificationChallenges, gymGrades, gyms, gymSectors, gymWalls, memberships, membershipUsages, users } from '../../src/server/db/schema';
 import { ApiError } from '../../src/server/http/api-error';
 import { runWithRequestContext } from '../../src/server/observability/request-context';
 import { createRecord, getRecord, listRecords } from '../../src/server/records/record-service';
@@ -34,6 +35,8 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
   assert.equal(removedSchema.session_type_enums, 0);
   const requestId = randomUUID();
   const suffix = randomUUID();
+  const firstEmail = `first-${suffix}@example.com`;
+  const secondEmail = `second-${suffix}@example.com`;
   const [gym] = await database.insert(gyms).values({
     name: `Integration Gym ${suffix}`,
     address: 'Local Docker PostgreSQL',
@@ -54,16 +57,30 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
 
   try {
     await runWithRequestContext({ requestId }, async () => {
+      const firstVerificationToken = randomBytes(32).toString('base64url');
+      const secondVerificationToken = randomBytes(32).toString('base64url');
+      await database.insert(emailVerificationChallenges).values([
+        {
+          email: firstEmail, purpose: 'register', codeHash: 'fixture', tokenHash: hashVerificationToken(firstVerificationToken),
+          deliveredAt: new Date(), verifiedAt: new Date(), expiresAt: new Date(Date.now() + 60_000),
+        },
+        {
+          email: secondEmail, purpose: 'register', codeHash: 'fixture', tokenHash: hashVerificationToken(secondVerificationToken),
+          deliveredAt: new Date(), verifiedAt: new Date(), expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]);
       const first = await registerUser({
-        email: `first-${suffix}@example.com`,
-        password: 'correct horse battery staple',
+        email: firstEmail,
+        password: 'Correct horse battery staple1',
         displayName: 'First',
-      }, 'integration-first');
+        emailVerificationToken: firstVerificationToken,
+      }, `integration-first-${suffix}`);
       const second = await registerUser({
-        email: `second-${suffix}@example.com`,
-        password: 'correct horse battery staple',
+        email: secondEmail,
+        password: 'Correct horse battery staple1',
         displayName: 'Second',
-      }, 'integration-second');
+        emailVerificationToken: secondVerificationToken,
+      }, `integration-second-${suffix}`);
       assert.equal(first.user.role, 'user');
       assert.equal(second.user.role, 'user');
 
@@ -284,12 +301,12 @@ test('database-backed auth, refresh concurrency, and record ownership flow', asy
       );
     });
   } finally {
+    await database.delete(emailVerificationChallenges).where(inArray(emailVerificationChallenges.email, [firstEmail, secondEmail]));
     await database.delete(auditEvents).where(eq(auditEvents.requestId, requestId));
     await database.delete(users).where(eq(users.email, `first-${suffix}@example.com`));
     await database.delete(users).where(eq(users.email, `second-${suffix}@example.com`));
     await database.delete(gyms).where(inArray(gyms.id, recentGyms.map((recentGym) => recentGym.id)));
     await database.delete(gyms).where(eq(gyms.id, gym.id));
-    await database.delete(loginAttempts);
     await closeDatabase();
   }
 });
