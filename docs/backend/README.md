@@ -80,7 +80,7 @@ After completion or cancellation, active-session transitions return `ACTIVE_RECO
 - Memberships can reference multiple gyms, while the current frontend editor exposes one gym selection. API clients that manage multi-gym memberships must preserve the full `gymIds` array.
 - `POST /api/v1/ops/media/images` remains the low-level operations image-pipeline endpoint. `GET/POST /api/v1/ops/gyms/{gymId}/media` lists or uploads and attaches photos, while `DELETE /api/v1/ops/gyms/{gymId}/media/{gymMediaId}` detaches one photo with optimistic concurrency.
 - User gym cards automatically prefer the most recently attached ready photo and fall back to the existing cover. Gym detail responses expose every ready attached photo in ascending stored order.
-- Operations setting-event mutations require the event `updatedAt`, enforce sector/gym ownership, and retain soft-deleted rows while excluding them from operations and public reads. The management UI remains a follow-up task.
+- Operations setting-event mutations require the event `updatedAt`, enforce sector/gym ownership, and retain soft-deleted rows while excluding them from operations and public reads. The operations console provides the responsive month calendar, list, and editor; notification delivery remains a follow-up task.
 - Easy-mode clients assume one logical sector selection even though the API still requires a real `gymSectorId`; the server does not infer a sector.
 - Frontend transport types are currently maintained by hand and responses are not runtime-validated against OpenAPI. Required fields must not be defaulted when adapting responses.
 

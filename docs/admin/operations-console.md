@@ -64,9 +64,9 @@ Reuse `ops-review@example.com`, open `/ops/gyms`, select an existing gym, and us
 
 The low-level `POST /api/v1/ops/media/images` endpoint remains available for pipeline diagnostics and returns an unattached ready asset. Normal console use calls `POST /api/v1/ops/gyms/{gymId}/media`, which uploads and attaches in one user action.
 
-## Setting-event API verification
+## Setting-event management verification
 
-OPS-07 provides the service and `/api/v1/ops/setting-events` API contract; the responsive operations UI is intentionally deferred to OPS-08. Reuse `ops-review@example.com` to obtain an access token and do not create another administrator account.
+OPS-07 and OPS-08 provide the service/API contract and responsive operations UI together. Reuse `ops-review@example.com`, open `/ops/gyms`, select an existing gym, and choose **세팅 일정 관리**. Do not create another administrator account.
 
 - `GET /api/v1/ops/setting-events?from=<date-time>&to=<date-time>` lists editable, non-deleted events and their `updatedAt` versions.
 - `POST /api/v1/ops/setting-events` always creates a `scheduled` event with at least one sector belonging to the selected gym.
@@ -74,6 +74,10 @@ OPS-07 provides the service and `/api/v1/ops/setting-events` API contract; the r
 - PATCH and DELETE require the last observed `updatedAt` as `expectedUpdatedAt`; stale requests return `OPS_RESOURCE_CHANGED`.
 - DELETE is a soft delete for incorrectly created events. The event and its sector relationships remain for auditability but disappear from operations, calendar, and gym-detail reads.
 - Create, update, transition, and delete operations write `ops.setting_event.*` audit events in the same database transaction.
+- The management screen offers month navigation, a calendar, a date-filtered list, and a create/edit form. Date-time inputs and month boundaries use `Asia/Seoul`.
+- Desktop shows event labels in calendar cells; narrow screens use status dots and stack the list and editor.
+- After a successful mutation, **알림 보내기** is intentionally a non-sending follow-up affordance. Notification delivery is outside the MVP.
+- Confirm the created schedule appears on the user gym detail and `/schedule/settings`, then confirm a soft-deleted schedule disappears from both.
 
 ## Production bootstrap
 

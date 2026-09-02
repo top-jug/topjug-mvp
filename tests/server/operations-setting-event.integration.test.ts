@@ -57,6 +57,12 @@ test('operations setting events enforce ownership, versions, lifecycle, audits, 
       to: '2026-09-30T23:59:59Z',
       gymId: targetGym.id,
     })).map((event) => event.id), [created.id]);
+    assert.deepEqual((await listSettingEvents({
+      from: '2026-09-01T00:00:00Z',
+      to: '2026-09-30T23:59:59Z',
+      gymId: targetGym.id,
+    })).data.map((event) => event.id), [created.id]);
+    assert.deepEqual((await getGym(targetGym.id)).settingEvents.map((event) => event.id), [created.id]);
 
     const updated = await updateOperationsSettingEvent(created.id, {
       title: 'A벽 정기 세팅 수정',
