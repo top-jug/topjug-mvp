@@ -15,7 +15,7 @@ const buttonClass = 'inline-flex min-h-11 items-center justify-center gap-2 roun
 
 interface OperationsSettingSectorManagerProps {
   gymId: string;
-  onChanged: (catalog: OperationsGymSettingSectors) => void;
+  onChanged?: (catalog: OperationsGymSettingSectors) => void;
 }
 
 export function OperationsSettingSectorManager({ gymId, onChanged }: OperationsSettingSectorManagerProps) {
@@ -38,7 +38,7 @@ export function OperationsSettingSectorManager({ gymId, onChanged }: OperationsS
     setNames(Object.fromEntries(next.sectors.map((sector) => [sector.id, sector.name])));
     setConflict(false);
     setError('');
-    onChanged(next);
+    onChanged?.(next);
   }
 
   async function loadCatalog(signal?: AbortSignal) {
@@ -106,7 +106,7 @@ export function OperationsSettingSectorManager({ gymId, onChanged }: OperationsS
   return (
     <section className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4 shadow-sm sm:p-6">
       <div>
-        <h3 className="text-lg font-black">세팅 구역 관리</h3>
+        <h3 className="text-lg font-black">벽·구역 목록</h3>
         <p className="mt-1 text-sm text-slate-600">암장에서 실제로 부르는 벽·구역 이름을 등록하세요. 일정 하나에 여러 구역을 선택할 수 있습니다.</p>
         <p className="mt-1 text-xs text-slate-500">예: NEW WAVE, ARCH, 1 SECTOR, A 섹터, ALL</p>
       </div>

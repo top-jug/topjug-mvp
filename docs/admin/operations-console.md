@@ -75,9 +75,9 @@ OPS-07 and OPS-08 provide the service/API contract and responsive operations UI 
 - DELETE is a soft delete for incorrectly created events. The event and its sector relationships remain for auditability but disappear from operations, calendar, and gym-detail reads.
 - Create, update, transition, and delete operations write `ops.setting_event.*` audit events in the same database transaction.
 - The management screen offers month navigation, a calendar, a date-filtered list, and a create/edit form. Date-time inputs and month boundaries use `Asia/Seoul`.
-- **세팅 구역 관리** accepts the wall or area names operators actually use (for example `NEW WAVE`, `ARCH`, `A 섹터`, or `ALL`). Each new name creates a whole-wall sector, and one schedule can select multiple active sectors.
+- Open a gym's information editor and choose **세팅 구역 관리** to manage the wall or area names operators actually use (for example `NEW WAVE`, `ARCH`, `A 섹터`, or `ALL`) on a separate page. Each new name creates a whole-wall sector, and one schedule can select multiple active sectors.
 - Renaming a whole-wall sector keeps its wall label in sync. Deleting an unused sector removes it; deleting a sector referenced by a setting event or climbing record deactivates it so historical labels remain intact.
-- The always-visible editor is the single creation entry point. The calendar header and empty-list state do not duplicate buttons that only scroll to the editor; **새 일정 작성** appears only while an existing event is being edited.
+- The editor is hidden by default. Select a calendar date and choose **새 일정 등록** to open a date-filled creation form, or choose **편집** on an existing event to open its edit form.
 - Desktop shows event labels in calendar cells; narrow screens use status dots and stack the list and editor.
 - After a successful mutation, **알림 보내기** is intentionally a non-sending follow-up affordance. Notification delivery is outside the MVP.
 - Confirm the created schedule appears on the user gym detail and `/schedule/settings`, then confirm a soft-deleted schedule disappears from both.

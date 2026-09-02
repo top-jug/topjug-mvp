@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Save,
   Trash2,
+  X,
 } from 'lucide-react';
 import { Link, useParams } from 'react-router';
 import { toast } from 'sonner';
@@ -26,8 +27,6 @@ import {
   type OperationsSettingEventStatus,
   updateOperationsSettingEvent,
 } from './api';
-import type { OperationsGymSettingSectors } from './api';
-import { OperationsSettingSectorManager } from './OperationsSettingSectorManager';
 import {
   buildOperationsSettingEventCalendar,
   currentMonthInSeoul,
@@ -111,6 +110,7 @@ export function OperationsSettingEvents() {
   const [events, setEvents] = useState<OperationsSettingEvent[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [editing, setEditing] = useState<OperationsSettingEvent | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [form, setForm] = useState<EventForm>(() => defaultForm(currentMonthInSeoul()));
   const [gymLoading, setGymLoading] = useState(true);
   const [eventsLoading, setEventsLoading] = useState(true);
@@ -195,43 +195,70 @@ export function OperationsSettingEvents() {
     setMonth(nextMonth);
     setSelectedDate(nextSelectedDate);
     setEditing(null);
+    setEditorOpen(false);
     setForm(defaultForm(nextMonth));
     setDirty(false);
     setSaved(false);
   }
 
-  function resetEditor(date = selectedDate) {
-    if (dirty && !window.confirm('저장하지 않은 일정 변경을 버리고 새 일정을 작성할까요?')) return;
-    const next = defaultForm(month);
-    if (date) {
-      next.startsAt = `${date}T10:00`;
-      next.endsAt = `${date}T14:00`;
-    }
+  function scrollToEditor() {
+    window.requestAnimationFrame(() => {
+      document.getElementById('setting-event-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function selectDate(date: string) {
+    if (dirty && !window.confirm('저장하지 않은 일정 변경을 버리고 다른 날짜를 선택할까요?')) return;
+    const nextDate = selectedDate === date ? null : date;
+    setSelectedDate(nextDate);
     setEditing(null);
-    setForm(next);
+    setEditorOpen(false);
+    setForm(defaultForm(month));
     setDirty(false);
     setSaved(false);
   }
 
-  function handleSectorsChanged(catalog: OperationsGymSettingSectors) {
-    const existingIds = new Set(catalog.sectors.map((sector) => sector.id));
-    const selectableIds = new Set(catalog.sectors
-      .filter((sector) => (sector.isActive && sector.wall.isActive) || editing?.sectors.some((item) => item.id === sector.id))
-      .map((sector) => sector.id));
-    setForm((current) => ({
-      ...current,
-      sectorIds: current.sectorIds.filter((id) => existingIds.has(id) && selectableIds.has(id)),
-    }));
-    void loadGym();
+  function openCreateEditor() {
+    if (!selectedDate) return;
+    if (dirty && !window.confirm('저장하지 않은 일정 변경을 버리고 새 일정을 작성할까요?')) return;
+    const next = defaultForm(month);
+    next.startsAt = `${selectedDate}T10:00`;
+    next.endsAt = `${selectedDate}T14:00`;
+    setEditing(null);
+    setEditorOpen(true);
+    setForm(next);
+    setDirty(false);
+    setSaved(false);
+    scrollToEditor();
+  }
+
+  function closeEditor() {
+    if (dirty && !window.confirm('저장하지 않은 일정 변경을 버리고 편집기를 닫을까요?')) return;
+    setEditorOpen(false);
+    setEditing(null);
+    setForm(defaultForm(month));
+    setDirty(false);
+    setSaved(false);
+  }
+
+  function showAllEvents() {
+    if (dirty && !window.confirm('저장하지 않은 일정 변경을 버리고 전체 일정을 볼까요?')) return;
+    setSelectedDate(null);
+    setEditorOpen(false);
+    setEditing(null);
+    setForm(defaultForm(month));
+    setDirty(false);
+    setSaved(false);
   }
 
   function startEdit(event: OperationsSettingEvent) {
     if (dirty && !window.confirm('저장하지 않은 일정 변경을 버리고 다른 일정을 편집할까요?')) return;
     setEditing(event);
+    setEditorOpen(true);
     setForm(formFromEvent(event));
     setDirty(false);
     setSaved(false);
-    document.getElementById('setting-event-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    scrollToEditor();
   }
 
   function showMutationError(nextError: unknown) {
@@ -300,6 +327,7 @@ export function OperationsSettingEvents() {
     try {
       await deleteOperationsSettingEvent(editing.id, editing.updatedAt);
       setEditing(null);
+      setEditorOpen(false);
       setForm(defaultForm(month));
       setDirty(false);
       setSaved(true);
@@ -325,8 +353,6 @@ export function OperationsSettingEvents() {
       {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700"><span>{error}</span>{conflict && <button type="button" onClick={() => window.location.reload()} className={`${buttonClass} bg-white text-red-700`}><RefreshCw className="h-4 w-4" />최신 정보 불러오기</button>}</div>}
       {saved && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800"><span className="inline-flex items-center gap-2"><CheckCircle2 className="h-5 w-5" />세팅 일정 변경 사항을 저장했습니다.</span><button type="button" onClick={() => toast.info('알림 전송은 후속 기능에서 연결됩니다.')} className={`${buttonClass} border border-emerald-300 bg-white text-emerald-800`}><Bell className="h-4 w-4" />알림 보내기</button></div>}
 
-      <OperationsSettingSectorManager gymId={gymId} onChanged={handleSectorsChanged} />
-
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div><h3 className="text-lg font-black">월간 캘린더</h3><p className="mt-1 text-sm text-slate-500">날짜를 선택하면 아래 목록을 해당 날짜 일정으로 좁힙니다.</p></div>
@@ -345,7 +371,7 @@ export function OperationsSettingEvents() {
               type="button"
               aria-label={`${cell.date} · ${cell.events.length > 0 ? `일정 ${cell.events.length}개` : '일정 없음'}`}
               onClick={() => cell.inMonth
-                ? setSelectedDate((current) => current === cell.date ? null : cell.date)
+                ? selectDate(cell.date)
                 : chooseMonth(cell.date.slice(0, 7), cell.date)}
               className={`min-h-16 min-w-0 border-b border-r border-slate-200 p-1 text-left align-top transition sm:min-h-28 sm:p-2 ${cell.inMonth ? 'bg-white' : 'bg-slate-50 text-slate-300'} ${selectedDate === cell.date ? 'ring-2 ring-inset ring-blue-500' : ''}`}
             >
@@ -357,18 +383,18 @@ export function OperationsSettingEvents() {
         </div>
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(24rem,.9fr)] xl:items-start">
+      <div className={`grid gap-5 ${editorOpen ? 'xl:grid-cols-[minmax(0,1.1fr)_minmax(24rem,.9fr)] xl:items-start' : ''}`}>
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-black">{selectedDate ? `${selectedDate} 일정` : `${monthTitle(month)} 일정`}</h3><p className="mt-1 text-sm text-slate-500">{selectedDate ? '날짜 선택을 다시 누르면 전체 목록으로 돌아갑니다.' : '시작 시각 순으로 표시됩니다.'}</p></div>{selectedDate && <button type="button" onClick={() => setSelectedDate(null)} className={`${buttonClass} border border-slate-200`}>전체 보기</button>}</div>
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-black">{selectedDate ? `${selectedDate} 일정` : `${monthTitle(month)} 일정`}</h3><p className="mt-1 text-sm text-slate-500">{selectedDate ? '선택한 날짜의 일정입니다. 새 일정을 등록할 수 있습니다.' : '날짜를 선택하면 새 일정을 등록할 수 있습니다.'}</p></div>{selectedDate && <div className="flex flex-wrap gap-2"><button type="button" onClick={openCreateEditor} className={`${buttonClass} bg-blue-600 text-white`}><Plus className="h-4 w-4" />새 일정 등록</button><button type="button" onClick={showAllEvents} className={`${buttonClass} border border-slate-200`}>전체 보기</button></div>}</div>
           <div className="mt-5 space-y-3">
             {eventsLoading && <div className="rounded-xl bg-slate-50 p-8 text-center text-sm text-slate-500">일정을 불러오는 중입니다.</div>}
             {!eventsLoading && visibleEvents.length === 0 && <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center"><CalendarDays className="mx-auto h-8 w-8 text-slate-300" /><p className="mt-2 text-sm text-slate-500">등록된 세팅 일정이 없습니다.</p></div>}
-            {visibleEvents.map((event) => <article key={event.id} className={`rounded-2xl border p-4 ${editing?.id === event.id ? 'border-blue-400 bg-blue-50/40' : 'border-slate-200'}`}><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="font-black text-slate-950">{event.title || '제목 없는 세팅'}</h4><EventStatus status={event.status} /></div><p className="mt-2 text-sm font-bold text-slate-600">{displayRange(event)}</p><p className="mt-1 text-sm text-slate-500">{event.sectors.map(displaySector).join(', ')}</p>{event.note && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-sm text-slate-600">{event.note}</p>}</div><button type="button" onClick={() => startEdit(event)} className={`${buttonClass} border border-slate-200 bg-white`}><Pencil className="h-4 w-4" />편집</button></div></article>)}
+            {visibleEvents.map((event) => <article key={event.id} className={`rounded-2xl border p-4 ${editorOpen && editing?.id === event.id ? 'border-blue-400 bg-blue-50/40' : 'border-slate-200'}`}><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="font-black text-slate-950">{event.title || '제목 없는 세팅'}</h4><EventStatus status={event.status} /></div><p className="mt-2 text-sm font-bold text-slate-600">{displayRange(event)}</p><p className="mt-1 text-sm text-slate-500">{event.sectors.map(displaySector).join(', ')}</p>{event.note && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-sm text-slate-600">{event.note}</p>}</div><button type="button" onClick={() => startEdit(event)} className={`${buttonClass} border border-slate-200 bg-white`}><Pencil className="h-4 w-4" />편집</button></div></article>)}
           </div>
         </section>
 
-        <section id="setting-event-editor" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 xl:sticky xl:top-6">
-          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-bold text-blue-600">{editing ? '일정 편집' : '새 일정'}</p><h3 className="mt-1 text-lg font-black">{editing?.title || '세팅 일정 등록'}</h3></div>{editing && <div className="flex flex-wrap items-center gap-2"><EventStatus status={editing.status} /><button type="button" onClick={() => resetEditor()} className={`${buttonClass} border border-blue-200 bg-blue-50 text-blue-700`}><Plus className="h-4 w-4" />새 일정 작성</button></div>}</div>
+        {editorOpen && <section id="setting-event-editor" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 xl:sticky xl:top-6">
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-bold text-blue-600">{editing ? '일정 편집' : '새 일정'}</p><h3 className="mt-1 text-lg font-black">{editing?.title || `${selectedDate} 세팅 일정 등록`}</h3></div><div className="flex items-center gap-2">{editing && <EventStatus status={editing.status} />}<button type="button" onClick={closeEditor} aria-label="일정 편집기 닫기" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500"><X className="h-5 w-5" /></button></div></div>
           <form onSubmit={saveEvent} className="mt-5 space-y-4">
             <label className="block text-sm font-black text-slate-700">제목 *<input required maxLength={100} value={form.title} onChange={(event) => changeForm('title', event.target.value)} className={inputClass} placeholder="예: A벽 정기 세팅" /></label>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2"><label className="block text-sm font-black text-slate-700">시작 *<input required type="datetime-local" value={form.startsAt} onChange={(event) => changeForm('startsAt', event.target.value)} className={inputClass} /></label><label className="block text-sm font-black text-slate-700">종료<input type="datetime-local" min={form.startsAt} value={form.endsAt} onChange={(event) => changeForm('endsAt', event.target.value)} className={inputClass} /></label></div>
@@ -382,11 +408,11 @@ export function OperationsSettingEvents() {
                 const checked = form.sectorIds.includes(sector.id);
                 return <label key={sector.id} className={`flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-bold ${active ? 'cursor-pointer hover:bg-slate-50' : 'text-slate-400'}`}><input type="checkbox" disabled={!active && !checked} checked={checked} onChange={(event) => changeForm('sectorIds', event.target.checked ? [...form.sectorIds, sector.id] : form.sectorIds.filter((id) => id !== sector.id))} className="h-5 w-5 rounded border-slate-300" /><span>{wholeWall ? wall.name : sector.name}{!active && <span className="ml-1 text-xs">비활성</span>}</span></label>;
               })}</div></div>;
-            })}{sectorCount === 0 && form.sectorIds.length === 0 && <p className="py-4 text-center text-sm text-slate-500">위의 세팅 구역 관리에서 벽·구역을 먼저 추가해주세요.</p>}</div></fieldset>
+            })}{sectorCount === 0 && form.sectorIds.length === 0 && <p className="py-4 text-center text-sm text-slate-500">암장 정보 편집의 세팅 구역 관리에서 벽·구역을 먼저 추가해주세요.</p>}</div></fieldset>
             <button disabled={saving || (sectorCount === 0 && form.sectorIds.length === 0)} className={`${buttonClass} w-full bg-blue-600 text-white`}><Save className="h-4 w-4" />{saving ? '저장 중…' : editing ? '일정 수정' : '일정 등록'}</button>
           </form>
           {editing && <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">{editing.status === 'scheduled' && <><button type="button" disabled={saving} onClick={() => void changeStatus('completed')} className={`${buttonClass} border border-emerald-200 bg-emerald-50 text-emerald-700`}><CheckCircle2 className="h-4 w-4" />완료 처리</button><button type="button" disabled={saving} onClick={() => void changeStatus('cancelled')} className={`${buttonClass} border border-amber-200 bg-amber-50 text-amber-700`}><CircleX className="h-4 w-4" />취소 처리</button></>}<button type="button" disabled={saving} onClick={() => void removeEvent()} className={`${buttonClass} border border-red-200 text-red-600 sm:col-span-2 xl:col-span-1 2xl:col-span-2`}><Trash2 className="h-4 w-4" />잘못 생성된 일정 삭제</button></div>}
-        </section>
+        </section>}
       </div>
     </div>
   );
