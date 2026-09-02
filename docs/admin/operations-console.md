@@ -64,6 +64,17 @@ Reuse `ops-review@example.com`, open `/ops/gyms`, select an existing gym, and us
 
 The low-level `POST /api/v1/ops/media/images` endpoint remains available for pipeline diagnostics and returns an unattached ready asset. Normal console use calls `POST /api/v1/ops/gyms/{gymId}/media`, which uploads and attaches in one user action.
 
+## Setting-event API verification
+
+OPS-07 provides the service and `/api/v1/ops/setting-events` API contract; the responsive operations UI is intentionally deferred to OPS-08. Reuse `ops-review@example.com` to obtain an access token and do not create another administrator account.
+
+- `GET /api/v1/ops/setting-events?from=<date-time>&to=<date-time>` lists editable, non-deleted events and their `updatedAt` versions.
+- `POST /api/v1/ops/setting-events` always creates a `scheduled` event with at least one sector belonging to the selected gym.
+- `PATCH /api/v1/ops/setting-events/{eventId}` updates fields or transitions `scheduled` to `completed` or `cancelled`; terminal states cannot be changed back.
+- PATCH and DELETE require the last observed `updatedAt` as `expectedUpdatedAt`; stale requests return `OPS_RESOURCE_CHANGED`.
+- DELETE is a soft delete for incorrectly created events. The event and its sector relationships remain for auditability but disappear from operations, calendar, and gym-detail reads.
+- Create, update, transition, and delete operations write `ops.setting_event.*` audit events in the same database transaction.
+
 ## Production bootstrap
 
 Use an interactive SSM shell on the application host after the release containing this command and migration has been deployed. Run the packaged command from the current release directory:

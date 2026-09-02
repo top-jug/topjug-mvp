@@ -9,6 +9,7 @@ import { ListSettingEventsInput } from './setting-event-validation';
 export async function listSettingEvents(input: ListSettingEventsInput) {
   const database = getDatabase();
   const conditions = [
+    isNull(settingEvents.deletedAt),
     lte(settingEvents.startsAt, new Date(input.to)),
     or(
       gte(settingEvents.endsAt, new Date(input.from)),

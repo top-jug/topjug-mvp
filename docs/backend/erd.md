@@ -191,6 +191,7 @@ erDiagram
     setting_event_status status
     timestamptz starts_at
     timestamptz ends_at
+    timestamptz deleted_at
     text note
   }
   setting_event_sectors {
@@ -287,7 +288,7 @@ erDiagram
 - Gym facts retain provenance in `gym_sources`; source metadata must not contain copied reviews, photos, or personal data.
 - Weekly hours support multiple intervals per day. Date-specific closures and changed hours override the weekly schedule.
 - Coordinates are either both null or both present and must be valid latitude/longitude values.
-- A setting event can affect multiple sectors. Event and sector gym coherence is enforced by the writing service.
+- A setting event can affect multiple sectors. Event and sector gym coherence is enforced by the writing service. Operations deletion sets `deleted_at`; public calendar and gym-detail reads exclude those retained rows.
 - Count memberships require valid totals and balances. Period memberships have no count fields.
 - A membership can apply to multiple gyms. Zero eligible gyms means an unassigned pass that cannot yet be used for a record.
 - Gym prices retain a normalized KRW amount when parseable and the original researched text for uncertainty and later review.

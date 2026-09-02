@@ -8,7 +8,7 @@ TopJug MVP backend runs in the existing Next.js application. Route Handlers only
 - Email/password authentication with Argon2id and signed JWTs
 - Rotating refresh sessions with reuse detection and server-side revocation
 - Structured request logs, request IDs, and append-only audit events
-- Gym search/detail, saved-gym, setting-calendar, membership, record, and public-share APIs under `/api/v1`
+- Gym search/detail, saved-gym, setting-calendar, operations setting-event, membership, record, and public-share APIs under `/api/v1`
 - Shared API error boundary and Zod request validation
 - Screen-complete schema for regions, gym provenance, S3 media metadata, prices, hours, tags, walls, sectors, setting events, memberships and usage ledgers, records, pauses, and shares
 - Frontend auth, gym, saved-gym, membership, calendar, record, and share flows consume these APIs through the shared client in `src/lib/api`.
@@ -56,6 +56,7 @@ The `local` profile uses PostgreSQL and MinIO from `compose.yaml`; the Next.js p
 | Membership | `INVALID_MEMBERSHIP_GYMS`, `MEMBERSHIP_NOT_FOUND`, `MEMBERSHIP_CHANGED`, `HOME_MEMBERSHIP_LIMIT`, `HOME_MEMBERSHIP_ORDER_OCCUPIED`, `MEMBERSHIP_TYPE_LOCKED`, `MEMBERSHIP_GYM_LOCKED`, `MEMBERSHIP_IN_USE` |
 | Record | `ACTIVE_RECORD_EXISTS`, `ACTIVE_RECORD_NOT_FOUND`, `RECORD_NOT_FOUND`, `RECORD_ALREADY_PAUSED`, `RECORD_NOT_PAUSED`, `INVALID_PAUSE_TIME`, `INVALID_RESUME_TIME`, `INVALID_END_TIME`, `INVALID_PAUSE_RANGE`, `INVALID_ACTIVE_DURATION`, `INVALID_CANCEL_TIME`, `MEMBERSHIP_ARCHIVED`, `MEMBERSHIP_GYM_MISMATCH`, `MEMBERSHIP_NOT_ACTIVE`, `MEMBERSHIP_EXHAUSTED`, `GRADE_GYM_MISMATCH`, `SECTOR_GYM_MISMATCH`, `INVALID_CURSOR` |
 | Share | `INVALID_SHARE_MEDIA`, `INVALID_SHARE_MEDIA_TYPE`, `SHARE_NOT_FOUND`, `SHARE_EXPIRED`, `SHARE_MEDIA_NOT_FOUND` |
+| Operations setting event | `SETTING_EVENT_NOT_FOUND`, `SETTING_EVENT_SECTOR_GYM_MISMATCH`, `INVALID_SETTING_EVENT_TIME_RANGE`, `INVALID_SETTING_EVENT_TRANSITION`, `OPS_RESOURCE_CHANGED` |
 | Service | `INVALID_REQUEST`, `INVALID_JSON`, `REQUEST_TOO_LARGE`, `DATABASE_NOT_CONFIGURED`, `AUTH_NOT_CONFIGURED`, `SERVICE_NOT_READY`, `INTERNAL_SERVER_ERROR` |
 
 ### Record lifecycle
@@ -79,6 +80,7 @@ After completion or cancellation, active-session transitions return `ACTIVE_RECO
 - Memberships can reference multiple gyms, while the current frontend editor exposes one gym selection. API clients that manage multi-gym memberships must preserve the full `gymIds` array.
 - `POST /api/v1/ops/media/images` remains the low-level operations image-pipeline endpoint. `GET/POST /api/v1/ops/gyms/{gymId}/media` lists or uploads and attaches photos, while `DELETE /api/v1/ops/gyms/{gymId}/media/{gymMediaId}` detaches one photo with optimistic concurrency.
 - User gym cards automatically prefer the most recently attached ready photo and fall back to the existing cover. Gym detail responses expose every ready attached photo in ascending stored order.
+- Operations setting-event mutations require the event `updatedAt`, enforce sector/gym ownership, and retain soft-deleted rows while excluding them from operations and public reads. The management UI remains a follow-up task.
 - Easy-mode clients assume one logical sector selection even though the API still requires a real `gymSectorId`; the server does not infer a sector.
 - Frontend transport types are currently maintained by hand and responses are not runtime-validated against OpenAPI. Required fields must not be defaulted when adapting responses.
 

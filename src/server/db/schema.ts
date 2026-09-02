@@ -440,6 +440,7 @@ export const settingEvents = pgTable(
     note: text('note'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (table) => [
     unique('setting_events_id_gym_unique').on(table.id, table.gymId),
