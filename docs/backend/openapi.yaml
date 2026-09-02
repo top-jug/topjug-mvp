@@ -407,6 +407,94 @@ paths:
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalServerError' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /ops/gyms/{gymId}/setting-sectors:
+    get:
+      operationId: getOperationsGymSettingSectors
+      summary: List a gym's wall and sector catalog for setting management
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/GymIdPath' }]
+      responses:
+        '200':
+          description: Current gym version and every active or historical setting sector
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/OperationsGymSettingSectors' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    post:
+      operationId: createOperationsGymSettingSector
+      summary: Create a named whole-wall setting sector for a gym
+      description: Creates one wall and its whole-wall sector together so operators can manage the user-facing wall or area name as one item.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/GymIdPath' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateOperationsGymSettingSectorRequest' } } }
+      responses:
+        '201':
+          description: Setting sector created and gym version advanced
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/OperationsGymSettingSectors' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /ops/gyms/{gymId}/setting-sectors/{sectorId}:
+    patch:
+      operationId: updateOperationsGymSettingSector
+      summary: Rename or reactivate one setting sector
+      description: A whole-wall sector updates its wall name and active state together.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/GymIdPath' }
+        - { name: sectorId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateOperationsGymSettingSectorRequest' } } }
+      responses:
+        '200':
+          description: Setting sector updated and gym version advanced
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/OperationsGymSettingSectors' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    delete:
+      operationId: deleteOperationsGymSettingSector
+      summary: Delete an unused setting sector or deactivate a referenced one
+      description: Sectors referenced by a setting event or climbing record retain their names for history and become unavailable to new schedules.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/GymIdPath' }
+        - { name: sectorId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/DeleteOperationsGymSettingSectorRequest' } } }
+      responses:
+        '200':
+          description: Setting sector deleted or deactivated and gym version advanced
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/DeleteOperationsGymSettingSectorResult' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /ops/gyms/{gymId}/media:
     get:
       operationId: getOperationsGymPhotos
@@ -2026,6 +2114,72 @@ components:
           type: array
           uniqueItems: true
           items: { type: string, format: uuid }
+    OperationsGymSettingSector:
+      type: object
+      additionalProperties: false
+      required: [id, name, sortOrder, isActive, representsWholeWall, usageCount, createdAt, updatedAt, wall]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 80 }
+        sortOrder: { type: integer, minimum: 0 }
+        isActive: { type: boolean }
+        representsWholeWall: { type: boolean }
+        usageCount: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        wall:
+          type: object
+          additionalProperties: false
+          required: [id, name, sortOrder, isActive]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            sortOrder: { type: integer, minimum: 0 }
+            isActive: { type: boolean }
+    OperationsGymSettingSectors:
+      type: object
+      additionalProperties: false
+      required: [gym, sectors]
+      properties:
+        gym:
+          type: object
+          additionalProperties: false
+          required: [id, name, branchName, updatedAt]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            branchName: { type: [string, 'null'] }
+            updatedAt: { type: string, format: date-time }
+        sectors:
+          type: array
+          items: { $ref: '#/components/schemas/OperationsGymSettingSector' }
+    CreateOperationsGymSettingSectorRequest:
+      type: object
+      additionalProperties: false
+      required: [name, expectedUpdatedAt]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        expectedUpdatedAt: { type: string, format: date-time }
+    UpdateOperationsGymSettingSectorRequest:
+      type: object
+      additionalProperties: false
+      required: [name, isActive, expectedUpdatedAt]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        isActive: { type: boolean }
+        expectedUpdatedAt: { type: string, format: date-time }
+    DeleteOperationsGymSettingSectorRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedUpdatedAt]
+      properties: { expectedUpdatedAt: { type: string, format: date-time } }
+    DeleteOperationsGymSettingSectorResult:
+      unevaluatedProperties: false
+      allOf:
+        - { $ref: '#/components/schemas/OperationsGymSettingSectors' }
+        - type: object
+          required: [mode]
+          properties: { mode: { type: string, enum: [deleted, deactivated] } }
     OperationsSettingEventStatus:
       type: string
       enum: [scheduled, completed, cancelled]

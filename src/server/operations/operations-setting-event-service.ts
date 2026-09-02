@@ -103,11 +103,24 @@ async function ensureGymExists(database: Database | Transaction, gymId: string) 
   if (!gym) throw new ApiError(404, 'GYM_NOT_FOUND', '암장을 찾을 수 없습니다.');
 }
 
-async function ensureSectorsBelongToGym(database: Database | Transaction, gymId: string, sectorIds: string[]) {
-  const sectors = await database.select({ id: gymSectors.id }).from(gymSectors)
+async function ensureSectorsBelongToGym(
+  database: Database | Transaction,
+  gymId: string,
+  sectorIds: string[],
+  allowInactiveIds: string[] = [],
+) {
+  const sectors = await database.select({
+    id: gymSectors.id,
+    isActive: gymSectors.isActive,
+    wallIsActive: gymWalls.isActive,
+  }).from(gymSectors)
+    .innerJoin(gymWalls, eq(gymSectors.wallId, gymWalls.id))
     .where(and(eq(gymSectors.gymId, gymId), inArray(gymSectors.id, sectorIds)));
-  if (sectors.length !== sectorIds.length) {
-    throw new ApiError(400, 'SETTING_EVENT_SECTOR_GYM_MISMATCH', '선택한 섹터가 세팅 일정의 암장에 속하지 않습니다.');
+  const allowedInactive = new Set(allowInactiveIds);
+  if (sectors.length !== sectorIds.length || sectors.some(
+    (sector) => (!sector.isActive || !sector.wallIsActive) && !allowedInactive.has(sector.id),
+  )) {
+    throw new ApiError(400, 'SETTING_EVENT_SECTOR_GYM_MISMATCH', '선택한 활성 세팅 구역이 일정의 암장에 속하지 않습니다.');
   }
 }
 
@@ -181,7 +194,9 @@ export async function updateOperationsSettingEvent(eventId: string, input: Updat
     ensureValidTimeRange(nextStartsAt, nextEndsAt);
 
     if (input.sectorIds) {
-      await ensureSectorsBelongToGym(transaction, event.gymId, input.sectorIds);
+      const currentSectors = await transaction.select({ id: settingEventSectors.gymSectorId })
+        .from(settingEventSectors).where(eq(settingEventSectors.settingEventId, eventId));
+      await ensureSectorsBelongToGym(transaction, event.gymId, input.sectorIds, currentSectors.map((sector) => sector.id));
       await transaction.delete(settingEventSectors).where(eq(settingEventSectors.settingEventId, eventId));
       await transaction.insert(settingEventSectors).values(input.sectorIds.map((gymSectorId) => ({
         settingEventId: eventId,

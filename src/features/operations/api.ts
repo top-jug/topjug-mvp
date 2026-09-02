@@ -246,6 +246,50 @@ export async function batchOperationsHourOverrides(
   })).data;
 }
 
+export type OperationsGymSettingSector = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  representsWholeWall: boolean;
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
+  wall: { id: string; name: string; sortOrder: number; isActive: boolean };
+};
+
+export type OperationsGymSettingSectors = {
+  gym: Pick<OperationsGymSummary, 'id' | 'name' | 'branchName' | 'updatedAt'>;
+  sectors: OperationsGymSettingSector[];
+};
+
+export async function getOperationsGymSettingSectors(gymId: string, signal?: AbortSignal) {
+  return (await apiRequest<ApiDataResponse<OperationsGymSettingSectors>>(`/ops/gyms/${gymId}/setting-sectors`, { signal })).data;
+}
+
+export async function createOperationsGymSettingSector(gymId: string, name: string, expectedUpdatedAt: string) {
+  return (await apiRequest<ApiDataResponse<OperationsGymSettingSectors>>(`/ops/gyms/${gymId}/setting-sectors`, {
+    method: 'POST', body: JSON.stringify({ name, expectedUpdatedAt }),
+  })).data;
+}
+
+export async function updateOperationsGymSettingSector(
+  gymId: string,
+  sectorId: string,
+  input: { name: string; isActive: boolean; expectedUpdatedAt: string },
+) {
+  return (await apiRequest<ApiDataResponse<OperationsGymSettingSectors>>(`/ops/gyms/${gymId}/setting-sectors/${sectorId}`, {
+    method: 'PATCH', body: JSON.stringify(input),
+  })).data;
+}
+
+export async function deleteOperationsGymSettingSector(gymId: string, sectorId: string, expectedUpdatedAt: string) {
+  return (await apiRequest<ApiDataResponse<OperationsGymSettingSectors & { mode: 'deleted' | 'deactivated' }>>(
+    `/ops/gyms/${gymId}/setting-sectors/${sectorId}`,
+    { method: 'DELETE', body: JSON.stringify({ expectedUpdatedAt }) },
+  )).data;
+}
+
 export type OperationsSettingEventStatus = 'scheduled' | 'completed' | 'cancelled';
 
 export type OperationsSettingEventSector = {
