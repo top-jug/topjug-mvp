@@ -25,6 +25,9 @@ function gym(overrides: Partial<ApiGymSummary> = {}): ApiGymSummary {
     latitude: null,
     longitude: null,
     operationStatus: 'active',
+    todayOperatingStatus: {
+      date: '2026-08-31', state: 'open', source: 'weekly', opensAt: '10:00:00', closesAt: '22:00:00',
+    },
     facilities: [],
     calendarColor: null,
     calendarTextColor: null,

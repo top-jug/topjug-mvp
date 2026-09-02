@@ -1,6 +1,6 @@
 {
-  "id": "0f875838-877b-45ed-b939-2009b8f32ab7",
-  "prevId": "835080e8-7e08-4251-bf26-e67c617b2229",
+  "id": "ba132223-74ca-4e10-90df-2cb9c904da35",
+  "prevId": "8ce9221a-a800-41f5-90fc-459259d20217",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -205,14 +205,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'completed'"
-        },
-        "session_type": {
-          "name": "session_type",
-          "type": "record_session_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'free'"
         },
         "started_at": {
           "name": "started_at",
@@ -1819,6 +1811,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "ARRAY[]::text[]"
+        },
+        "last_verified_at": {
+          "name": "last_verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -3470,156 +3468,6 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
-    },
-    "public.email_verification_challenges": {
-      "name": "email_verification_challenges",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "purpose": {
-          "name": "purpose",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "code_hash": {
-          "name": "code_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attempts": {
-          "name": "attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "delivered_at": {
-          "name": "delivered_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "verified_at": {
-          "name": "verified_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "consumed_at": {
-          "name": "consumed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "email_verification_email_purpose_idx": {
-          "name": "email_verification_email_purpose_idx",
-          "columns": [
-            {
-              "expression": "email",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "purpose",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "email_verification_expires_idx": {
-          "name": "email_verification_expires_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "email_verification_token_uidx": {
-          "name": "email_verification_token_uidx",
-          "columns": [
-            {
-              "expression": "token_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"email_verification_challenges\".\"token_hash\" IS NOT NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "email_verification_purpose_check": {
-          "name": "email_verification_purpose_check",
-          "value": "\"email_verification_challenges\".\"purpose\" IN ('register', 'reset_password')"
-        },
-        "email_verification_attempts_check": {
-          "name": "email_verification_attempts_check",
-          "value": "\"email_verification_challenges\".\"attempts\" BETWEEN 0 AND 5"
-        }
-      },
-      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -3711,15 +3559,6 @@
       "values": [
         "easy",
         "normal"
-      ]
-    },
-    "public.record_session_type": {
-      "name": "record_session_type",
-      "schema": "public",
-      "values": [
-        "free",
-        "training",
-        "project"
       ]
     },
     "public.record_share_status": {

@@ -31,10 +31,31 @@
       "breakpoints": true
     },
     {
+      "idx": 4,
+      "version": "7",
+      "when": 1788077216311,
+      "tag": "0004_handy_punisher",
+      "breakpoints": true
+    },
+    {
       "idx": 5,
       "version": "7",
-      "when": 1788072034064,
-      "tag": "0005_organic_payback",
+      "when": 1788081392314,
+      "tag": "0005_drop_record_session_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788171946490,
+      "tag": "0006_operations_gym_tags",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788318644000,
+      "tag": "0007_organic_payback",
       "breakpoints": true
     }
   ]

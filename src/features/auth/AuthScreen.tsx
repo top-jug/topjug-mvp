@@ -1,24 +1,24 @@
 import { type FormEvent, useState } from 'react';
 import { CalendarDays, MapPinned } from 'lucide-react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router';
+import { Link, Navigate, useLocation } from 'react-router';
 import { BrandIcon, BrandLockup } from '../../app/components/brand/BrandLogo';
 import { isApiClientError } from '../../lib/api';
-import { useAuth } from './AuthProvider';
-import { passwordVisibilityControl } from './auth-presentation';
-import { toRegisterInput, validateRegistrationPasswords } from './registration';
 import { PASSWORD_MIN_LENGTH } from '../../lib/auth/password-policy';
+import { useAuth } from './AuthProvider';
+import { authenticatedLandingPath } from './auth-navigation';
+import { passwordVisibilityControl } from './auth-presentation';
 import { EmailVerification } from './EmailVerification';
 import { PasswordRequirements } from './PasswordRequirements';
-import { authNavigationState, intendedPath } from './navigation';
+import { authNavigationState } from './navigation';
+import { toRegisterInput, validateRegistrationPasswords } from './registration';
 
 type Props = {
   mode: 'login' | 'register';
 };
 
 export function AuthScreen({ mode }: Props) {
-  const { status, error, isRestoringSession, login, register, retry } = useAuth();
+  const { status, user, error, isRestoringSession, login, register, retry } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +28,7 @@ export function AuthScreen({ mode }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const submitting = status === 'loading';
 
-  if (status === 'authenticated') return <Navigate to={intendedPath(location.state)} replace />;
+  if (status === 'authenticated' && user) return <Navigate to={authenticatedLandingPath(location.state, user.role)} replace />;
   if (isRestoringSession) {
     return (
       <main className="mobile-screen flex items-center justify-center bg-[#f3faf8] px-5" aria-busy="true" aria-live="polite">
@@ -70,7 +70,6 @@ export function AuthScreen({ mode }: Props) {
     try {
       if (mode === 'login') await login({ email, password });
       else await register(toRegisterInput({ displayName, email, password, passwordConfirmation, emailVerificationToken }));
-      navigate(intendedPath(location.state), { replace: true });
     } catch (error) {
       setMessage(isApiClientError(error) ? error.message : '요청을 처리하지 못했습니다.');
     }

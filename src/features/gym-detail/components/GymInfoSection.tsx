@@ -1,10 +1,12 @@
+import type { GymTodayOperatingStatus } from '../../../app/api/gym-api';
 import type { GymContactLink, GymOperationStatus, PresentedOperatingHourOverride } from '../gym-presentation';
-import { OPERATION_STATUS_PRESENTATION } from '../gym-presentation';
+import { presentGymAvailability } from '../gym-presentation';
 
 interface GymInfoSectionProps {
   address: string;
   nearby: string;
   operationStatus: GymOperationStatus;
+  todayOperatingStatus: GymTodayOperatingStatus;
   operatingHours: string[];
   operatingHoursNote: string[];
   operatingHourOverrides: PresentedOperatingHourOverride[];
@@ -13,8 +15,8 @@ interface GymInfoSectionProps {
   contacts: GymContactLink[];
 }
 
-export default function GymInfoSection({ address, nearby, operationStatus, operatingHours, operatingHoursNote, operatingHourOverrides, prices, parkingInfo, contacts }: GymInfoSectionProps) {
-  const status = OPERATION_STATUS_PRESENTATION[operationStatus];
+export default function GymInfoSection({ address, nearby, operationStatus, todayOperatingStatus, operatingHours, operatingHoursNote, operatingHourOverrides, prices, parkingInfo, contacts }: GymInfoSectionProps) {
+  const status = presentGymAvailability(operationStatus, todayOperatingStatus);
   return (
     <>
       <div className="px-5 mb-4">

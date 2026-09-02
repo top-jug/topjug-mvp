@@ -78,7 +78,7 @@ After completion or cancellation, active-session transitions return `ACTIVE_RECO
 
 ## Known API limitations
 
-- Gym search returns at most 100 gyms and has no cursor or total count. `regionCode` is a canonical physical administrative-region subtree filter and is applied with `q`, facility, and tag filters before the limit. `/api/v1/regions` supplies the two-level catalog.
+- Gym search returns at most 100 gyms and has no cursor or total count. `regionCode` is a canonical physical administrative-region subtree filter and is applied with `q`, legacy facility filters, and repeated active keyword filters before the limit. Repeated `tag` values use AND semantics. `/api/v1/regions` supplies the two-level region catalog and `/api/v1/gym-tags` supplies the active keyword catalog.
 - Record-list `sends` and `attempts` are per-record aggregates computed in the page query; the API does not expose cross-page totals.
 - Membership validity is represented as timezone-aware instants, not local calendar dates. Updates are full replacements and require the last observed `updatedAt` as `expectedUpdatedAt`; stale updates return `409 MEMBERSHIP_CHANGED`.
 - Memberships can reference multiple gyms, while the current frontend editor exposes one gym selection. API clients that manage multi-gym memberships must preserve the full `gymIds` array.

@@ -33,7 +33,6 @@ export const gymPriceType = pgEnum('gym_price_type', ['day_pass', 'shoe_rental']
 export const settingEventStatus = pgEnum('setting_event_status', ['scheduled', 'completed', 'cancelled']);
 export const recordAccessType = pgEnum('record_access_type', ['day_pass', 'membership', 'other']);
 export const recordStatus = pgEnum('record_status', ['in_progress', 'completed', 'cancelled']);
-export const recordSessionType = pgEnum('record_session_type', ['free', 'training', 'project']);
 export const membershipUsageType = pgEnum('membership_usage_type', ['consume', 'restore', 'adjustment']);
 export const recordShareStatus = pgEnum('record_share_status', ['active', 'revoked', 'expired']);
 
@@ -195,6 +194,7 @@ export const gyms = pgTable(
     calendarColor: text('calendar_color'),
     calendarTextColor: text('calendar_text_color'),
     facilities: text('facilities').array().notNull().default(sql`ARRAY[]::text[]`),
+    lastVerifiedAt: timestamp('last_verified_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -309,11 +309,20 @@ export const gymOperatingHourOverrides = pgTable(
   ],
 );
 
-export const gymTags = pgTable('gym_tags', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  code: text('code').notNull().unique(),
-  label: text('label').notNull(),
-});
+export const gymTags = pgTable(
+  'gym_tags',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    code: text('code').notNull().unique(),
+    label: text('label').notNull(),
+    description: text('description'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('gym_tags_active_order_idx').on(table.isActive, table.sortOrder, table.label)],
+);
 
 export const gymTagAssignments = pgTable(
   'gym_tag_assignments',
@@ -321,7 +330,10 @@ export const gymTagAssignments = pgTable(
     gymId: uuid('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
     tagId: uuid('tag_id').notNull().references(() => gymTags.id, { onDelete: 'cascade' }),
   },
-  (table) => [primaryKey({ columns: [table.gymId, table.tagId] })],
+  (table) => [
+    primaryKey({ columns: [table.gymId, table.tagId] }),
+    index('gym_tag_assignments_tag_idx').on(table.tagId),
+  ],
 );
 
 export const gymGrades = pgTable(
@@ -493,7 +505,6 @@ export const climbingRecords = pgTable(
     membershipId: uuid('membership_id'),
     accessType: recordAccessType('access_type').notNull(),
     status: recordStatus('status').notNull().default('completed'),
-    sessionType: recordSessionType('session_type').notNull().default('free'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
     endedAt: timestamp('ended_at', { withTimezone: true }),
     activeDurationSeconds: integer('active_duration_seconds'),

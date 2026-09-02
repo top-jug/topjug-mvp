@@ -159,6 +159,11 @@ erDiagram
     uuid id PK
     text code UK
     text label
+    text description
+    integer sort_order
+    boolean is_active
+    timestamptz created_at
+    timestamptz updated_at
   }
   gym_tag_assignments {
     uuid gym_id PK,FK
@@ -241,7 +246,6 @@ erDiagram
     uuid membership_id FK
     record_access_type access_type
     record_status status
-    record_session_type session_type
     timestamptz started_at
     timestamptz ended_at
     integer active_duration_seconds

@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { and, asc, eq, exists, ilike, inArray, or, sql } from 'drizzle-orm';
+import { resolveGymTodayOperatingStatus } from '../../entities/gym/operating-status';
 import { getDatabase } from '../db/client';
 import {
   gymBrands,
@@ -22,6 +23,7 @@ import {
 } from '../db/schema';
 import { ApiError } from '../http/api-error';
 import { publicMediaUrl } from '../media/media-url';
+import { loadGymTodayOperatingStatuses } from './gym-operating-status-service';
 import { normalizeGymSearchTokens } from './gym-search';
 import { ListGymsInput } from './gym-validation';
 import { regionSubtreeCodes } from '../regions/region-service';
@@ -34,9 +36,11 @@ function mediaReference(asset: {
   return { ...asset, url: publicMediaUrl(asset.storageKey) };
 }
 
-export async function listGyms(input: ListGymsInput) {
+export async function listGyms(input: ListGymsInput, now = new Date()) {
   const database = getDatabase();
-  const conditions = [eq(gyms.operationStatus, input.operationStatus)];
+  const conditions = [input.operationStatus
+    ? eq(gyms.operationStatus, input.operationStatus)
+    : inArray(gyms.operationStatus, ['active', 'temporarily_closed', 'opening_soon'])];
   const searchTokens = normalizeGymSearchTokens(input.q);
   if (searchTokens.length > 0) {
     conditions.push(and(...searchTokens.map((token) => (
@@ -45,11 +49,15 @@ export async function listGyms(input: ListGymsInput) {
   }
   if (input.regionCode) conditions.push(inArray(gyms.regionCode, await regionSubtreeCodes(input.regionCode)));
   for (const facility of input.facility) conditions.push(sql`${facility} = ANY(${gyms.facilities})`);
-  if (input.tag) conditions.push(exists(
+  for (const tag of input.tag) conditions.push(exists(
     database.select({ value: sql`1` })
       .from(gymTagAssignments)
       .innerJoin(gymTags, eq(gymTagAssignments.tagId, gymTags.id))
-      .where(and(eq(gymTagAssignments.gymId, gyms.id), eq(gymTags.code, input.tag))),
+      .where(and(
+        eq(gymTagAssignments.gymId, gyms.id),
+        eq(gymTags.code, tag),
+        eq(gymTags.isActive, true),
+      )),
   ));
 
   const rows = await database
@@ -79,8 +87,8 @@ export async function listGyms(input: ListGymsInput) {
     .limit(input.limit);
 
   const gymIds = rows.map((gym) => gym.id);
-  const [covers, tags, dayPassPrices] = gymIds.length > 0 ? await Promise.all([
-    database.select({
+  const [covers, tags, dayPassPrices, todayOperatingStatuses] = await Promise.all([
+    gymIds.length > 0 ? database.select({
       gymId: gymMedia.gymId,
       id: mediaAssets.id,
       storageKey: mediaAssets.storageKey,
@@ -89,15 +97,16 @@ export async function listGyms(input: ListGymsInput) {
       .from(gymMedia)
       .innerJoin(mediaAssets, eq(gymMedia.mediaAssetId, mediaAssets.id))
       .where(and(inArray(gymMedia.gymId, gymIds), eq(gymMedia.type, 'cover'), eq(mediaAssets.status, 'ready')))
-      .orderBy(gymMedia.sortOrder),
-    database.select({ gymId: gymTagAssignments.gymId, code: gymTags.code, label: gymTags.label })
+      .orderBy(gymMedia.sortOrder) : Promise.resolve([]),
+    gymIds.length > 0 ? database.select({ gymId: gymTagAssignments.gymId, code: gymTags.code, label: gymTags.label })
       .from(gymTagAssignments)
       .innerJoin(gymTags, eq(gymTagAssignments.tagId, gymTags.id))
-      .where(inArray(gymTagAssignments.gymId, gymIds))
-      .orderBy(gymTags.label),
-    database.select({ gymId: gymPrices.gymId, amount: gymPrices.amount, currency: gymPrices.currency, rawText: gymPrices.rawText })
-      .from(gymPrices).where(and(inArray(gymPrices.gymId, gymIds), eq(gymPrices.type, 'day_pass'))),
-  ]) : [[], [], []];
+      .where(and(inArray(gymTagAssignments.gymId, gymIds), eq(gymTags.isActive, true)))
+      .orderBy(gymTags.sortOrder, gymTags.label) : Promise.resolve([]),
+    gymIds.length > 0 ? database.select({ gymId: gymPrices.gymId, amount: gymPrices.amount, currency: gymPrices.currency, rawText: gymPrices.rawText })
+      .from(gymPrices).where(and(inArray(gymPrices.gymId, gymIds), eq(gymPrices.type, 'day_pass'))) : Promise.resolve([]),
+    loadGymTodayOperatingStatuses(gymIds, now),
+  ]);
 
   const coverByGym = new Map<string, ReturnType<typeof mediaReference>>();
   for (const cover of covers) if (!coverByGym.has(cover.gymId)) coverByGym.set(cover.gymId, mediaReference(cover));
@@ -111,11 +120,12 @@ export async function listGyms(input: ListGymsInput) {
       cover: coverByGym.get(gym.id) ?? null,
       tags: tagsByGym.get(gym.id) ?? [],
       dayPassPrice: dayPassPriceByGym.get(gym.id) ?? null,
+      todayOperatingStatus: todayOperatingStatuses.get(gym.id)!,
     })),
   };
 }
 
-export async function getGym(gymId: string) {
+export async function getGym(gymId: string, now = new Date()) {
   const database = getDatabase();
   const [gym] = await database
     .select({
@@ -165,7 +175,8 @@ export async function getGym(gymId: string) {
     database.select().from(gymPrices).where(eq(gymPrices.gymId, gymId)).orderBy(gymPrices.type),
     database.select({ code: gymTags.code, label: gymTags.label }).from(gymTagAssignments)
       .innerJoin(gymTags, eq(gymTagAssignments.tagId, gymTags.id))
-      .where(eq(gymTagAssignments.gymId, gymId)).orderBy(gymTags.label),
+      .where(and(eq(gymTagAssignments.gymId, gymId), eq(gymTags.isActive, true)))
+      .orderBy(gymTags.sortOrder, gymTags.label),
     database.select().from(gymGrades).where(eq(gymGrades.gymId, gymId)).orderBy(gymGrades.rank),
     database.select().from(gymWalls).where(eq(gymWalls.gymId, gymId)).orderBy(gymWalls.sortOrder),
     database.select({
@@ -223,6 +234,7 @@ export async function getGym(gymId: string) {
     media: resolvedMedia,
     operatingHours: hours,
     operatingHourOverrides: hourOverrides,
+    todayOperatingStatus: resolveGymTodayOperatingStatus(hours, hourOverrides, now),
     prices,
     tags,
     grades,

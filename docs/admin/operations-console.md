@@ -4,6 +4,8 @@ The operations console is served at `/ops` outside the mobile preview layout. Bo
 
 ## Local verification
 
+When `ops-review@example.com` already exists, reuse it and skip the administrator creation steps below. Do not create a replacement review account for operating-hours verification.
+
 1. Create `.env.local` from `.env.local.example` if it does not exist.
 2. Start PostgreSQL and apply migrations.
 
@@ -37,6 +39,16 @@ The operations console is served at `/ops` outside the mobile preview layout. Bo
 
 A repeated email is rejected and no second account or audit row is created. Successful creation records an `ops.admin.bootstrap` event without the email, display name, or password in audit metadata.
 
+## Operating-hours verification
+
+Sign in with the existing `ops-review@example.com` operations administrator, open `/ops/gyms`, choose a gym, and select **운영시간 관리**.
+
+- Weekly hours support a closed day or up to eight ordered, non-overlapping intervals per weekday.
+- Date exceptions take priority over the weekly schedule for that date. An existing date exception must be deleted before registering a different one.
+- Range exceptions expand to one row set per date for at most 92 days. Existing exceptions return `OPERATING_HOUR_OVERRIDE_EXISTS`; the console only replaces them after the operator chooses the explicit overwrite action.
+- `정상 운영` describes the gym lifecycle, not whether its doors are open right now. Public screens derive `오늘 휴무`, `영업 중`, `영업 전`, `브레이크 타임`, or `영업 종료` from the Seoul-time effective schedule; temporary closure, closure, and opening-soon lifecycle states take priority.
+- Every mutation uses the gym `updatedAt` version, updates the public gym detail immediately, and records `ops.gym.hours.update` in the audit log.
+
 ## Production bootstrap
 
 Use an interactive SSM shell on the application host after the release containing this command and migration has been deployed. Run the packaged command from the current release directory:
@@ -58,4 +70,12 @@ The command reads the existing `runtime-database-url` SecureString and requires 
 - Authenticated `operations_admin`: the endpoint returns the administrator identity and the responsive console shell renders.
 - Removing the role in PostgreSQL causes the same still-valid access token to receive `403` on the next operations API request.
 
-This foundation does not include administrator assignment UI/API, gym mutations, media upload, notices, or notification delivery.
+## Gym keyword management
+
+Use `/ops/gym-tags` to create, edit, activate, deactivate, and delete unassigned search keywords. The same screen replaces the complete keyword assignment for a selected gym with optimistic concurrency. Deactivating a keyword preserves assignments but removes it from `GET /api/v1/gym-tags`, public gym responses, and search results.
+
+Migration `0006_operations_gym_tags.sql` backfills existing `gyms.facilities` values into the keyword dictionary and assignment table. Known facility codes receive Korean labels and stable codes; other non-empty values receive deterministic `facility_<hash>` codes without removing the legacy source array.
+
+For review, reuse the existing `ops-review@example.com` operations account. Do not run the bootstrap command to create another review account.
+
+The console does not include administrator assignment UI/API, media upload, notices, or notification delivery.

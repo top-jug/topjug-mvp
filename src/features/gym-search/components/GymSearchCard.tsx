@@ -1,6 +1,6 @@
 import { ImageWithFallback } from '../../../app/components/figma/ImageWithFallback';
 import { ApiGymSummary, displayGymName } from '../../../app/api/gym-api';
-import { OPERATION_STATUS_PRESENTATION } from '../../gym-detail/gym-presentation';
+import { presentGymAvailability } from '../../gym-detail/gym-presentation';
 import { gymCardPrimaryAction } from '../gym-search-options';
 
 interface GymSearchCardProps {
@@ -23,7 +23,7 @@ export default function GymSearchCard({ gym, onClick, isSaved, onToggleSaved, is
   const tags = gym.tags.length > 0
     ? gym.tags.map((tag) => tag.label)
     : gym.facilities.map((facility) => FACILITY_LABELS[facility] ?? facility);
-  const operationStatus = OPERATION_STATUS_PRESENTATION[gym.operationStatus];
+  const availability = presentGymAvailability(gym.operationStatus, gym.todayOperatingStatus);
 
   return (
     <div className="flex gap-3 bg-white border border-neutral-200 rounded-2xl p-4 hover:border-blue-500 transition-colors min-h-[116px]">
@@ -43,8 +43,8 @@ export default function GymSearchCard({ gym, onClick, isSaved, onToggleSaved, is
         <span className="block flex-1 min-w-0">
           <span className="mb-1 flex flex-wrap items-center gap-1.5">
             <span className="font-bold text-[15px]">{displayGymName(gym)}</span>
-            <span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${operationStatus.className}`}>
-              {operationStatus.label}
+            <span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${availability.className}`}>
+              {availability.label}
             </span>
           </span>
           <span className="block text-[13px] text-neutral-500 mb-2 line-clamp-1">{gym.address}</span>

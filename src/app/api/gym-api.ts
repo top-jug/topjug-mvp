@@ -1,4 +1,7 @@
 import { apiRequest, queryString } from './api-client';
+import type { GymTodayOperatingStatus } from '../../entities/gym/operating-status';
+
+export type { GymTodayOperatingStatus } from '../../entities/gym/operating-status';
 
 export interface GymMediaReference {
   id: string;
@@ -10,6 +13,11 @@ export interface GymMediaReference {
 export interface GymTag {
   code: string;
   label: string;
+}
+
+export interface GymTagCatalogItem extends GymTag {
+  description: string | null;
+  sortOrder: number;
 }
 
 export interface GymPrice {
@@ -28,6 +36,7 @@ export interface ApiGymSummary {
   latitude: number | null;
   longitude: number | null;
   operationStatus: 'active' | 'temporarily_closed' | 'closed' | 'opening_soon';
+  todayOperatingStatus: GymTodayOperatingStatus;
   facilities: string[];
   calendarColor: string | null;
   calendarTextColor: string | null;
@@ -121,7 +130,7 @@ export interface ListGymsInput {
   q?: string;
   regionCode?: string;
   facility?: string[];
-  tag?: string;
+  tag?: string[];
   limit?: number;
   signal?: AbortSignal;
 }
@@ -136,6 +145,7 @@ function normalizeGymSummary(gym: ApiGymSummary): ApiGymSummary {
     latitude: gym.latitude ?? null,
     longitude: gym.longitude ?? null,
     operationStatus: gym.operationStatus,
+    todayOperatingStatus: gym.todayOperatingStatus,
     facilities: gym.facilities,
     calendarColor: gym.calendarColor ?? null,
     calendarTextColor: gym.calendarTextColor ?? null,
@@ -157,6 +167,10 @@ export async function listGyms(input: ListGymsInput = {}) {
     { auth: false, signal },
   );
   return { data: response.data.map(normalizeGymSummary) };
+}
+
+export function listGymTags(signal?: AbortSignal) {
+  return apiRequest<{ data: GymTagCatalogItem[] }>('/api/v1/gym-tags', { auth: false, signal });
 }
 
 export async function getGym(gymId: string, signal?: AbortSignal) {

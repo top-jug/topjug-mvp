@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, mock, test } from 'node:test';
-import { displayGymName, getGym, listGyms, listRecentVisitedGyms } from '../../src/app/api/gym-api';
+import { displayGymName, getGym, listGyms, listGymTags, listRecentVisitedGyms } from '../../src/app/api/gym-api';
 import { listRegions } from '../../src/app/api/region-api';
 import { apiClient } from '../../src/lib/api/client';
 
@@ -26,6 +26,9 @@ test('gym list query preserves required contract fields and normalizes optional 
         address: '서울 강남구',
         regionCode: null,
         operationStatus: 'temporarily_closed',
+        todayOperatingStatus: {
+          date: '2026-08-31', state: 'closed', source: 'override', opensAt: null, closesAt: null,
+        },
         facilities: ['parking'],
         brand: {
           id: 'brand-1',
@@ -45,6 +48,7 @@ test('gym list query preserves required contract fields and normalizes optional 
   assert.match(requestedUrl, /limit=10/);
   assert.deepEqual(response.data[0].tags, []);
   assert.equal(response.data[0].operationStatus, 'temporarily_closed');
+  assert.equal(response.data[0].todayOperatingStatus.state, 'closed');
   assert.deepEqual(response.data[0].facilities, ['parking']);
   assert.deepEqual(response.data[0].brand, {
     id: 'brand-1',
@@ -94,6 +98,25 @@ test('gym list repeats every selected facility in the server query', async () =>
   assert.equal(query.get('limit'), '1');
 });
 
+test('gym list repeats every selected tag and public tag catalog skips authentication', async () => {
+  const requestedUrls: string[] = [];
+  mock.method(globalThis, 'fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+    requestedUrls.push(String(input));
+    if (String(input) === '/api/v1/gym-tags') {
+      assert.equal(new Headers(init?.headers).has('authorization'), false);
+      return new Response(JSON.stringify({ data: [{ code: 'shower', label: '샤워실', description: null, sortOrder: 10 }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+
+  await listGyms({ tag: ['shower', 'parking'], limit: 1 });
+  const tags = await listGymTags();
+
+  const query = new URL(requestedUrls[0]!, 'https://topjug.test').searchParams;
+  assert.deepEqual(query.getAll('tag'), ['shower', 'parking']);
+  assert.deepEqual(tags.data, [{ code: 'shower', label: '샤워실', description: null, sortOrder: 10 }]);
+});
+
 test('region catalog uses the public read-only endpoint', async () => {
   let requestedUrl = '';
   mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
@@ -115,6 +138,9 @@ test('gym detail adapter preserves operation, special hours, parking, and contac
     data: {
       id: 'gym-1', name: '테스트 암장', branchName: null, address: '서울', regionCode: null,
       operationStatus: 'opening_soon', facilities: [], brand: null, cover: null, tags: [], dayPassPrice: null,
+      todayOperatingStatus: {
+        date: '2026-08-31', state: 'hours_unavailable', source: null, opensAt: null, closesAt: null,
+      },
       phone: '02-1234-5678', websiteUrl: 'https://example.com', instagramUrl: 'https://instagram.com/example',
       nearbyDirections: null, operatingHoursNote: null, parkingInfo: '건물 지하 2시간 무료', media: [], operatingHours: [],
       operatingHourOverrides: [{ date: '2026-08-15', sequence: 0, opensAt: null, closesAt: null, isClosed: true, note: '광복절' }],
