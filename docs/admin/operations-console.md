@@ -51,13 +51,18 @@ Sign in with the existing `ops-review@example.com` operations administrator, ope
 
 ## Media pipeline verification
 
-The media pipeline is API-only in this issue; the operations photo UI and gym attachment arrive in the next issue. Reuse `ops-review@example.com`, obtain its access token through the normal login flow, and upload one file as the `file` multipart field to `POST /api/v1/ops/media/images`.
+Reuse `ops-review@example.com`, open `/ops/gyms`, select an existing gym, and use the **암장 사진** section. Do not run the bootstrap command or create another operations account for review.
 
 - JPEG, PNG, and WebP inputs up to 10 MiB are decoded and converted to metadata-free WebP.
 - Images are limited to 40 million input pixels and 12000px per side, then reduced to at most 2560px per side.
-- The response is a ready media asset under `gyms/uploads/<year>/<month>/<uuid>.webp`; it is not attached to a gym yet.
+- A successful addition stores a ready asset under `gyms/uploads/<year>/<month>/<uuid>.webp` and attaches it as the next `photo`; each gym supports at most 20 photos.
 - A damaged file, mismatched MIME type, extra multipart field, or oversized body is rejected before S3 upload.
+- The most recently added ready photo becomes the automatic user card image. The public gym detail includes every ready attached photo.
+- Deleting a photo removes only its `gym_media` relationship. Shared logo, cover, map, or share references remain intact.
+- Add and delete requests require the last observed gym `updatedAt`; stale requests return `OPS_RESOURCE_CHANGED` and the console offers a reload action.
 - `npm run media:cleanup:local` previews stale pending and unattached assets. Append `-- --apply` only when intentionally cleaning the local MinIO data.
+
+The low-level `POST /api/v1/ops/media/images` endpoint remains available for pipeline diagnostics and returns an unattached ready asset. Normal console use calls `POST /api/v1/ops/gyms/{gymId}/media`, which uploads and attaches in one user action.
 
 ## Production bootstrap
 
@@ -88,4 +93,4 @@ Migration `0006_operations_gym_tags.sql` backfills existing `gyms.facilities` va
 
 For review, reuse the existing `ops-review@example.com` operations account. Do not run the bootstrap command to create another review account.
 
-The console does not include administrator assignment UI/API, photo upload UI or gym attachment, notices, or notification delivery.
+The console does not include administrator assignment UI/API, photo editing, photo ordering, cover selection, alt-text editing, notices, or notification delivery.

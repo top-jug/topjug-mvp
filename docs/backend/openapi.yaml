@@ -407,6 +407,82 @@ paths:
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalServerError' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /ops/gyms/{gymId}/media:
+    get:
+      operationId: getOperationsGymPhotos
+      summary: List photos attached to a gym for operations management
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/GymIdPath' }]
+      responses:
+        '200':
+          description: Current gym version, ordered photos, and upload limit
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/OperationsGymPhotos' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    post:
+      operationId: addOperationsGymPhoto
+      summary: Validate, upload, and attach one gym photo
+      description: The ready upload is attached as the next photo. A stale gym version or failed attachment leaves the upload unattached for the media cleanup job.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/GymIdPath' }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [file, expectedUpdatedAt]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: One JPEG, PNG, or WebP image up to 10 MiB.
+                expectedUpdatedAt: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Photo attached and gym version advanced
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/OperationsGymPhotos' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /ops/gyms/{gymId}/media/{gymMediaId}:
+    delete:
+      operationId: deleteOperationsGymPhoto
+      summary: Detach one photo from a gym
+      description: Only the photo relationship is removed. Shared logo, cover, map, and share references remain intact; the cleanup job later removes an unreferenced upload.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/GymIdPath' }
+        - { name: gymMediaId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/OperationsGymPhotoMutationRequest' } } }
+      responses:
+        '200':
+          description: Photo detached and gym version advanced
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/OperationsGymPhotos' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /ops/gyms/{gymId}/operating-hours:
     put:
       operationId: replaceOperationsWeeklyHours
@@ -1564,6 +1640,44 @@ components:
         createdAt: { type: string, format: date-time }
         readyAt: { type: string, format: date-time }
         url: { type: [string, 'null'], format: uri }
+    OperationsGymPhoto:
+      type: object
+      additionalProperties: false
+      required: [gymMediaId, mediaAssetId, storageKey, contentType, byteSize, sortOrder, createdAt, url]
+      properties:
+        gymMediaId: { type: string, format: uuid }
+        mediaAssetId: { type: string, format: uuid }
+        storageKey: { type: string, pattern: '^gyms/uploads/[0-9]{4}/[0-9]{2}/[0-9a-f-]{36}\.webp$' }
+        contentType: { type: string, const: image/webp }
+        byteSize: { type: integer, minimum: 1, maximum: 10485760 }
+        sortOrder: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        url: { type: [string, 'null'], format: uri }
+    OperationsGymPhotos:
+      type: object
+      additionalProperties: false
+      required: [gym, photos, maxPhotos]
+      properties:
+        gym:
+          type: object
+          additionalProperties: false
+          required: [id, name, branchName, updatedAt]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            branchName: { type: [string, 'null'] }
+            updatedAt: { type: string, format: date-time }
+        photos:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/OperationsGymPhoto' }
+        maxPhotos: { type: integer, const: 20 }
+    OperationsGymPhotoMutationRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedUpdatedAt]
+      properties:
+        expectedUpdatedAt: { type: string, format: date-time }
     MediaReference:
       type: object
       required: [id, storageKey, contentType, url]

@@ -41,7 +41,7 @@ async function readLimitedBody(request: Request) {
   return body;
 }
 
-export async function readImageUpload(request: Request) {
+async function readMediaUploadFormData(request: Request) {
   const contentType = request.headers.get('content-type') ?? '';
   if (!/^multipart\/form-data\s*;\s*boundary=.+$/i.test(contentType)) {
     throw new ApiError(415, 'UNSUPPORTED_MEDIA_TYPE', 'multipart/form-data 형식으로 이미지를 보내주세요.');
@@ -54,20 +54,56 @@ export async function readImageUpload(request: Request) {
       headers: { 'content-type': contentType },
       body,
     });
-    const formData = await formRequest.formData();
+    return await formRequest.formData();
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(400, 'INVALID_MULTIPART_BODY', 'multipart 업로드 요청을 읽을 수 없습니다.');
+  }
+}
+
+function imageFromFormData(formData: FormData) {
+  const files = formData.getAll('file');
+  if (files.length !== 1 || typeof files[0] === 'string') {
+    throw new ApiError(400, 'INVALID_MULTIPART_BODY', 'file 필드에 이미지 하나를 보내주세요.');
+  }
+  if (files[0].size > MAX_IMAGE_INPUT_BYTES) {
+    throw new ApiError(413, 'IMAGE_TOO_LARGE', '이미지는 최대 10 MiB까지 업로드할 수 있습니다.');
+  }
+  return files[0];
+}
+
+export async function readImageUpload(request: Request) {
+  try {
+    const formData = await readMediaUploadFormData(request);
     if ([...formData.keys()].some((key) => key !== 'file')) {
       throw new ApiError(400, 'INVALID_MULTIPART_BODY', 'file 필드 하나만 보낼 수 있습니다.');
     }
-    const files = formData.getAll('file');
-    if (files.length !== 1 || typeof files[0] === 'string') {
-      throw new ApiError(400, 'INVALID_MULTIPART_BODY', 'file 필드에 이미지 하나를 보내주세요.');
-    }
-    if (files[0].size > MAX_IMAGE_INPUT_BYTES) {
-      throw new ApiError(413, 'IMAGE_TOO_LARGE', '이미지는 최대 10 MiB까지 업로드할 수 있습니다.');
-    }
+    const file = imageFromFormData(formData);
     return {
-      body: Buffer.from(await files[0].arrayBuffer()),
-      declaredContentType: files[0].type,
+      body: Buffer.from(await file.arrayBuffer()),
+      declaredContentType: file.type,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(400, 'INVALID_MULTIPART_BODY', 'multipart 업로드 요청을 읽을 수 없습니다.');
+  }
+}
+
+export async function readOperationsGymPhotoUpload(request: Request) {
+  try {
+    const formData = await readMediaUploadFormData(request);
+    if ([...formData.keys()].some((key) => key !== 'file' && key !== 'expectedUpdatedAt')) {
+      throw new ApiError(400, 'INVALID_MULTIPART_BODY', 'file과 expectedUpdatedAt 필드만 보낼 수 있습니다.');
+    }
+    const expectedVersions = formData.getAll('expectedUpdatedAt');
+    if (expectedVersions.length !== 1 || typeof expectedVersions[0] !== 'string') {
+      throw new ApiError(400, 'INVALID_MULTIPART_BODY', 'expectedUpdatedAt 값을 하나 보내주세요.');
+    }
+    const file = imageFromFormData(formData);
+    return {
+      body: Buffer.from(await file.arrayBuffer()),
+      declaredContentType: file.type,
+      expectedUpdatedAt: expectedVersions[0],
     };
   } catch (error) {
     if (error instanceof ApiError) throw error;

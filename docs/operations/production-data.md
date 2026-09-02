@@ -99,7 +99,7 @@ The runtime uses `AWS_REGION=ap-northeast-2`, `MEDIA_S3_BUCKET=topjug-mvp-media-
 
 Apply the existing `topjug-mvp-production-data` CloudFormation stack before deploying the first upload-capable release. The additive `ApplicationMediaUploadPolicy` grants only `s3:PutObject` and `s3:DeleteObject` on `gyms/uploads/*`; do not add `s3:ListBucket`, `s3:GetObject`, or a broad managed S3 policy.
 
-Uploads use immutable keys of the form `gyms/uploads/<UTC year>/<UTC month>/<UUID>.webp`. The API creates a pending database row, uploads the normalized WebP, and marks the row ready. Failed uploads are marked for deletion and removed when S3 cleanup succeeds. `topjug-media-cleanup.timer` retries deleted objects, removes pending uploads older than one hour, and removes ready assets that remain unattached for 24 hours. Direct S3 URLs remain private; CloudFront serves attached assets after the next media UI feature links them to a gym.
+Uploads use immutable keys of the form `gyms/uploads/<UTC year>/<UTC month>/<UUID>.webp`. The API creates a pending database row, uploads the normalized WebP, and marks the row ready. Failed uploads are marked for deletion and removed when S3 cleanup succeeds. `topjug-media-cleanup.timer` retries deleted objects, removes pending uploads older than one hour, and removes ready assets that remain unattached for 24 hours. Direct S3 URLs remain private; CloudFront serves ready assets attached to a gym. Caddy permits the 11 MB request limit only for `POST /api/v1/ops/media/images` and `POST /api/v1/ops/gyms/*/media`; all other request bodies retain the 64 KB limit.
 
 Before a destructive migration:
 

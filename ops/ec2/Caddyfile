@@ -3,13 +3,13 @@ topjug.kr {
 
 	@mediaUpload {
 		method POST
-		path /api/v1/ops/media/images
+		path /api/v1/ops/media/images /api/v1/ops/gyms/*/media
 	}
 	request_body @mediaUpload {
 		max_size 11MB
 	}
 
-	@standardBody not path /api/v1/ops/media/images
+	@standardBody not path /api/v1/ops/media/images /api/v1/ops/gyms/*/media
 	request_body @standardBody {
 		max_size 64KB
 	}
