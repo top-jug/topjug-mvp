@@ -1,5 +1,5 @@
 [Unit]
-Description=TopJug Next.js application
+Description=TopJug public web and API application
 After=network-online.target
 Wants=network-online.target
 
@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=topjug
 Group=topjug
-WorkingDirectory=/opt/topjug/current
+WorkingDirectory=/opt/topjug/current/apps/web
 Environment=NODE_ENV=production
 Environment=APP_PROFILE=production
 Environment=AWS_REGION=ap-northeast-2
