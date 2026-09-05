@@ -184,8 +184,8 @@ test('operations upload marks and removes failed assets after object cleanup', a
 test('media infrastructure keeps production IAM and body limits narrowly scoped', () => {
   const template = source('ops/aws/production-data.yaml');
   const caddy = source('ops/ec2/Caddyfile');
-  const service = source('ops/ec2/topjug.service');
-  const route = source('app/api/v1/ops/media/images/route.ts');
+  const service = source('ops/ec2/topjug-web.service');
+  const route = source('apps/web/app/api/v1/ops/media/images/route.ts');
   const packageJson = JSON.parse(source('package.json')) as { dependencies: Record<string, string> };
 
   assert.equal(packageJson.dependencies.sharp, '0.35.4');

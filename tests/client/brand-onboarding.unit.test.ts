@@ -58,7 +58,7 @@ test('password visibility control keeps the visible label in its accessible name
 });
 
 test('manifest declares valid normal and maskable PNG assets at their real dimensions', () => {
-  const manifest = JSON.parse(projectSource('public/manifest.webmanifest')) as {
+  const manifest = JSON.parse(projectSource('apps/web/public/manifest.webmanifest')) as {
     icons: Array<{ src: string; sizes: string; type: string; purpose: string }>;
   };
 
@@ -69,7 +69,7 @@ test('manifest declares valid normal and maskable PNG assets at their real dimen
   ]);
 
   for (const icon of manifest.icons) {
-    const png = projectFile(`public${icon.src}`);
+    const png = projectFile(`apps/web/public${icon.src}`);
     assert.equal(png.subarray(1, 4).toString('ascii'), 'PNG');
     assert.equal(`${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`, icon.sizes);
   }
@@ -80,5 +80,5 @@ test('auth and share brand surfaces use the canonical icon component', () => {
   assert.match(projectSource('src/app/pages/PublicRecordSharePage.tsx'), /<BrandIcon decorative/);
   assert.match(projectSource('src/app/pages/RecordSharePage.tsx'), /<BrandIcon decorative/);
   assert.match(projectSource('src/features/record/record-share-image.ts'), /\/icons\/icon-192\.png/);
-  assert.ok(projectFile('public/brand/topjug-icon-source.jpg').byteLength > 0);
+  assert.ok(projectFile('apps/web/public/brand/topjug-icon-source.jpg').byteLength > 0);
 });

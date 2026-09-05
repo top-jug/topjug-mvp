@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": ".next/cache/tsconfig.tsbuildinfo"
+  },
+  "include": [
+    "next-env.d.ts",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "instrumentation.ts",
+    "../../src/**/*.ts",
+    "../../src/**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}

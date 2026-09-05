@@ -7,7 +7,7 @@ import {
   deleteOperationsSettingEvent,
   listOperationsSettingEvents,
   updateOperationsSettingEvent,
-} from '../../src/features/operations/api';
+} from '../../apps/admin/src/features/operations/api';
 import { apiClient } from '../../src/lib/api/client';
 
 afterEach(() => {

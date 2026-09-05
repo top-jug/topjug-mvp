@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiClientError } from '../../src/lib/api/error';
-import { displayOperationsDate, overridesFromRows, presentOperationsHoursFailure, weeklyDaysFromRows } from '../../src/features/operations/operations-hours';
+import { displayOperationsDate, overridesFromRows, presentOperationsHoursFailure, weeklyDaysFromRows } from '../../apps/admin/src/features/operations/operations-hours';
 
 test('operations hours map ordered database rows into editor schedules', () => {
   assert.match(displayOperationsDate('2026-09-01'), /2026/);
