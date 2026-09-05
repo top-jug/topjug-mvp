@@ -69,7 +69,9 @@ After the matrix is complete:
 
 ## Initial scaffold verification
 
-The scaffold was generated with Capacitor 8.5.0 and synchronized successfully. Xcode 26.3 is active, the Xcode license is accepted, and the iOS 26.3.1 Simulator runtime is installed. A no-signing Debug build for the iOS Simulator completed successfully. Simulator execution and physical-device verification remain pending; the latter additionally requires Apple ID/team signing, a trusted device, and Developer Mode.
+The scaffold was generated with Capacitor 8.5.0 and synchronized successfully. On 2026-09-05, the wrapper was verified on macOS Tahoe 26.6.2 with Xcode 26.6 (17F113) and the iOS 26.5 Simulator runtime. A no-signing Debug build completed successfully, and the app launched on an iPhone 17 simulator with Korean text rendering correctly.
+
+The missing Korean glyphs observed with the iOS 26.3.1 Simulator runtime were an environment-specific simulator issue. Use the iOS 26.5 or newer runtime for verification; do not add a global web-font workaround to `topjug.kr` for that simulator-only failure. Physical-device verification remains pending and additionally requires Apple ID/team signing, a trusted device, and Developer Mode.
 
 ```bash
 sudo xcodebuild -license
