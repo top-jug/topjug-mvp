@@ -14,15 +14,6 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import { RequireAuth } from '../features/auth/RequireAuth';
 import PublicRecordSharePage from './pages/PublicRecordSharePage';
-import { RequireOperationsAdmin } from '../features/operations/RequireOperationsAdmin';
-import { OperationsLayout } from '../features/operations/OperationsLayout';
-import { OperationsDashboard } from '../features/operations/OperationsDashboard';
-import { OperationsGymList } from '../features/operations/OperationsGymList';
-import { OperationsGymEditor } from '../features/operations/OperationsGymEditor';
-import { OperationsHoursEditor } from '../features/operations/OperationsHoursEditor';
-import { OperationsGymTags } from '../features/operations/OperationsGymTags';
-import { OperationsSettingEvents } from '../features/operations/OperationsSettingEvents';
-import { OperationsSettingSectors } from '../features/operations/OperationsSettingSectors';
 
 function PreviewLayout() {
   return (
@@ -35,18 +26,6 @@ function PreviewLayout() {
 export function AppRouter() {
   return (
     <Routes>
-      <Route element={<RequireOperationsAdmin />}>
-        <Route path="/ops" element={<OperationsLayout />}>
-          <Route index element={<OperationsDashboard />} />
-          <Route path="gyms" element={<OperationsGymList />} />
-          <Route path="gyms/new" element={<OperationsGymEditor />} />
-          <Route path="gyms/:gymId/hours" element={<OperationsHoursEditor />} />
-          <Route path="gyms/:gymId/setting-sectors" element={<OperationsSettingSectors />} />
-          <Route path="gyms/:gymId/setting-events" element={<OperationsSettingEvents />} />
-          <Route path="gyms/:gymId" element={<OperationsGymEditor />} />
-          <Route path="gym-tags" element={<OperationsGymTags />} />
-        </Route>
-      </Route>
       <Route element={<PreviewLayout />}>
         <Route path="/" element={<RootScreen />} />
         <Route path="/login" element={<LoginPage />} />

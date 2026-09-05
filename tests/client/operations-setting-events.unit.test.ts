@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { OperationsSettingEvent } from '../../src/features/operations/api';
+import type { OperationsSettingEvent } from '../../apps/admin/src/features/operations/api';
 import {
   buildOperationsSettingEventCalendar,
   operationsMonthRange,
@@ -8,7 +8,7 @@ import {
   seoulDateTimeInputToIso,
   shiftOperationsMonth,
   toSeoulDateTimeInput,
-} from '../../src/features/operations/operations-setting-events';
+} from '../../apps/admin/src/features/operations/operations-setting-events';
 
 const event: OperationsSettingEvent = {
   id: 'event-1',

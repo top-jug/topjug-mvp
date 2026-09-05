@@ -56,10 +56,10 @@ test('registration confirmation is omitted from the API input', () => {
   );
 });
 
-test('operations administrators land in the console unless an intended path is present', () => {
-  assert.equal(authenticatedLandingPath(null, 'operations_admin'), '/ops');
+test('the public app keeps authenticated users on public routes', () => {
+  assert.equal(authenticatedLandingPath(null, 'operations_admin'), '/');
   assert.equal(authenticatedLandingPath(null, 'user'), '/');
-  assert.equal(authenticatedLandingPath({ from: '/ops/gyms' }, 'operations_admin'), '/ops/gyms');
+  assert.equal(authenticatedLandingPath({ from: '/records' }, 'operations_admin'), '/records');
 });
 
 test('authenticated session events are uniquely published and strictly recognized', () => {

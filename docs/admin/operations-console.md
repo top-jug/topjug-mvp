@@ -1,6 +1,6 @@
 # Operations console runbook
 
-The operations console is served at `/ops` outside the mobile preview layout. Both the client route and every operations API enforce the `operations_admin` role. The server reads the current role from PostgreSQL for each operations request, so demotion takes effect without waiting for an access token to expire.
+The operations console is a separate Next.js workspace served at `https://ops.topjug.kr/ops`. The public application and API run at `https://topjug.kr`; Caddy proxies only the admin host's authentication, profile, and operations API paths to that shared backend. Both the client route and every operations API enforce the `operations_admin` role. The server reads the current role from PostgreSQL for each operations request, so demotion takes effect without waiting for an access token to expire.
 
 ## Local verification
 
@@ -31,17 +31,18 @@ When `ops-review@example.com` already exists, reuse it and skip the administrato
      --apply
    ```
 
-5. Start the application, sign in with that account, and open `http://localhost:3000/ops`.
+5. Start the web/API app and operations app in separate terminals, sign in with that account, and open `http://localhost:3001/ops`.
 
    ```bash
-   npm run dev:local
+   npm run dev:web
+   npm run dev:admin
    ```
 
 A repeated email is rejected and no second account or audit row is created. Successful creation records an `ops.admin.bootstrap` event without the email, display name, or password in audit metadata.
 
 ## Operating-hours verification
 
-Sign in with the existing `ops-review@example.com` operations administrator, open `/ops/gyms`, choose a gym, and select **운영시간 관리**.
+Sign in with the existing `ops-review@example.com` operations administrator at `http://localhost:3001/login`, open `/ops/gyms`, choose a gym, and select **운영시간 관리**.
 
 - Weekly hours support a closed day or up to eight ordered, non-overlapping intervals per weekday.
 - Date exceptions take priority over the weekly schedule for that date. An existing date exception must be deleted before registering a different one.
@@ -102,6 +103,7 @@ The command reads the existing `runtime-database-url` SecureString and requires 
 - Authenticated `user`: the endpoint returns `403 OPERATIONS_ADMIN_REQUIRED`, and `/ops` shows the access-denied screen.
 - Authenticated `operations_admin`: the endpoint returns the administrator identity and the responsive console shell renders.
 - Removing the role in PostgreSQL causes the same still-valid access token to receive `403` on the next operations API request.
+- `https://topjug.kr/ops/*` redirects to the operations host, while direct `/api/v1/ops/*` requests on the public host are rejected by Caddy.
 
 ## Gym keyword management
 

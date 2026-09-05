@@ -1,0 +1,10 @@
+{
+  "name": "@topjug/admin",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "node ../../scripts/run-next-app.mjs admin dev --port 3001",
+    "build": "node ../../scripts/run-next-app.mjs admin build --webpack",
+    "start": "node ../../scripts/run-next-app.mjs admin start --port 3001"
+  }
+}

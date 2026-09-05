@@ -30,20 +30,59 @@ cleanup() {
 }
 trap cleanup EXIT
 
+release_is_healthy() {
+  curl --fail --silent --connect-timeout 2 --max-time 5 http://127.0.0.1:3000/api/ready >/dev/null \
+    && curl --fail --silent --connect-timeout 2 --max-time 5 http://127.0.0.1:3001/health >/dev/null
+}
+
+restore_previous_release() {
+  if [[ -z "$PREVIOUS_RELEASE" || ! -d "$PREVIOUS_RELEASE" ]]; then
+    systemctl stop topjug-admin.service topjug-web.service 2>/dev/null || true
+    rm -f "$APP_ROOT/current"
+    return
+  fi
+
+  ln -sfn "$PREVIOUS_RELEASE" "$APP_ROOT/current"
+  if [[ -f "$PREVIOUS_RELEASE/apps/web/server.js" ]]; then
+    systemctl disable --now topjug.service 2>/dev/null || true
+    systemctl restart topjug-web.service topjug-admin.service
+  else
+    systemctl stop topjug-admin.service topjug-web.service 2>/dev/null || true
+    systemctl enable --now topjug.service
+  fi
+  if [[ -f "$PREVIOUS_RELEASE/Caddyfile" ]]; then
+    install -m 0644 "$PREVIOUS_RELEASE/Caddyfile" /etc/caddy/Caddyfile.rollback
+    caddy validate --config /etc/caddy/Caddyfile.rollback
+    mv /etc/caddy/Caddyfile.rollback /etc/caddy/Caddyfile
+    systemctl reload caddy
+  fi
+  echo "Rolled back to $PREVIOUS_RELEASE" >&2
+}
+
 if [[ ! "$EXPECTED_ARCHIVE_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
   echo "Invalid archive checksum" >&2
   exit 1
 fi
 if [[ -e "$RELEASE_DIR" ]]; then
-  echo "Release already exists: $RELEASE_DIR" >&2
-  exit 1
+  if [[ "$(readlink -f "$APP_ROOT/current" || true)" == "$RELEASE_DIR" ]]; then
+    if release_is_healthy; then
+      echo "Release $GIT_SHA is already deployed and healthy"
+      DEPLOYED=true
+      exit 0
+    fi
+    echo "Current release already exists but is not healthy: $RELEASE_DIR" >&2
+    exit 1
+  fi
+  echo "Removing incomplete non-current release: $RELEASE_DIR"
+  rm -rf "$RELEASE_DIR"
 fi
 mkdir -p "$RELEASE_DIR"
 aws s3 cp "s3://$BUCKET/releases/$GIT_SHA.tar.gz" "$ARCHIVE"
 printf '%s  %s\n' "$EXPECTED_ARCHIVE_SHA256" "$ARCHIVE" | sha256sum -c -
 tar -xzf "$ARCHIVE" -C "$RELEASE_DIR"
 chown -R topjug:topjug "$RELEASE_DIR"
-install -m 0644 "$RELEASE_DIR/topjug.service" /etc/systemd/system/topjug.service
+install -m 0644 "$RELEASE_DIR/topjug-web.service" /etc/systemd/system/topjug-web.service
+install -m 0644 "$RELEASE_DIR/topjug-admin.service" /etc/systemd/system/topjug-admin.service
 install -m 0644 "$RELEASE_DIR/topjug-security-cleanup.service" /etc/systemd/system/topjug-security-cleanup.service
 install -m 0644 "$RELEASE_DIR/topjug-security-cleanup.timer" /etc/systemd/system/topjug-security-cleanup.timer
 install -m 0644 "$RELEASE_DIR/topjug-media-cleanup.service" /etc/systemd/system/topjug-media-cleanup.service
@@ -55,15 +94,27 @@ systemctl daemon-reload
 systemctl enable --now topjug-security-cleanup.timer
 systemctl enable --now topjug-media-cleanup.timer
 ln -sfn "$RELEASE_DIR" "$APP_ROOT/current"
-systemctl restart topjug.service
+systemctl disable --now topjug.service 2>/dev/null || true
+if ! systemctl enable topjug-web.service topjug-admin.service; then
+  restore_previous_release
+  exit 1
+fi
+if ! systemctl restart topjug-web.service topjug-admin.service; then
+  systemctl status topjug-web.service topjug-admin.service --no-pager || true
+  restore_previous_release
+  exit 1
+fi
 
 for attempt in {1..30}; do
-  if curl --fail --silent --connect-timeout 2 --max-time 5 http://127.0.0.1:3000/api/ready >/dev/null; then
+  if release_is_healthy; then
     REFRESH_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' \
       --request POST --connect-timeout 2 --max-time 5 http://127.0.0.1:3000/api/v1/auth/refresh || true)"
     if [[ "$REFRESH_STATUS" == "401" ]]; then
       rm -f "$ARCHIVE"
-      systemctl reload caddy
+      if ! systemctl reload caddy; then
+        restore_previous_release
+        exit 1
+      fi
       find "$APP_ROOT/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
         | sort -nr \
         | awk 'NR > 5 { print $2 }' \
@@ -77,14 +128,7 @@ for attempt in {1..30}; do
   sleep 2
 done
 
-systemctl status topjug.service --no-pager || true
-journalctl -u topjug.service -n 100 --no-pager || true
-if [[ -n "$PREVIOUS_RELEASE" && -d "$PREVIOUS_RELEASE" ]]; then
-  ln -sfn "$PREVIOUS_RELEASE" "$APP_ROOT/current"
-  systemctl restart topjug.service
-  echo "Rolled back to $PREVIOUS_RELEASE" >&2
-else
-  systemctl stop topjug.service
-  rm -f "$APP_ROOT/current"
-fi
+systemctl status topjug-web.service topjug-admin.service --no-pager || true
+journalctl -u topjug-web.service -u topjug-admin.service -n 100 --no-pager || true
+restore_previous_release
 exit 1

@@ -11,11 +11,11 @@ export function intendedPath(state: unknown) {
   return state.from.startsWith('/') && !state.from.startsWith('//') ? state.from : '/';
 }
 
-export function authenticatedLandingPath(state: unknown, role: UserRole) {
+export function authenticatedLandingPath(state: unknown, _role: UserRole) {
   if (state && typeof state === 'object' && 'from' in state && typeof state.from === 'string') {
     return intendedPath(state);
   }
-  return role === 'operations_admin' ? '/ops' : '/';
+  return '/';
 }
 
 export function protectedDestination(location: RouteLocation) {

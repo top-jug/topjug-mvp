@@ -46,12 +46,14 @@ jobs:
       - name: Build
         env:
           NEXT_PUBLIC_KAKAO_MAP_APP_KEY: ${{ secrets.NEXT_PUBLIC_KAKAO_MAP_APP_KEY }}
+          NEXT_PUBLIC_TOPJUG_WEB_ORIGIN: https://topjug.kr
         run: npm run build && npm run build:migrate
 
       - name: Package standalone application
         run: |
-          mkdir -p deploy/.next
-          cp -a .next/standalone/. deploy/
+          mkdir -p deploy
+          cp -a apps/web/.next/standalone/. deploy/
+          cp -a apps/admin/.next/standalone/. deploy/
           mkdir -p deploy/node_modules/@node-rs/argon2-linux-arm64-gnu /tmp/topjug-native
           npm pack @node-rs/argon2-linux-arm64-gnu@2.1.0 --pack-destination /tmp/topjug-native
           tar -xzf /tmp/topjug-native/node-rs-argon2-linux-arm64-gnu-2.1.0.tgz \
@@ -66,11 +68,14 @@ jobs:
             -C deploy/node_modules/@img/sharp-libvips-linux-arm64 --strip-components=1
           test -f deploy/node_modules/@img/sharp-linux-arm64/lib/sharp-linux-arm64-0.35.4.node
           test -f deploy/node_modules/@img/sharp-libvips-linux-arm64/lib/libvips-cpp.so.8.18.6
-          cp -a .next/static deploy/.next/static
-          cp -a public deploy/public
+          mkdir -p deploy/apps/web/.next deploy/apps/admin/.next
+          cp -a apps/web/.next/static deploy/apps/web/.next/static
+          cp -a apps/admin/.next/static deploy/apps/admin/.next/static
+          cp -a apps/web/public deploy/apps/web/public
           cp -a drizzle deploy/drizzle
           cp -a .migration deploy/.migration
-          cp ops/ec2/topjug.service deploy/topjug.service
+          cp ops/ec2/topjug-web.service deploy/topjug-web.service
+          cp ops/ec2/topjug-admin.service deploy/topjug-admin.service
           cp ops/ec2/topjug-security-cleanup.service deploy/topjug-security-cleanup.service
           cp ops/ec2/topjug-security-cleanup.timer deploy/topjug-security-cleanup.timer
           cp ops/ec2/topjug-media-cleanup.service deploy/topjug-media-cleanup.service
