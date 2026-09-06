@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  createOperationsGymSettingEventSchema,
   createOperationsSettingEventSchema,
+  listOperationsGymSettingEventsSchema,
   updateOperationsSettingEventSchema,
 } from '../../src/server/operations/operations-setting-event-validation';
 
@@ -19,6 +21,16 @@ test('operations setting-event validation accepts normalized schedule fields', (
   });
   assert.equal(result.title, 'A벽 세팅');
   assert.equal(result.note, null);
+
+  const gymScopedResult = createOperationsGymSettingEventSchema.parse({
+    title: '  A벽 세팅  ',
+    startsAt: '2026-09-10T01:00:00Z',
+    endsAt: '2026-09-10T04:00:00Z',
+    note: '  ',
+    sectorIds: [sectorId],
+  });
+  assert.equal(gymScopedResult.title, 'A벽 세팅');
+  assert.equal('gymId' in gymScopedResult, false);
 });
 
 test('operations setting-event validation rejects invalid ranges, duplicate sectors, and empty updates', () => {
@@ -38,5 +50,15 @@ test('operations setting-event validation rejects invalid ranges, duplicate sect
   }).success, false);
   assert.equal(updateOperationsSettingEventSchema.safeParse({
     expectedUpdatedAt: '2026-09-10T01:00:00Z',
+  }).success, false);
+  assert.equal(createOperationsGymSettingEventSchema.safeParse(base).success, false);
+  assert.equal(listOperationsGymSettingEventsSchema.safeParse({
+    from: '2026-09-10T04:00:00Z',
+    to: '2026-09-10T01:00:00Z',
+  }).success, false);
+  assert.equal(listOperationsGymSettingEventsSchema.safeParse({
+    gymId,
+    from: '2026-09-10T01:00:00Z',
+    to: '2026-09-10T04:00:00Z',
   }).success, false);
 });

@@ -673,6 +673,51 @@ paths:
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalServerError' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /ops/gyms/{gymId}/setting-events:
+    get:
+      operationId: listOperationsGymSettingEvents
+      summary: List non-deleted setting events for one gym
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/GymIdPath' }
+        - { $ref: '#/components/parameters/FromRequired' }
+        - { $ref: '#/components/parameters/ToRequired' }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/OperationsSettingEventStatus' } }
+      responses:
+        '200':
+          description: Setting events for the selected gym with editable versions and affected sectors
+          headers: *standardResponseHeaders
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { type: array, items: { $ref: '#/components/schemas/OperationsSettingEvent' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    post:
+      operationId: createOperationsGymSettingEvent
+      summary: Create a scheduled setting event for one gym
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/GymIdPath' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateOperationsGymSettingEventRequest' } } }
+      responses:
+        '201':
+          description: Created setting event
+          headers: *standardResponseHeaders
+          content: { application/json: { schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/OperationsSettingEvent' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /ops/setting-events:
     get:
       operationId: listOperationsSettingEvents
@@ -2212,6 +2257,21 @@ components:
       required: [gymId, title, startsAt, endsAt, note, sectorIds]
       properties:
         gymId: { type: string, format: uuid }
+        title: { type: string, minLength: 1, maxLength: 100 }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: [string, 'null'], format: date-time }
+        note: { type: [string, 'null'], maxLength: 1000 }
+        sectorIds:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, format: uuid }
+    CreateOperationsGymSettingEventRequest:
+      type: object
+      additionalProperties: false
+      required: [title, startsAt, endsAt, note, sectorIds]
+      properties:
         title: { type: string, minLength: 1, maxLength: 100 }
         startsAt: { type: string, format: date-time }
         endsAt: { type: [string, 'null'], format: date-time }

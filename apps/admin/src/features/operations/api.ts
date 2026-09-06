@@ -333,9 +333,28 @@ export async function listOperationsSettingEvents(
   return (await apiRequest<ApiDataResponse<OperationsSettingEvent[]>>(`/ops/setting-events?${search}`, { signal })).data;
 }
 
+export async function listOperationsGymSettingEvents(
+  gymId: string,
+  query: { from: string; to: string; status?: OperationsSettingEventStatus },
+  signal?: AbortSignal,
+) {
+  const search = new URLSearchParams({ from: query.from, to: query.to });
+  if (query.status) search.set('status', query.status);
+  return (await apiRequest<ApiDataResponse<OperationsSettingEvent[]>>(
+    `/ops/gyms/${gymId}/setting-events?${search}`,
+    { signal },
+  )).data;
+}
+
 export async function createOperationsSettingEvent(gymId: string, fields: OperationsSettingEventFields) {
   return (await apiRequest<ApiDataResponse<OperationsSettingEvent>>('/ops/setting-events', {
     method: 'POST', body: JSON.stringify({ gymId, ...fields }),
+  })).data;
+}
+
+export async function createOperationsGymSettingEvent(gymId: string, fields: OperationsSettingEventFields) {
+  return (await apiRequest<ApiDataResponse<OperationsSettingEvent>>(`/ops/gyms/${gymId}/setting-events`, {
+    method: 'POST', body: JSON.stringify(fields),
   })).data;
 }
 

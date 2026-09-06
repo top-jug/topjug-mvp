@@ -17,6 +17,18 @@ test('public and operations clients have separate Next.js entrypoints', () => {
   assert.match(operationsSpa, /src\/OperationsApp/);
 });
 
+test('operations setting-event screen uses only operations API resources', () => {
+  const settingEvents = source('apps/admin/src/features/operations/OperationsSettingEvents.tsx');
+  const gymSettingEventsRoute = source('apps/web/app/api/v1/ops/gyms/[gymId]/setting-events/route.ts');
+
+  assert.doesNotMatch(settingEvents, /src\/app\/api\/gym-api|\bgetGym\b/);
+  assert.match(settingEvents, /getOperationsGymSettingSectors/);
+  assert.match(settingEvents, /listOperationsGymSettingEvents/);
+  assert.match(gymSettingEventsRoute, /requireOperationsAdmin/);
+  assert.match(gymSettingEventsRoute, /listOperationsSettingEvents/);
+  assert.match(gymSettingEventsRoute, /createOperationsSettingEvent/);
+});
+
 test('the public host blocks operations APIs and the operations host proxies only its required API surface', () => {
   const caddy = source('ops/ec2/Caddyfile');
 
