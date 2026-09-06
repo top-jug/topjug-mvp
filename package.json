@@ -34,7 +34,8 @@
     "test:integration:local": "node --env-file=.env.local --conditions=react-server --import tsx --test tests/**/*.integration.test.ts",
     "test:http": "node scripts/test-http-local.mjs",
     "test:http:local": "node --env-file=.env.local scripts/test-http-local.mjs",
-    "typecheck": "tsc --noEmit"
+    "typegen": "next typegen apps/web && next typegen apps/admin",
+    "typecheck": "npm run typegen && tsc --noEmit"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1116.0",
