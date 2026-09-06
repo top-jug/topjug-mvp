@@ -16,12 +16,14 @@ import {
 } from 'lucide-react';
 import { Link, useParams } from 'react-router';
 import { toast } from 'sonner';
-import { getGym, type ApiGymDetail } from '@/src/app/api/gym-api';
 import { ApiClientError } from '@/src/lib/api/error';
 import {
-  createOperationsSettingEvent,
+  createOperationsGymSettingEvent,
   deleteOperationsSettingEvent,
-  listOperationsSettingEvents,
+  getOperationsGymSettingSectors,
+  listOperationsGymSettingEvents,
+  type OperationsGymSettingSector,
+  type OperationsGymSettingSectors,
   type OperationsSettingEvent,
   type OperationsSettingEventFields,
   type OperationsSettingEventStatus,
@@ -107,7 +109,7 @@ function EventStatus({ status }: { status: OperationsSettingEventStatus }) {
 export function OperationsSettingEvents() {
   const { gymId = '' } = useParams();
   const [month, setMonth] = useState(() => currentMonthInSeoul());
-  const [gym, setGym] = useState<ApiGymDetail | null>(null);
+  const [sectorCatalog, setSectorCatalog] = useState<OperationsGymSettingSectors | null>(null);
   const [events, setEvents] = useState<OperationsSettingEvent[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [editing, setEditing] = useState<OperationsSettingEvent | null>(null);
@@ -126,14 +128,26 @@ export function OperationsSettingEvents() {
     () => selectedDate ? events.filter((event) => operationsSettingEventOccursOn(event, selectedDate)) : events,
     [events, selectedDate],
   );
-  const sectorCount = gym?.walls.reduce(
-    (count, wall) => count + (wall.isActive ? wall.sectors.filter((sector) => sector.isActive).length : 0),
-    0,
-  ) ?? 0;
+  const gym = sectorCatalog?.gym ?? null;
+  const sectorGroups = useMemo(() => {
+    const groups = new Map<string, {
+      wall: OperationsGymSettingSector['wall'];
+      sectors: OperationsGymSettingSector[];
+    }>();
+    for (const sector of sectorCatalog?.sectors ?? []) {
+      const group = groups.get(sector.wall.id);
+      if (group) group.sectors.push(sector);
+      else groups.set(sector.wall.id, { wall: sector.wall, sectors: [sector] });
+    }
+    return [...groups.values()];
+  }, [sectorCatalog]);
+  const sectorCount = sectorCatalog?.sectors.filter(
+    (sector) => sector.isActive && sector.wall.isActive,
+  ).length ?? 0;
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadGym(controller.signal);
+    void loadGymContext(controller.signal);
     return () => controller.abort();
   }, [gymId]);
 
@@ -149,11 +163,10 @@ export function OperationsSettingEvents() {
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
 
-  async function loadGym(signal?: AbortSignal) {
+  async function loadGymContext(signal?: AbortSignal) {
     setGymLoading(true);
     try {
-      const response = await getGym(gymId, signal);
-      setGym(response.data);
+      setSectorCatalog(await getOperationsGymSettingSectors(gymId, signal));
     } catch (nextError) {
       if (nextError instanceof DOMException && nextError.name === 'AbortError') return;
       setError(nextError instanceof Error ? nextError.message : '암장 정보를 불러오지 못했습니다.');
@@ -168,7 +181,7 @@ export function OperationsSettingEvents() {
     setConflict(false);
     try {
       const range = operationsMonthRange(targetMonth);
-      const nextEvents = await listOperationsSettingEvents({ ...range, gymId }, signal);
+      const nextEvents = await listOperationsGymSettingEvents(gymId, range, signal);
       setEvents(nextEvents);
       return nextEvents;
     } catch (nextError) {
@@ -292,7 +305,7 @@ export function OperationsSettingEvents() {
       };
       const next = editing
         ? await updateOperationsSettingEvent(editing.id, { ...fields, expectedUpdatedAt: editing.updatedAt })
-        : await createOperationsSettingEvent(gymId, fields);
+        : await createOperationsGymSettingEvent(gymId, fields);
       setEditing(next);
       setForm(formFromEvent(next));
       setDirty(false);
@@ -400,10 +413,10 @@ export function OperationsSettingEvents() {
             <label className="block text-sm font-black text-slate-700">제목 *<input required maxLength={100} value={form.title} onChange={(event) => changeForm('title', event.target.value)} className={inputClass} placeholder="예: A벽 정기 세팅" /></label>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2"><label className="block text-sm font-black text-slate-700">시작 *<input required type="datetime-local" value={form.startsAt} onChange={(event) => changeForm('startsAt', event.target.value)} className={inputClass} /></label><label className="block text-sm font-black text-slate-700">종료<input type="datetime-local" min={form.startsAt} value={form.endsAt} onChange={(event) => changeForm('endsAt', event.target.value)} className={inputClass} /></label></div>
             <label className="block text-sm font-black text-slate-700">메모<textarea maxLength={1000} value={form.note} onChange={(event) => changeForm('note', event.target.value)} className={`${inputClass} min-h-24 py-3`} placeholder="운영자와 사용자에게 필요한 안내" /></label>
-            <fieldset><legend className="text-sm font-black text-slate-700">대상 구역 * <span className="font-medium text-slate-500">(여러 개 선택 가능)</span></legend><div className="mt-2 max-h-64 space-y-3 overflow-y-auto rounded-xl border border-slate-200 p-3">{gym.walls.map((wall) => {
-              const visibleSectors = wall.sectors.filter((sector) => (wall.isActive && sector.isActive) || form.sectorIds.includes(sector.id));
+            <fieldset><legend className="text-sm font-black text-slate-700">대상 구역 * <span className="font-medium text-slate-500">(여러 개 선택 가능)</span></legend><div className="mt-2 max-h-64 space-y-3 overflow-y-auto rounded-xl border border-slate-200 p-3">{sectorGroups.map(({ wall, sectors }) => {
+              const visibleSectors = sectors.filter((sector) => (wall.isActive && sector.isActive) || form.sectorIds.includes(sector.id));
               if (visibleSectors.length === 0) return null;
-              const wholeWall = visibleSectors.length === 1 && visibleSectors[0].name === wall.name;
+              const wholeWall = visibleSectors.length === 1 && visibleSectors[0].representsWholeWall;
               return <div key={wall.id}>{!wholeWall && <p className="text-xs font-black uppercase tracking-wide text-slate-500">{wall.name}</p>}<div className={`${wholeWall ? '' : 'mt-1'} grid gap-1 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2`}>{visibleSectors.map((sector) => {
                 const active = wall.isActive && sector.isActive;
                 const checked = form.sectorIds.includes(sector.id);

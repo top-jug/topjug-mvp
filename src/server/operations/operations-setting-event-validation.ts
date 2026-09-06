@@ -22,12 +22,13 @@ function validateTimeRange(
   }
 }
 
-export const listOperationsSettingEventsSchema = z.object({
+const listOperationsSettingEventFields = {
   from: dateTimeSchema,
   to: dateTimeSchema,
-  gymId: z.string().uuid().optional(),
   status: statusSchema.optional(),
-}).strict().superRefine((input, context) => {
+};
+
+function validateListTimeRange(input: { from: string; to: string }, context: z.RefinementCtx) {
   if (new Date(input.to) < new Date(input.from)) {
     context.addIssue({
       code: 'custom',
@@ -35,16 +36,33 @@ export const listOperationsSettingEventsSchema = z.object({
       path: ['to'],
     });
   }
-});
+}
 
-export const createOperationsSettingEventSchema = z.object({
-  gymId: z.string().uuid(),
+export const listOperationsSettingEventsSchema = z.object({
+  ...listOperationsSettingEventFields,
+  gymId: z.string().uuid().optional(),
+}).strict().superRefine(validateListTimeRange);
+
+export const listOperationsGymSettingEventsSchema = z.object(
+  listOperationsSettingEventFields,
+).strict().superRefine(validateListTimeRange);
+
+const createOperationsSettingEventFields = {
   title: titleSchema,
   startsAt: dateTimeSchema,
   endsAt: dateTimeSchema.nullable(),
   note: noteSchema,
   sectorIds: sectorIdsSchema,
+};
+
+export const createOperationsSettingEventSchema = z.object({
+  gymId: z.string().uuid(),
+  ...createOperationsSettingEventFields,
 }).strict().superRefine(validateTimeRange);
+
+export const createOperationsGymSettingEventSchema = z.object(
+  createOperationsSettingEventFields,
+).strict().superRefine(validateTimeRange);
 
 export const updateOperationsSettingEventSchema = z.object({
   title: titleSchema.optional(),

@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { afterEach, mock, test } from 'node:test';
 import {
   addOperationsGymPhoto,
-  createOperationsSettingEvent,
+  createOperationsGymSettingEvent,
   deleteOperationsGymPhoto,
   deleteOperationsSettingEvent,
-  listOperationsSettingEvents,
+  listOperationsGymSettingEvents,
   updateOperationsSettingEvent,
 } from '../../apps/admin/src/features/operations/api';
 import { apiClient } from '../../src/lib/api/client';
@@ -77,8 +77,7 @@ test('operations setting-event API sends filters, fields, versions, and soft del
   });
   apiClient.setAccessToken('operations-token');
 
-  await listOperationsSettingEvents({
-    gymId: 'gym-1',
+  await listOperationsGymSettingEvents('gym-1', {
     status: 'scheduled',
     from: '2026-08-31T15:00:00.000Z',
     to: '2026-09-30T14:59:59.999Z',
@@ -90,18 +89,18 @@ test('operations setting-event API sends filters, fields, versions, and soft del
     note: null,
     sectorIds: ['sector-1'],
   };
-  await createOperationsSettingEvent('gym-1', fields);
+  await createOperationsGymSettingEvent('gym-1', fields);
   await updateOperationsSettingEvent('event-1', {
     status: 'completed',
     expectedUpdatedAt: settingEvent.updatedAt,
   });
   await deleteOperationsSettingEvent('event-1', settingEvent.updatedAt);
 
-  assert.equal(requests[0].url, '/api/v1/ops/setting-events?from=2026-08-31T15%3A00%3A00.000Z&to=2026-09-30T14%3A59%3A59.999Z&gymId=gym-1&status=scheduled');
+  assert.equal(requests[0].url, '/api/v1/ops/gyms/gym-1/setting-events?from=2026-08-31T15%3A00%3A00.000Z&to=2026-09-30T14%3A59%3A59.999Z&status=scheduled');
   assert.equal(requests[0].init?.method, undefined);
-  assert.equal(requests[1].url, '/api/v1/ops/setting-events');
+  assert.equal(requests[1].url, '/api/v1/ops/gyms/gym-1/setting-events');
   assert.equal(requests[1].init?.method, 'POST');
-  assert.equal(requests[1].init?.body, JSON.stringify({ gymId: 'gym-1', ...fields }));
+  assert.equal(requests[1].init?.body, JSON.stringify(fields));
   assert.equal(requests[2].url, '/api/v1/ops/setting-events/event-1');
   assert.equal(requests[2].init?.method, 'PATCH');
   assert.equal(requests[2].init?.body, JSON.stringify({ status: 'completed', expectedUpdatedAt: settingEvent.updatedAt }));
